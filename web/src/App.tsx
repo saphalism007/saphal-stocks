@@ -131,6 +131,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           <button className="btn ghost menu-btn" onClick={() => setOpen(!open)} aria-label="Menu"><I.menu /></button>
           <GlobalSearch />
           <div style={{ marginLeft: "auto" }} className="row">
+            <MarketBadge />
             <span className="small faint" title="Asia/Kathmandu">{new Date().toLocaleString("en-GB", { timeZone: "Asia/Kathmandu", weekday: "short", hour: "2-digit", minute: "2-digit" })} NPT</span>
             <button className="btn ghost" onClick={toggle} aria-label="Toggle theme">{theme === "dark" ? <I.sun /> : <I.moon />}</button>
           </div>
@@ -167,15 +168,26 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   );
 }
 
+const ACTIONS: { label: string; hint: string; run: (nav: (p: string) => void, toggle: () => void) => void }[] = [
+  { label: "Refresh all market data", hint: "action", run: async () => { await api("/data/refresh", { body: { job: "all" } }); alert("Refresh queued. Progress is on Settings → Data."); } },
+  { label: "Toggle dark / light theme", hint: "action", run: (_n, t) => t() },
+  { label: "New AI conversation", hint: "action", run: (n) => n("/analyst") },
+  { label: "Log a trade in the journal", hint: "action", run: (n) => n("/journal") },
+  { label: "Add a portfolio transaction", hint: "action", run: (n) => n("/portfolio") },
+  { label: "Check data quality", hint: "action", run: (n) => n("/settings") },
+  { label: "Open IPO / right share tracker", hint: "action", run: (n) => n("/opportunities") },
+];
+
 function GlobalSearch() {
   const [q, setQ] = useState("");
   const [res, setRes] = useState<{ symbol: string; name: string; sector: string }[]>([]);
   const [sel, setSel] = useState(0);
   const nav = useNavigate();
+  const { toggle } = useTheme();
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!q.trim()) { setRes([]); return; }
-    const id = setTimeout(() => api<typeof res>(`/search?q=${encodeURIComponent(q)}`).then((r) => { setRes(r); setSel(0); }).catch(() => {}), 120);
+    const id = setTimeout(() => api<typeof res>(`/search?q=${encodeURIComponent(q.replace(/^>/, ""))}`).then((r) => { setRes(r.slice(0, 8)); setSel(0); }).catch(() => {}), 120);
     return () => clearTimeout(id);
   }, [q]);
   useEffect(() => {
@@ -183,23 +195,47 @@ function GlobalSearch() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, []);
-  const go = (s: string) => { setQ(""); setRes([]); nav(`/stocks/${s}`); };
+  const term = q.trim().replace(/^>/, "").toLowerCase();
+  const pages = term ? NAV.filter((n) => n.label.toLowerCase().includes(term)).slice(0, 5) : [];
+  const actions = term ? ACTIONS.filter((a) => a.label.toLowerCase().includes(term)).slice(0, 4) : [];
+  type Item = { key: string; label: string; sub: string; tag: string; go: () => void };
+  const items: Item[] = [
+    ...res.map((r) => ({ key: "s" + r.symbol, label: r.symbol, sub: r.name, tag: r.sector, go: () => nav(`/stocks/${r.symbol}`) })),
+    ...pages.map((p) => ({ key: "p" + p.to, label: p.label, sub: "Go to page", tag: "page", go: () => nav(p.to) })),
+    ...actions.map((a) => ({ key: "a" + a.label, label: a.label, sub: "", tag: "action", go: () => a.run(nav, toggle) })),
+  ];
+  const go = (it: Item) => { setQ(""); setRes([]); it.go(); (document.activeElement as HTMLElement | null)?.blur(); };
   return (
     <div className="search" ref={box}>
       <I.search />
-      <input className="input" placeholder="Search NEPSE stocks (Ctrl/⌘ K)" value={q} onChange={(e) => setQ(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "ArrowDown") setSel((s) => Math.min(s + 1, res.length - 1)); if (e.key === "ArrowUp") setSel((s) => Math.max(s - 1, 0)); if (e.key === "Enter" && res[sel]) go(res[sel].symbol); if (e.key === "Escape") setQ(""); }} />
-      {res.length > 0 && (
+      <input className="input" placeholder="Search stocks, pages or actions (Ctrl/⌘ K)" value={q} onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); } if (e.key === "Enter" && items[sel]) go(items[sel]); if (e.key === "Escape") setQ(""); }} />
+      {items.length > 0 && (
         <div className="search-results">
-          {res.map((r, i) => (
-            <button key={r.symbol} className={i === sel ? "on" : ""} onMouseDown={() => go(r.symbol)}>
-              <span className="mono" style={{ fontWeight: 600, minWidth: 64 }}>{r.symbol}</span>
-              <span className="muted" style={{ flex: 1 }}>{r.name}</span>
-              <span className="tiny faint">{r.sector}</span>
+          {items.map((it, i) => (
+            <button key={it.key} className={i === sel ? "on" : ""} onMouseDown={() => go(it)}>
+              <span className={it.tag === "page" || it.tag === "action" ? "" : "mono"} style={{ fontWeight: 600, minWidth: 64 }}>{it.label}</span>
+              <span className="muted" style={{ flex: 1 }}>{it.sub}</span>
+              <span className="tiny faint">{it.tag}</span>
             </button>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function MarketBadge() {
+  const m = useApi<{ session: string; live: boolean; lastUpdate: string | null; dataDate: string | null; holiday: boolean; note: string; hours: string }>("/market/status");
+  useEffect(() => { const id = setInterval(() => m.reload(), 60_000); return () => clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!m.data) return null;
+  const d = m.data;
+  const label = d.session === "open" ? (d.live ? "Market open · live" : "Market open") : d.session === "pre-open" ? "Opens 11:00" : d.holiday ? "No trading today" : "Market closed";
+  const mins = d.lastUpdate ? Math.round((Date.now() - Date.parse(d.lastUpdate)) / 60000) : null;
+  return (
+    <span className="badge" title={`${d.note} Hours ${d.hours}. Data date ${d.dataDate ?? "—"}.`} style={{ gap: 6 }}>
+      <span className="dot" style={{ background: d.session === "open" ? "var(--up)" : d.session === "pre-open" ? "var(--warn)" : "var(--text-3)" }} />
+      {label}{d.session === "open" && mins != null ? ` · ${mins} min ago` : ""}
+    </span>
   );
 }

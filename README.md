@@ -4,7 +4,13 @@ A personal financial intelligence platform for Nepal: NEPSE market data and rese
 
 Everything runs on your own computer. Market data comes from public sources (see [DATA_SOURCES.md](DATA_SOURCES.md)); your portfolio and financial profile stay in a local, encrypted database.
 
-## Run it
+## Easiest way to start
+
+Double-click **Start Saphal Stocks.command** in this folder. The first time it installs and builds (a few minutes), then it opens the app in your browser at http://127.0.0.1:5181. Keep the Terminal window open while you use it; close it to stop.
+
+To use it from your phone on the same home Wi-Fi, double-click **Start on Wi-Fi.command** instead and open the address it prints. Only do this on a trusted network.
+
+## Run it (developer mode)
 
 Needs Node.js 22.13 or newer (it uses Node's built-in SQLite).
 
@@ -39,6 +45,8 @@ Created automatically on first run. Never commit it.
 | `AI_EFFORT` | `low`, `medium` (default), `high`, `xhigh`, `max` |
 | `ANTHROPIC_API_KEY` | Your API key (can also be set in Settings → AI) |
 | `INGEST_DAILY_AT` | Daily refresh time in Nepal time (default 15:45, after market close) |
+| `HOST` | `127.0.0.1` (default, this computer only) or `0.0.0.0` (local network) |
+| `INTRADAY_REFRESH_MIN` | Minutes between live price refreshes during market hours, 11:00-15:00 NPT (default 5, 0 = off) |
 | `BACKUP_KEEP_DAYS` | Automatic daily backups to keep in `data/backups` (default 7) |
 
 Without an API key the AI Stock Analyst still works in "data report" mode (stock reports, comparisons, rankings, support and breakout scans, portfolio review) and nothing is sent outside your computer.
@@ -65,7 +73,7 @@ tests/       Vitest suites
 
 ## Security
 
-- Local only: the server binds to 127.0.0.1.
+- Local only by default: the server binds to 127.0.0.1 (set `HOST=0.0.0.0` only on a trusted network).
 - Passwords hashed with scrypt; HTTP-only, SameSite=Strict session cookies; login rate limiting; origin checks on state-changing requests.
 - Sensitive personal data encrypted with AES-256-GCM.
 - Input validation on every endpoint (zod). Security headers set; CSP in production.

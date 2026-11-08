@@ -8,6 +8,7 @@ import { technicalSnapshot } from "../../shared/signals.ts";
 import { detectPatterns } from "../../shared/patterns.ts";
 import { analyzeLevels } from "../../shared/levels.ts";
 import { readVault } from "./vault.ts";
+import { desktopNotify } from "./desktop.ts";
 import { planGoal } from "../../shared/planner.ts";
 
 export const ALERT_TYPES = [
@@ -38,6 +39,7 @@ function notify(userId: number, alertId: number | null, kind: string, title: str
   if (alertId && get("SELECT 1 FROM notifications WHERE alert_id = ? AND data_date IS ?", alertId, dataDate)) return false;
   if (!alertId && get("SELECT 1 FROM notifications WHERE user_id = ? AND alert_id IS NULL AND kind = ? AND title = ? AND data_date IS ?", userId, kind, title, dataDate)) return false;
   run("INSERT INTO notifications (user_id, alert_id, kind, title, body, symbol, data_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", userId, alertId, kind, title, body, symbol, dataDate, nowIso());
+  void desktopNotify(title, body);
   return true;
 }
 

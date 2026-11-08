@@ -12,7 +12,7 @@ import { portfolioRouter } from "./routes/portfolio.ts";
 import { aiRouter } from "./routes/ai.ts";
 import { wealthRouter } from "./routes/wealth.ts";
 import { systemRouter } from "./routes/system.ts";
-import { startScheduler, onJobDone } from "./ingest/jobs.ts";
+import { startScheduler, onJobDone, startIntradayPoller } from "./ingest/jobs.ts";
 import { evaluateAlerts } from "./lib/alerts.ts";
 import { dailyBackup } from "./lib/backup.ts";
 
@@ -56,10 +56,12 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 // Re-evaluate alerts whenever fresh market data lands.
 onJobDone((job) => { if (["listing", "details", "news"].includes(job)) { try { const n = evaluateAlerts(); if (n) console.log(`[alerts] ${n} fired`); } catch (e) { console.error(e); } } });
 
-app.listen(config.port, "127.0.0.1", () => {
-  console.log(`Saphal Stocks API on http://127.0.0.1:${config.port}  (AI: ${config.ai.provider}${config.ai.hasKey ? "" : ", no key"})`);
+app.listen(config.port, config.host, () => {
+  console.log(`Saphal Stocks API on http://${config.host}:${config.port}  (AI: ${config.ai.provider}${config.ai.hasKey ? "" : ", no key"})`);
+  if (config.host !== "127.0.0.1") console.warn("[security] Listening on your local network. Use only on a trusted network; sign-in protects your data.");
   if (process.env.NO_SCHEDULER !== "1") {
     startScheduler();
+    startIntradayPoller();
     const backupTick = () => { try { const f = dailyBackup(); if (f) console.log(`[backup] ${f}`); } catch (e) { console.error("[backup]", e); } };
     backupTick();
     setInterval(backupTick, 3_600_000);

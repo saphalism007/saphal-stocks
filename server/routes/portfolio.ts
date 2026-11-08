@@ -295,3 +295,8 @@ portfolioRouter.get("/portfolios/:id/export/:what", (req, res) => {
   }
   res.status(404).json({ error: "Unknown export" });
 });
+
+// ---------- saved screens (per user) ----------
+const screenSchema = z.array(z.object({ name: z.string().trim().min(1).max(60), sector: z.string().max(80).default(""), q: z.string().max(60).default(""), filters: z.record(z.union([z.string().max(20), z.boolean()])) })).max(50);
+portfolioRouter.get("/screens", (req, res) => res.json(getSetting(`screens:${uid(req)}`, [])));
+portfolioRouter.put("/screens", (req, res) => { setSetting(`screens:${uid(req)}`, screenSchema.parse(req.body)); res.json({ ok: true }); });

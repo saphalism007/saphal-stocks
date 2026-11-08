@@ -28,6 +28,7 @@ if (!/^[0-9a-f]{64}$/i.test(process.env.SAPHAL_SECRET_KEY || "")) {
 
 export const config = {
   port: Number(process.env.API_PORT || 5181),
+  host: process.env.HOST || "127.0.0.1", // 0.0.0.0 = reachable on your local network (use only on trusted Wi-Fi)
   secretKey: Buffer.from(process.env.SAPHAL_SECRET_KEY as string, "hex"),
   dbPath: join(DATA_DIR, "saphal-stocks.db"),
   isProd: process.env.NODE_ENV === "production",

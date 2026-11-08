@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { join } from "node:path";
 import { all, get, run, db, getSetting, setSetting } from "../db.ts";
-import { jobStates, enqueue, queueDailyRefresh, syncListing, syncHistory, syncIndices, syncNews, syncForex, syncAllDetails, syncIssues, syncFunds } from "../ingest/jobs.ts";
+import { marketStatus, jobStates, enqueue, queueDailyRefresh, syncListing, syncHistory, syncIndices, syncNews, syncForex, syncAllDetails, syncIssues, syncFunds } from "../ingest/jobs.ts";
 import { evaluateAlerts } from "../lib/alerts.ts";
 import { DEFAULT_FEES } from "../../shared/costs.ts";
 import { config, setEnvValue, DATA_DIR } from "../config.ts";
@@ -10,6 +10,7 @@ import { readVault } from "../lib/vault.ts";
 import { politeFetch } from "../lib/fetcher.ts";
 import { dataQuality } from "../lib/dataQuality.ts";
 import { listBackups } from "../lib/backup.ts";
+import { desktopSupported, desktopEnabled, desktopNotify } from "../lib/desktop.ts";
 
 export const systemRouter = Router();
 
@@ -125,3 +126,7 @@ systemRouter.post("/backup", (_req, res) => {
 
 systemRouter.get("/data/quality", (_req, res) => res.json(dataQuality()));
 systemRouter.get("/backups", (_req, res) => res.json({ dir: "data/backups", files: listBackups(), keepDays: Number(process.env.BACKUP_KEEP_DAYS || 7) }));
+systemRouter.get("/market/status", (_req, res) => res.json(marketStatus()));
+systemRouter.get("/settings/notifications", (_req, res) => res.json({ supported: desktopSupported(), enabled: desktopEnabled() }));
+systemRouter.put("/settings/notifications", (req, res) => { const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body); setSetting("desktopNotifications", enabled); res.json({ ok: true, enabled: desktopEnabled() }); });
+systemRouter.post("/settings/notifications/test", async (_req, res) => res.json({ sent: await desktopNotify("Test notification", "Alerts will appear like this when their conditions are met.", true) }));

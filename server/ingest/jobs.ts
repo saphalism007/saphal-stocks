@@ -362,3 +362,44 @@ export function startScheduler() {
   const latest = get<{ last_success_at: string }>("SELECT last_success_at FROM data_freshness WHERE dataset = 'prices_latest'");
   if (!latest || Date.now() - Date.parse(latest.last_success_at) > 12 * 3_600_000) queueDailyRefresh();
 }
+
+// ---------- intraday refresh during market hours ----------
+const OPEN = 11 * 60, CLOSE = 15 * 60;
+let holidayDate = "";
+
+/** Weekdays (0=Sun..6=Sat) on which NEPSE traded at least 3 times in the last 60 days. */
+export function tradingWeekdays(): number[] {
+  const rows = all<{ date: string }>("SELECT date FROM indices WHERE index_id = 12 AND date >= date('now', '-60 days')");
+  const c: Record<number, number> = {};
+  for (const r of rows) { const w = new Date(r.date + "T00:00:00Z").getUTCDay(); c[w] = (c[w] ?? 0) + 1; }
+  const days = Object.entries(c).filter(([, n]) => n >= 3).map(([w]) => Number(w));
+  return days.length ? days : [1, 2, 3, 4, 5];
+}
+
+export function marketStatus() {
+  const n = nptNow();
+  const tradingDay = tradingWeekdays().includes(n.weekday) && holidayDate !== n.date;
+  const session = !tradingDay ? "closed" : n.minutes < OPEN ? "pre-open" : n.minutes <= CLOSE ? "open" : "closed";
+  const f = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM data_freshness WHERE dataset = 'prices_latest'");
+  return {
+    nptDate: n.date, nptTime: `${String(Math.floor(n.minutes / 60)).padStart(2, "0")}:${String(n.minutes % 60).padStart(2, "0")}`,
+    tradingDay, holiday: holidayDate === n.date, session, hours: "11:00-15:00 NPT",
+    lastUpdate: f?.last_success_at ?? null, dataDate: f?.as_of ?? null,
+    live: session === "open" && !!f && f.as_of === n.date,
+    note: "During market hours prices refresh about every 5 minutes from ShareSansar (delayed, not tick-by-tick). Official closing data is loaded after 15:45.",
+  };
+}
+
+export function startIntradayPoller(intervalMin = Number(process.env.INTRADAY_REFRESH_MIN || 5)) {
+  if (intervalMin <= 0) return;
+  setInterval(() => {
+    const n = nptNow();
+    if (!tradingWeekdays().includes(n.weekday) || holidayDate === n.date) return;
+    if (n.minutes < OPEN || n.minutes > CLOSE + 10) return;
+    const f = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM data_freshness WHERE dataset = 'prices_latest'");
+    if (f && Date.now() - Date.parse(f.last_success_at) < intervalMin * 60_000) return;
+    // If by 11:45 the source still shows an older trading date, treat today as a holiday and stop polling.
+    if (f && n.minutes > OPEN + 45 && f.as_of !== n.date && Date.now() - Date.parse(f.last_success_at) < 20 * 60_000) { holidayDate = n.date; console.log(`[intraday] no trading detected on ${n.date}; polling paused for today`); return; }
+    enqueue("listing", (s) => syncListing(s));
+  }, 60_000);
+}

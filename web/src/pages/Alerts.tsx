@@ -13,6 +13,7 @@ export default function Alerts() {
   const types = useApi<any[]>("/alerts/types");
   const [creating, setCreating] = useState(false);
   const [checking, setChecking] = useState(false);
+  const desk = useApi<{ supported: boolean; enabled: boolean }>("/settings/notifications");
   const label = (t: string) => types.data?.find((x) => x.type === t)?.label ?? t;
   const check = async () => { setChecking(true); try { await api("/alerts/evaluate", { body: {} }); notes.reload(); alerts.reload(); } finally { setChecking(false); } };
   return (
@@ -46,6 +47,12 @@ export default function Alerts() {
           ]} />
         </Card>
       </div>
+      {desk.data?.supported && (
+        <Card title="Desktop notifications" actions={<button className="btn sm" onClick={() => api("/settings/notifications/test", { body: {} })}>Send test</button>}>
+          <label className="chk"><input type="checkbox" checked={desk.data.enabled} onChange={async (e) => { await api("/settings/notifications", { method: "PUT", body: { enabled: e.target.checked } }); desk.reload(); }} /> Show a macOS notification when an alert or reminder fires (while the server is running)</label>
+          <p className="tiny faint" style={{ marginTop: 6 }}>If nothing appears, allow notifications for "Script Editor" / your terminal in System Settings → Notifications.</p>
+        </Card>
+      )}
       <Card title="Daily market briefing">
         <p className="small muted">Your briefing is on the <Link to="/">Overview</Link> page: what happened in NEPSE, stocks that deserve attention, developing setups, new reports, portfolio changes and new opportunities. It refreshes after the daily data update ({"15:45"} NPT by default, configurable in .env).</p>
       </Card>

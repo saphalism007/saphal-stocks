@@ -1,6 +1,6 @@
 # Progress
 
-Status as of 8 November 2026 (version 0.4.0). ✅ working · 🟡 partial · ⬜ not started.
+Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜ not started.
 
 ## Data infrastructure
 - ✅ Company database, daily OHLCV history (nepse-data), latest prices, 18 indices, dividends, announcements, quarterly statements, NRB forex
@@ -9,7 +9,8 @@ Status as of 8 November 2026 (version 0.4.0). ✅ working · 🟡 partial · ⬜
 - ✅ Bonus-share and right-share price adjustment (evidence-based: applied only when the expected ex-date gap is found)
 - ✅ Data quality monitor: impossible OHLC, stale/suspended stocks, unexplained moves beyond the daily band, unbalanced balance sheets, outdated or missing statements, price/index date mismatch
 - 🟡 Statement history accumulates from now on (source offers only the latest quarter)
-- ⬜ Intraday data (no permitted source)
+- ✅ Live (delayed) price refresh every 5 minutes during market hours on trading days, with holiday detection; market status badge; provisional-bar warning on stock pages
+- ⬜ Tick-by-tick intraday data (no permitted source)
 
 - ✅ Public issues (IPO/FPO/rights/quotas) and listed mutual fund NAVs, refreshed daily
 - ✅ Daily scheduler remembers its last run across restarts
@@ -20,7 +21,8 @@ Status as of 8 November 2026 (version 0.4.0). ✅ working · 🟡 partial · ⬜
 - ✅ Sector peers on every stock page with rank among peers
 - ✅ Stock comparison page (up to 6 stocks): rebased price chart, valuation, profitability, health, dividends, performance, best-in-row highlighting, cross-sector warning
 - ✅ Market dashboard: indices, breadth, turnover, gainers/losers, turnover/volume leaders, 52-week highs/lows, sector performance and sub-index heat map, NEPSE trend, breadth history
-- ✅ Stocks list and screener (valuation, ROE, yield, trend, liquidity, scores)
+- ✅ Stocks list and screener (valuation, ROE, yield, trend, liquidity, scores) with built-in presets and saved screens
+- ✅ Command palette (Ctrl/⌘ K): stocks, pages and actions
 - ✅ Company research page: summary verdict, chart, technicals, support/resistance, fundamentals, statements, dividends, announcements, backtest; watch and alert shortcuts
 - 🟡 Company profile has no management/board/major shareholder data (not available from the current source)
 
@@ -72,7 +74,12 @@ Status as of 8 November 2026 (version 0.4.0). ✅ working · 🟡 partial · ⬜
 - ✅ Daily briefing on the Overview page (all six questions), customizable (show/hide, reorder sections)
 - ✅ News and announcements feed with categories and AI explanation
 - ✅ Learning center: 16 Nepal-focused lessons
-- ⬜ Email/phone push notifications (in-app only)
+- ✅ macOS desktop notifications for alerts and reminders (toggle + test on the Alerts page)
+- ⬜ Email/phone push notifications
+
+## Running it
+- ✅ Double-click launcher (`Start Saphal Stocks.command`) that installs, builds when needed and opens the browser; `Start on Wi-Fi.command` for phone access on a home network
+- ✅ Production mode serves the web app and API from one port with CSP and security headers
 
 ## Security
 - ✅ Automatic daily database backups (7 kept, `BACKUP_KEEP_DAYS`)

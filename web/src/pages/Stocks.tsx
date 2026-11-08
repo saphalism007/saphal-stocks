@@ -1,16 +1,37 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useApi } from "../lib/api.ts";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { api, useApi } from "../lib/api.ts";
 import { Card, Loading, ErrorBox, DataTable, Score, Fresh, Badge } from "../components/ui.tsx";
 import { num, pct, tone, compact } from "../lib/format.ts";
 
 export interface StockRow { symbol: string; name: string | null; sector: string | null; date: string | null; close: number | null; change_pct: number | null; turnover: number | null; marketCap: number | null; fundamentalScore: number | null; technicalScore: number | null; pe: number | null; pb: number | null; roe: number | null; cashYield: number | null; return3m: number | null; return1y: number | null; trend: string | null; rsi: number | null; reports: number; high52: number | null; low52: number | null; avgTurnover20: number | null }
 
+type Filters = { maxPe: string; maxPb: string; minRoe: string; minYield: string; trend: string; minFund: string; liquid: boolean };
+const EMPTY: Filters = { maxPe: "", maxPb: "", minRoe: "", minYield: "", trend: "", minFund: "", liquid: false };
+const BUILT_IN: { name: string; sector: string; q: string; filters: Partial<Filters> }[] = [
+  { name: "Value banks", sector: "Commercial Bank", q: "", filters: { maxPb: "2", minRoe: "12" } },
+  { name: "Dividend payers", sector: "", q: "", filters: { minYield: "3", liquid: true } },
+  { name: "Quality in uptrend", sector: "", q: "", filters: { minFund: "60", trend: "uptrend", liquid: true } },
+  { name: "Cheap hydropower", sector: "Hydropower", q: "", filters: { maxPb: "2.5", minRoe: "5" } },
+  { name: "Low P/E, profitable", sector: "", q: "", filters: { maxPe: "15", minRoe: "10", liquid: true } },
+];
+
 export default function Stocks() {
   const { data, error, loading, reload } = useApi<StockRow[]>("/stocks");
+  const [params] = useSearchParams();
   const [q, setQ] = useState("");
-  const [sector, setSector] = useState("");
-  const [f, setF] = useState({ maxPe: "", maxPb: "", minRoe: "", minYield: "", trend: "", minFund: "", liquid: false });
+  const [sector, setSector] = useState(params.get("sector") ?? "");
+  const [f, setF] = useState<Filters>(EMPTY);
+  const saved = useApi<{ name: string; sector: string; q: string; filters: Partial<Filters> }[]>("/screens");
+  useEffect(() => { const s2 = params.get("sector"); if (s2) setSector(s2); }, [params]);
+  const apply = (p: { sector: string; q: string; filters: Partial<Filters> }) => { setSector(p.sector); setQ(p.q); setF({ ...EMPTY, ...p.filters }); };
+  const saveScreen = async () => {
+    const name = prompt("Name this screen");
+    if (!name) return;
+    const list = [...(saved.data ?? []).filter((x) => x.name !== name), { name, sector, q, filters: f }];
+    await api("/screens", { method: "PUT", body: list }); saved.reload();
+  };
+  const removeScreen = async (name: string) => { await api("/screens", { method: "PUT", body: (saved.data ?? []).filter((x) => x.name !== name) }); saved.reload(); };
   const nav = useNavigate();
   const sectors = useMemo(() => [...new Set((data || []).map((r) => r.sector).filter(Boolean))].sort() as string[], [data]);
   const rows = useMemo(() => (data || []).filter((r) => {
@@ -34,7 +55,12 @@ export default function Stocks() {
       <div className="page-head">
         <div><h1>Stocks</h1><p>All {data?.length ?? 0} active NEPSE securities with prices, valuation and scores. Click a row for the full research page. <Fresh date={asOf} /></p></div>
       </div>
-      <Card title="Screener">
+      <Card title="Screener" actions={<><button className="btn sm" onClick={() => apply({ sector: "", q: "", filters: {} })}>Clear</button><button className="btn sm" onClick={saveScreen}>Save screen</button></>}>
+        <div className="row" style={{ marginBottom: 10 }}>
+          <span className="tiny faint">Presets:</span>
+          {BUILT_IN.map((p) => <button key={p.name} className="chip" onClick={() => apply(p)}>{p.name}</button>)}
+          {(saved.data ?? []).map((p) => <span key={p.name} className="chip" style={{ borderColor: "var(--accent)" }}><button className="btn ghost sm" style={{ padding: 0 }} onClick={() => apply(p)}>★ {p.name}</button><button className="btn ghost sm" style={{ padding: 0 }} onClick={() => removeScreen(p.name)} aria-label={`Delete ${p.name}`}>×</button></span>)}
+        </div>
         <div className="form-grid">
           <label className="field">Search<input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Symbol or name" /></label>
           <label className="field">Sector<select className="input" value={sector} onChange={(e) => setSector(e.target.value)}><option value="">All sectors</option>{sectors.map((s) => <option key={s}>{s}</option>)}</select></label>

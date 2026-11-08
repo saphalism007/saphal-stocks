@@ -91,7 +91,11 @@ export function analyzeStock(symbol: string) {
   return {
     symbol: sym, company: c, quote: quote(sym), lastBar, bars: b.bars.length, adjustments: b.adjustments, rightAdjustments: b.rightAdjustments, skippedAdjustments: b.skippedAdjustments,
     technical: sig.snapshot, levels: sig.levels, patterns: sig.patterns, setups: sig.setups, fundamentals: fa,
-    dataFreshness: { lastPriceDate: lastBar?.date ?? null, latestReport: fa?.latestPeriod ?? null, companyInfoFetched: c?.info_fetched_at ?? null },
+    dataFreshness: {
+      lastPriceDate: lastBar?.date ?? null, latestReport: fa?.latestPeriod ?? null, companyInfoFetched: c?.info_fetched_at ?? null,
+      // During market hours the latest bar is built from live (delayed) prices and can still change.
+      provisional: (() => { const npt = new Date(Date.now() + 345 * 60_000); const mins = npt.getUTCHours() * 60 + npt.getUTCMinutes(); return lastBar?.date === npt.toISOString().slice(0, 10) && mins < 15 * 60 + 45; })(),
+    },
   };
 }
 
@@ -167,8 +171,10 @@ export function marketSummary() {
 // ---------- factors for ranking (cached per data date) ----------
 let factorCache: { key: string; rows: StockFactors[] } | null = null;
 
+const priceStamp = () => get<{ t: string }>("SELECT last_success_at t FROM data_freshness WHERE dataset = 'prices_latest'")?.t ?? "";
+
 export function allFactors(): StockFactors[] {
-  const key = `${latestTradingDate()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}|${get<{ n: number }>("SELECT COUNT(*) n FROM dividends")?.n}`;
+  const key = `${latestTradingDate()}|${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}|${get<{ n: number }>("SELECT COUNT(*) n FROM dividends")?.n}`;
   if (factorCache?.key === key) return factorCache.rows;
   const cos = all<{ symbol: string; name: string | null; sector: string | null }>(
     "SELECT c.symbol, c.name, c.sector FROM companies c JOIN quotes q ON q.symbol = c.symbol WHERE c.status = 'active'",
@@ -210,7 +216,7 @@ export function allFactors(): StockFactors[] {
 
 let setupCache: { key: string; rows: ReturnType<typeof computeSetups> } | null = null;
 export function allSetups(limit = 100) {
-  const key = `${latestTradingDate()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}`;
+  const key = `${latestTradingDate()}|${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}`;
   if (setupCache?.key !== key) setupCache = { key, rows: computeSetups() };
   return setupCache.rows.slice(0, limit);
 }

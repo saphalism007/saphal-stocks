@@ -37,11 +37,11 @@ export function sameOrigin(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-function setSession(res: Response, userId: number, ua?: string) {
+function setSession(res: Response, userId: number, ua?: string, secure = false) {
   const token = newToken();
   const exp = new Date(Date.now() + SESSION_DAYS * 86_400_000);
   run("INSERT INTO sessions (token_hash, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)", tokenHash(token), userId, nowIso(), exp.toISOString(), (ua || "").slice(0, 200));
-  res.cookie(COOKIE, token, { httpOnly: true, sameSite: "strict", secure: config.isProd && process.env.COOKIE_SECURE !== "0", expires: exp, path: "/" });
+  res.cookie(COOKIE, token, { httpOnly: true, sameSite: "strict", secure, expires: exp, path: "/" });
 }
 
 const creds = z.object({ username: z.string().trim().min(3).max(40).regex(/^[a-zA-Z0-9._-]+$/, "Use letters, numbers, dot, dash or underscore"), password: z.string().min(10, "Use at least 10 characters").max(200) });
@@ -61,7 +61,7 @@ authRouter.post("/setup", (req, res) => {
   run("INSERT INTO watchlists (user_id, name, created_at) VALUES (?, 'My watchlist', ?)", id, nowIso());
   run("INSERT INTO portfolios (user_id, name, kind, strategy, created_at) VALUES (?, 'Long-term investments', 'real', 'Long-term', ?)", id, nowIso());
   run("INSERT INTO portfolios (user_id, name, kind, strategy, paper_cash, created_at) VALUES (?, 'Paper trading', 'paper', 'Swing trading', 1000000, ?)", id, nowIso());
-  setSession(res, id, req.get("user-agent"));
+  setSession(res, id, req.get("user-agent"), req.secure);
   res.json({ ok: true, user: { id, username: p.username } });
 });
 
@@ -78,7 +78,7 @@ authRouter.post("/login", (req, res) => {
   }
   run("DELETE FROM login_attempts WHERE ip = ?", ip);
   run("DELETE FROM sessions WHERE expires_at < ?", nowIso());
-  setSession(res, u.id, req.get("user-agent"));
+  setSession(res, u.id, req.get("user-agent"), req.secure);
   res.json({ ok: true, user: { id: u.id, username: u.username } });
 });
 
@@ -95,7 +95,7 @@ authRouter.post("/password", requireAuth, (req, res) => {
   if (!verifyPassword(current, u.password_hash)) return res.status(401).json({ error: "Current password is incorrect." });
   run("UPDATE users SET password_hash = ? WHERE id = ?", hashPassword(next), req.userId);
   run("DELETE FROM sessions WHERE user_id = ?", req.userId);
-  setSession(res, req.userId!, req.get("user-agent"));
+  setSession(res, req.userId!, req.get("user-agent"), req.secure);
   res.json({ ok: true });
 });
 

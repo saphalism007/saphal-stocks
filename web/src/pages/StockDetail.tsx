@@ -59,6 +59,7 @@ export default function StockDetail() {
         </div>
       </div>
       {msg && <Notice>{msg}</Notice>}
+      {d.dataFreshness?.provisional && <Notice tone="warn">Today's price bar is provisional: the market is open or the official close hasn't been loaded yet, so today's indicators, levels and setups can still change.</Notice>}
       {!fa?.latestPeriod && <Notice tone="warn">No quarterly statements stored for {sym} yet, so fundamental scores are unavailable. Click <strong>Update</strong> to fetch the latest report.</Notice>}
 
       <div className="grid g6">
