@@ -1,0 +1,281 @@
+// Data provider adapters. Each returns plain parsed records; persistence lives
+// in jobs.ts. Adding a provider later (e.g. an official NEPSE API if one is
+// opened to the public) means writing another adapter with the same shapes.
+//
+// Sources (see DATA_SOURCES.md):
+//  - nepse-data (github.com/Aabishkar2/nepse-data, MIT): daily OHLCV history per company.
+//  - ShareSansar (sharesansar.com, robots.txt allows crawling): latest prices, sectors, indices,
+//    company profile, dividends, announcements, quarterly statements, news headlines.
+//  - Nepal Rastra Bank forex API (nrb.org.np/api/forex/v1): official exchange rates.
+import { fetchText, fetchJson, politeFetch, CookieJar, stripTags, num, decodeHtml } from "../lib/fetcher.ts";
+
+export const SOURCES = {
+  nepseData: { name: "nepse-data (GitHub, MIT licence)", url: "https://github.com/Aabishkar2/nepse-data" },
+  sharesansar: { name: "ShareSansar", url: "https://www.sharesansar.com" },
+  nrb: { name: "Nepal Rastra Bank forex API", url: "https://www.nrb.org.np/forex/" },
+};
+
+const SS = "https://www.sharesansar.com";
+
+// ---------------- nepse-data ----------------
+export interface OhlcvRow { date: string; open: number; high: number; low: number; close: number; volume: number; amount: number | null }
+
+export async function nepseDataHistory(symbol: string): Promise<OhlcvRow[] | null> {
+  const url = `https://raw.githubusercontent.com/Aabishkar2/nepse-data/main/data/company-wise/${encodeURIComponent(symbol)}.csv`;
+  const res = await politeFetch(url, { retries: 2 });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  const text = await res.text();
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines.shift()!.split(",").map((h) => h.trim());
+  const ix = (k: string) => header.indexOf(k);
+  const iD = ix("published_date"), iO = ix("open"), iH = ix("high"), iL = ix("low"), iC = ix("close"), iQ = ix("traded_quantity"), iA = ix("traded_amount");
+  if (iD < 0 || iC < 0) throw new Error(`Unexpected CSV header for ${symbol}: ${header.join(",")}`);
+  const rows: OhlcvRow[] = [];
+  for (const line of lines) {
+    const c = line.split(",");
+    const date = c[iD]?.trim();
+    const close = Number(c[iC]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !(close > 0)) continue; // validation: skip malformed rows
+    const open = Number(c[iO]) || close;
+    const high = Math.max(Number(c[iH]) || close, open, close);
+    const low = Math.min(Number(c[iL]) || close, open, close);
+    rows.push({ date, open, high, low, close, volume: Number(c[iQ]) || 0, amount: iA >= 0 && c[iA] ? Number(c[iA]) || null : null });
+  }
+  return rows;
+}
+
+// ---------------- ShareSansar ----------------
+export interface CompanyListing { symbol: string; name: string; sector: string }
+
+export async function ssSectorListing(): Promise<{ asOf: string | null; companies: CompanyListing[]; quotes: Record<string, { open: number | null; high: number | null; low: number | null; ltp: number | null; prevClose: number | null; volume: number | null }> }> {
+  const html = await fetchText(`${SS}/sectorwise-share-price`, { browserLike: true });
+  const asOf = html.match(/As of\s*:\s*(\d{4}-\d{2}-\d{2})/)?.[1] ?? null;
+  const parts = html.split(/<h3 class="heading-title">/).slice(1);
+  const companies: CompanyListing[] = [];
+  const quotes: Record<string, { open: number | null; high: number | null; low: number | null; ltp: number | null; prevClose: number | null; volume: number | null }> = {};
+  for (const p of parts) {
+    const sector = decodeHtml(p.split("<")[0]).trim();
+    for (const row of p.split(/<tr[^>]*>/).slice(1)) {
+      const a = row.match(/<a[^>]*href="[^"]*\/company\/([a-z0-9-]+)"[^>]*title="([^"]*)"[^>]*>\s*([^<]*)</i);
+      if (!a) continue;
+      const symbol = stripTags(a[3]).toUpperCase() || a[1].toUpperCase();
+      const name = decodeHtml(a[2]).trim();
+      companies.push({ symbol, name, sector });
+      const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => stripTags(m[1]));
+      // S.No | Symbol | Open | High | Low | LTP | Prev close | Volume | Pts change | % change
+      if (cells.length >= 8) quotes[symbol] = { open: num(cells[2]), high: num(cells[3]), low: num(cells[4]), ltp: num(cells[5]), prevClose: num(cells[6]), volume: num(cells[7]) };
+    }
+  }
+  return { asOf, companies, quotes };
+}
+
+export interface TodayRow {
+  symbol: string; open: number | null; high: number | null; low: number | null; close: number | null; ltp: number | null;
+  vwap: number | null; volume: number | null; prevClose: number | null; turnover: number | null; trades: number | null;
+  diff: number | null; diffPct: number | null; high52: number | null; low52: number | null;
+}
+
+export async function ssTodayPrices(): Promise<{ asOf: string | null; rows: TodayRow[] }> {
+  const html = await fetchText(`${SS}/today-share-price`, { browserLike: true });
+  const asOf = html.match(/As of\s*:\s*(?:<[^>]+>\s*)*(\d{4}-\d{2}-\d{2})/)?.[1] ?? html.match(/id="fromdate"[^>]*value="(\d{4}-\d{2}-\d{2})"/)?.[1] ?? null;
+  const table = html.match(/<table[^>]*id="headFixed"[\s\S]*?<\/table>/)?.[0] ?? html;
+  const head = [...table.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((m) => stripTags(m[1]));
+  const col = (name: string) => head.findIndex((h) => h.toLowerCase() === name.toLowerCase());
+  const idx = {
+    sym: col("Symbol"), open: col("Open"), high: col("High"), low: col("Low"), close: col("Close"), ltp: col("LTP"), vwap: col("VWAP"),
+    vol: col("Vol"), prev: col("Prev. Close"), turnover: col("Turnover"), trans: col("Trans."), diff: col("Diff"), diffPct: col("Diff %"),
+    h52: col("52 Weeks High"), l52: col("52 Weeks Low"),
+  };
+  if (idx.sym < 0 || idx.close < 0) throw new Error("today-share-price: table layout changed (Symbol/Close columns not found)");
+  const rows: TodayRow[] = [];
+  const body = table.split(/<tbody[^>]*>/)[1] ?? "";
+  for (const tr of body.split(/<tr[^>]*>/).slice(1)) {
+    const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => stripTags(m[1]));
+    if (cells.length < head.length - 2) continue;
+    const symbol = cells[idx.sym]?.toUpperCase();
+    if (!symbol || !/^[A-Z0-9]+$/.test(symbol)) continue;
+    const g = (i: number) => (i >= 0 ? num(cells[i]) : null);
+    rows.push({ symbol, open: g(idx.open), high: g(idx.high), low: g(idx.low), close: g(idx.close), ltp: g(idx.ltp), vwap: g(idx.vwap), volume: g(idx.vol), prevClose: g(idx.prev), turnover: g(idx.turnover), trades: g(idx.trans), diff: g(idx.diff), diffPct: g(idx.diffPct), high52: g(idx.h52), low52: g(idx.l52) });
+  }
+  return { asOf, rows };
+}
+
+export const SS_INDICES: { id: number; name: string }[] = [
+  { id: 12, name: "NEPSE Index" }, { id: 16, name: "Sensitive Index" }, { id: 4, name: "Float Index" }, { id: 15, name: "Sensitive Float Index" },
+  { id: 1, name: "Banking SubIndex" }, { id: 2, name: "Development Bank Index" }, { id: 3, name: "Finance Index" }, { id: 5, name: "Hotels And Tourism" },
+  { id: 6, name: "HydroPower Index" }, { id: 7, name: "Insurance" }, { id: 8, name: "Life Insurance" }, { id: 13, name: "Non Life Insurance" },
+  { id: 9, name: "Manufacturing And Processing" }, { id: 10, name: "Microfinance Index" }, { id: 11, name: "Mutual Fund" }, { id: 14, name: "Others Index" },
+  { id: 17, name: "Trading Index" }, { id: 18, name: "Investment" },
+];
+
+export interface IndexRow { date: string; open: number | null; high: number | null; low: number | null; close: number; change: number | null; changePct: number | null; turnover: number | null }
+
+export async function ssIndexHistory(indexId: number, from: string, to: string): Promise<IndexRow[]> {
+  const out: IndexRow[] = [];
+  const pageSize = 50; // the endpoint returns nothing for larger pages
+  for (let start = 0; start < 20_000; start += pageSize) {
+    const url = `${SS}/index-history-data?index_id=${indexId}&from=${from}&to=${to}&start=${start}&length=${pageSize}&draw=1`;
+    const j = await fetchJson<{ recordsTotal: number; data: Record<string, string>[] }>(url, { headers: { "X-Requested-With": "XMLHttpRequest" }, browserLike: true });
+    for (const r of j.data || []) {
+      const close = num(r.current);
+      if (!r.published_date || close == null) continue;
+      out.push({ date: r.published_date.slice(0, 10), open: num(r.open), high: num(r.high), low: num(r.low), close, change: num(r.change_), changePct: num(r.per_change), turnover: num(r.turnover) });
+    }
+    if (!j.data || j.data.length < pageSize || start + pageSize >= j.recordsTotal) break;
+  }
+  return out;
+}
+
+/** A company-page session gives us the CSRF token and internal id needed by the company JSON endpoints. */
+export interface CompanySession { jar: CookieJar; token: string; companyId: string; symbol: string; html: string }
+
+export async function ssCompanySession(symbol: string): Promise<CompanySession> {
+  const jar = new CookieJar();
+  const res = await politeFetch(`${SS}/company/${symbol.toLowerCase()}`, { jar, browserLike: true });
+  if (!res.ok) throw new Error(`Company page HTTP ${res.status} for ${symbol}`);
+  const html = await res.text();
+  const token = html.match(/name="_token" content="([^"]+)"/)?.[1] ?? html.match(/_token" content="([^"]+)"/)?.[1];
+  const companyId = html.match(/id="companyid"[^>]*>(\d+)/)?.[1];
+  if (!token || !companyId) throw new Error(`Company page for ${symbol} is missing token/id (symbol may be delisted or renamed)`);
+  return { jar, token, companyId, symbol: symbol.toUpperCase(), html };
+}
+
+async function ssPost(s: CompanySession, path: string, form: Record<string, string>) {
+  const body = new URLSearchParams(form).toString();
+  return politeFetch(`${SS}/${path}`, {
+    method: "POST", jar: s.jar, body, browserLike: true,
+    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest", "X-CSRF-Token": s.token, Referer: `${SS}/company/${s.symbol.toLowerCase()}` },
+  });
+}
+
+export interface CompanyInfo { symbol: string; name: string | null; sector: string | null; listedShares: number | null; paidUpValue: number | null; totalPaidUp: number | null; operationDate: string | null; phone: string | null; email: string | null; address: string | null; website: string | null; registrar: string | null; companyId: number }
+
+export function parseCompanyInfo(s: CompanySession): CompanyInfo {
+  const t = stripTags(s.html.replace(/<script[\s\S]*?<\/script>/g, " "));
+  const after = (label: string, stop: RegExp) => {
+    const i = t.indexOf(label);
+    if (i < 0) return null;
+    const rest = t.slice(i + label.length).trim();
+    const m = rest.match(stop);
+    return (m ? rest.slice(0, m.index) : rest.slice(0, 80)).trim() || null;
+  };
+  const block = t.slice(t.indexOf("Company Info"));
+  const field = (label: string) => {
+    const re = new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+(.*?)\\s+(?=Symbol|Name|Sector|Listed Shares|Paid Up|Total Paid Up Value|Operation Date|Phone Number|Email|Address|Website Link|Share Registrar|As of|$)");
+    return block.match(re)?.[1]?.trim() || null;
+  };
+  const website = s.html.match(/Website Link[\s\S]{0,300}?href="(https?:\/\/[^"]+)"/i)?.[1] ?? null;
+  return {
+    symbol: s.symbol, companyId: Number(s.companyId),
+    name: field("Name"), sector: field("Sector"),
+    listedShares: num(field("Listed Shares")), paidUpValue: num(field("Paid Up")), totalPaidUp: num(field("Total Paid Up Value")),
+    operationDate: field("Operation Date"), phone: field("Phone Number"), email: field("Email"), address: field("Address"),
+    website: website && !/sharesansar/i.test(website) ? website : null,
+    registrar: after("Share Registrar:", /Latest Dividend|Bonus Share/),
+  };
+}
+
+export interface DividendRow { fiscalYear: string; cashPct: number | null; bonusPct: number | null; totalPct: number | null; announcementDate: string | null; bookCloseDate: string | null; distributionDate: string | null }
+
+export async function ssDividends(s: CompanySession): Promise<DividendRow[]> {
+  const res = await ssPost(s, "company-dividend", { company: s.companyId, draw: "1", start: "0", length: "50" });
+  if (!res.ok) throw new Error(`company-dividend HTTP ${res.status}`);
+  const j = (await res.json()) as { data?: Record<string, string | null>[] };
+  return (j.data || []).map((r) => ({
+    fiscalYear: stripTags(r.year || "").replace(/\\\//g, "/"),
+    cashPct: num(r.cash_dividend), bonusPct: num(r.bonus_share), totalPct: num(r.total_dividend),
+    announcementDate: r.announcement_date?.slice(0, 10) || null,
+    bookCloseDate: (r.bookclose_date || "").match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? null,
+    distributionDate: (r.distribution_date || "").match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? null,
+  })).filter((d) => d.fiscalYear);
+}
+
+export interface AnnouncementRow { title: string; url: string; publishedDate: string | null; symbol?: string | null }
+
+export async function ssCompanyAnnouncements(s: CompanySession, length = 50): Promise<AnnouncementRow[]> {
+  const res = await ssPost(s, "company-announcements", { company: s.companyId, draw: "1", start: "0", length: String(length) });
+  if (!res.ok) throw new Error(`company-announcements HTTP ${res.status}`);
+  const j = (await res.json()) as { data?: { title: string; published_date: string }[] };
+  return (j.data || []).map((r) => ({ title: stripTags(r.title), url: r.title.match(/href='([^']+)'/)?.[1] ?? r.title.match(/href="([^"]+)"/)?.[1] ?? "", publishedDate: r.published_date?.slice(0, 10) ?? null, symbol: s.symbol })).filter((a) => a.url);
+}
+
+export interface QuarterlyStatement { period: string | null; items: { statement: "balance_sheet" | "income" | "metrics"; label: string; value: number | null }[] }
+
+export async function ssQuarterlyReport(s: CompanySession, sector: string): Promise<QuarterlyStatement> {
+  const res = await ssPost(s, "company-quarterly-report", { company: s.companyId, symbol: s.symbol, sector });
+  if (!res.ok) throw new Error(`company-quarterly-report HTTP ${res.status}`);
+  return parseQuarterlyHtml(await res.text());
+}
+
+export function parseQuarterlyHtml(html: string): QuarterlyStatement {
+  const tables = html.split(/<table/).slice(1);
+  const items: QuarterlyStatement["items"] = [];
+  let period: string | null = null;
+  tables.forEach((t, ti) => {
+    const statement = ti === 0 ? "balance_sheet" : ti === 1 ? "income" : "metrics";
+    for (const tr of t.split(/<tr[^>]*>/).slice(1)) {
+      const cells = [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)].map((m) => stripTags(m[1]));
+      if (!cells.length) continue;
+      if (/^particulars/i.test(cells[0])) { if (!period && cells[1]) period = cells[1]; continue; }
+      if (cells.length < 2) continue; // section headings like "Assets"
+      items.push({ statement, label: cells[0], value: num(cells[1]) });
+    }
+  });
+  return { period, items };
+}
+
+export async function ssMarketAnnouncements(pages = 1): Promise<AnnouncementRow[]> {
+  const out: AnnouncementRow[] = [];
+  for (let p = 0; p < pages; p++) {
+    const html = await fetchText(`${SS}/announcement?draw=1&start=${p * 50}&length=50`, { headers: { "X-Requested-With": "XMLHttpRequest" }, browserLike: true });
+    for (const m of html.matchAll(/<a href="(https:\/\/www\.sharesansar\.com\/announcementdetail\/[^"]+)"\s+title="([^"]{8,400})"/g)) {
+      const url = m[1];
+      if (out.some((o) => o.url === url)) continue;
+      out.push({ title: decodeHtml(m[2]).trim(), url, publishedDate: url.match(/(\d{4}-\d{2}-\d{2})$/)?.[1] ?? null });
+    }
+  }
+  return out;
+}
+
+export interface NewsRow { title: string; url: string; publishedDate: string | null; category: string }
+
+export async function ssNews(category = "latest"): Promise<NewsRow[]> {
+  const html = await fetchText(`${SS}/category/${category}`, { browserLike: true });
+  const out: NewsRow[] = [];
+  for (const m of html.matchAll(/<a href="(https:\/\/www\.sharesansar\.com\/newsdetail\/[^"]+)"[^>]*>\s*(?:<[^>]+>\s*)*([^<]{10,300})/g)) {
+    const url = m[1];
+    const date = url.match(/(\d{4}-\d{2}-\d{2})$/)?.[1] ?? null;
+    if (!date || out.some((o) => o.url === url)) continue; // undated links are evergreen promos
+    out.push({ title: decodeHtml(m[2]).trim(), url, publishedDate: date, category });
+  }
+  return out;
+}
+
+// ---------------- NRB ----------------
+export interface ForexRow { date: string; currency: string; unit: number; buy: number | null; sell: number | null }
+
+export async function nrbForex(from: string, to: string): Promise<ForexRow[]> {
+  const j = await fetchJson<{ data?: { payload?: { date: string; rates: { currency: { iso3: string; unit: number }; buy: string; sell: string }[] }[] } }>(
+    `https://www.nrb.org.np/api/forex/v1/rates?page=1&per_page=100&from=${from}&to=${to}`,
+  );
+  const out: ForexRow[] = [];
+  for (const day of j.data?.payload || []) for (const r of day.rates) out.push({ date: day.date, currency: r.currency.iso3, unit: r.currency.unit, buy: num(r.buy), sell: num(r.sell) });
+  return out;
+}
+
+export function classifyAnnouncement(title: string): string {
+  const t = title.toLowerCase();
+  if (/quarter|q[1-4]\b|unaudited|financial (report|statement)|net profit/.test(t)) return "Quarterly report";
+  if (/bonus/.test(t) && /dividend|share/.test(t)) return "Dividend / bonus";
+  if (/dividend/.test(t)) return "Dividend / bonus";
+  if (/right share|rights? issue/.test(t)) return "Right share";
+  if (/\bagm\b|annual general meeting|\bsgm\b/.test(t)) return "AGM / SGM";
+  if (/\bipo\b|\bfpo\b|initial public|further public/.test(t)) return "IPO / FPO";
+  if (/merger|acquisition|acquire|merge/.test(t)) return "Merger / acquisition";
+  if (/book clos/.test(t)) return "Book closure";
+  if (/debenture|bond/.test(t)) return "Debenture";
+  if (/auction/.test(t)) return "Auction";
+  if (/annual report|audited/.test(t)) return "Annual report";
+  return "Disclosure";
+}

@@ -1,0 +1,22 @@
+// Command-line data refresh:  npm run ingest -- [listing|history|indices|details|news|forex|all] [SYMBOL...]
+import "../db.ts";
+import { seedReference } from "../seed.ts";
+import { syncListing, syncHistory, syncIndices, syncAllDetails, syncNews, syncForex, syncCompanyDetail } from "./jobs.ts";
+import { evaluateAlerts } from "../lib/alerts.ts";
+
+seedReference();
+const [what = "all", ...symbols] = process.argv.slice(2);
+const log = (m: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${m}`);
+const progress = () => ({ name: "cli", status: "running" as const, progress: 0, total: 0, set message(m: string) { if (/\((\d+)\/(\d+)\)/.test(m) && Number(m.match(/\((\d+)\//)![1]) % 25 === 0) log(m); } , get message() { return ""; } });
+
+async function main() {
+  if (what === "detail") { for (const s of symbols) log(JSON.stringify(await syncCompanyDetail(s.toUpperCase()))); return; }
+  if (what === "listing" || what === "all") log(`listing: ${await syncListing()} quotes`);
+  if (what === "history" || what === "all") log(`history: ${await syncHistory(progress() as never, symbols.length ? { symbols, force: true } : {})} rows`);
+  if (what === "indices" || what === "all") log(`indices: ${await syncIndices(progress() as never)} rows`);
+  if (what === "news" || what === "all") log(`news: ${await syncNews()} items`);
+  if (what === "forex" || what === "all") log(`forex: ${await syncForex()} rows`);
+  if (what === "details" || what === "all") log(`details: ${await syncAllDetails(progress() as never, symbols.length ? { symbols } : { maxAgeDays: 7 })} companies`);
+  log(`alerts fired: ${evaluateAlerts()}`);
+}
+main().then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });

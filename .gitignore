@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/*.db
+data/*.db-*
+data/cache/
+data/uploads/
+data/backups/
+.env
+.env.local
+*.log
+.DS_Store
+data/test-credentials.local

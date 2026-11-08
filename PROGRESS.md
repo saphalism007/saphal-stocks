@@ -1,0 +1,69 @@
+# Progress
+
+Status as of 8 November 2026 (version 0.1.0). ✅ working · 🟡 partial · ⬜ not started.
+
+## Data infrastructure
+- ✅ Company database, daily OHLCV history (nepse-data), latest prices, 18 indices, dividends, announcements, quarterly statements, NRB forex
+- ✅ Scheduled daily refresh (15:45 NPT) + refresh on start-up when data is stale; manual refresh per dataset
+- ✅ Validation, idempotent upserts, retries with backoff, run log, per-dataset freshness and error tracking
+- ✅ Bonus-share price adjustment (evidence-based)
+- 🟡 Statement history accumulates from now on (source offers only the latest quarter)
+- ⬜ Right-share price adjustment; intraday data (no permitted source)
+
+## Market & stocks
+- ✅ Market dashboard: indices, breadth, turnover, gainers/losers, turnover/volume leaders, 52-week highs/lows, sector performance and sub-index heat map, NEPSE trend, breadth history
+- ✅ Stocks list and screener (valuation, ROE, yield, trend, liquidity, scores)
+- ✅ Company research page: summary verdict, chart, technicals, support/resistance, fundamentals, statements, dividends, announcements, backtest; watch and alert shortcuts
+- 🟡 Company profile has no management/board/major shareholder data (not available from the current source)
+
+## Technical analysis
+- ✅ All requested indicators, chart overlays and indicator panes
+- ✅ Support/resistance engine with reasons, reaction counts, volume confirmation, invalidation; demand/supply zones; dynamic levels; pivots; Fibonacci
+- ✅ Algorithmic pattern detection with per-stock historical track record
+- ✅ Rule-based setups (breakout, pullback, momentum, oversold bounce, trend continuation, breakdown, overbought at resistance) with all required fields, net-of-cost returns
+- ✅ Backtester with Nepal costs and CGT, 7 strategies, equity curve, trades on chart
+
+## Fundamental analysis
+- ✅ Ratios computed from statement line items (EPS, BVPS, ROE, ROA, P/E, P/B, Graham number, margins, D/E, interest cover, NIM, cost-to-income, ...) next to the company's reported figures
+- ✅ Sector-specific scoring models (banks/finance, microfinance, insurance, hydropower, general)
+- ✅ Strategy rankings with editable weights: quality, value, dividend, growth, momentum, swing, long-term, risk-adjusted, avoid, deteriorating
+- ✅ Valuation: Graham, DDM, DCF, relative to sector medians
+- 🟡 Cash-flow statements are not provided by the source; earnings-quality and fraud red-flag checks are basic
+
+## AI
+- ✅ Tool-using analyst (15 tools over the database and engines), conversation history, configurable provider/model/effort, refusal fallback
+- ✅ Works without an API key in rule-based data-report mode
+- ✅ PDF document upload, page-level indexing and search; AI cites document and page
+- ✅ "Explain" for any announcement/news headline
+- 🟡 Not tested against the live API in this session (no API key configured); code follows the official SDK documentation
+- ⬜ OCR for scanned PDFs
+
+## Portfolio
+- ✅ Multiple portfolios, all transaction types (buy, sell, IPO, right, bonus, cash dividend, merger), auto Nepal charges or manual override, CGT on sells
+- ✅ WACC, realised/unrealised P&L, dividends, net-if-sold-today, allocation, sector exposure, health score
+- ✅ Paper trading with simulated cash; CSV import
+- 🟡 No automatic import from Mero Share (no public API)
+
+## Wealth
+- ✅ Encrypted financial profile; goals with inflation, costs, tax, three scenarios, Monte Carlo probability; car purchase planner; lump-sum allocation; net worth tracker
+- ✅ 13 calculators (EMI, SIP, FD, inflation, emergency fund, FI, trade cost/CGT, position size, risk/reward, DCF, DDM, Graham)
+- ✅ Investment products directory (18 product types) and official resources directory with link checker; record verified rates
+- 🟡 Product rates are not fetched automatically (by design; see DATA_SOURCES.md)
+
+## Alerts, news, education
+- ✅ 18 alert types, evaluated after every data refresh, de-duplicated per data date
+- ✅ Daily briefing on the Overview page (all six questions)
+- ✅ News and announcements feed with categories and AI explanation
+- ✅ Learning center: 16 Nepal-focused lessons
+- ⬜ Email/phone push notifications (in-app only)
+
+## Security
+- ✅ Local-only server, scrypt passwords, secure cookies, rate-limited login, origin checks, input validation, AES-256-GCM for personal data, export, backup, deletion
+
+## Roadmap (next)
+1. Run with an API key and tune the analyst prompt on real questions.
+2. Trading journal and investment-thesis tracker UI (storage already exists in the encrypted vault).
+3. IPO analysis page and mutual fund NAV comparison (needs a NAV source).
+4. Cash-flow and multi-year annual statements from uploaded annual reports (AI extraction into structured tables).
+5. Strategy backtests across many stocks at once (portfolio-level backtesting).
+6. Push to a new private GitHub repository.
