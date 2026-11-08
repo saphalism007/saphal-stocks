@@ -26,7 +26,7 @@ const TOOL_LABELS: Record<string, string> = {
   search_stocks: "Searching companies", get_market_overview: "Reading the market summary", get_stock_analysis: "Analysing a stock", get_financial_statements: "Reading financial statements",
   compare_stocks: "Comparing stocks", rank_stocks: "Ranking stocks", screen_stocks: "Screening stocks", get_trade_setups: "Scanning trade setups", run_backtest: "Running a backtest",
   get_portfolio: "Reading your portfolio", get_announcements: "Reading announcements", search_documents: "Searching your documents", get_sector_stats: "Computing sector medians",
-  get_wealth_profile: "Reading your financial profile", get_public_issues: "Checking IPO/FPO/right issues", get_mutual_funds: "Reading mutual fund NAVs", calculate: "Calculating",
+  get_wealth_profile: "Reading your financial profile", get_public_issues: "Checking IPO/FPO/right issues", get_portfolio_performance: "Measuring portfolio performance", plan_rebalance: "Planning a rebalance", run_portfolio_backtest: "Running a portfolio backtest", get_exchange_rates: "Reading NRB exchange rates", get_mutual_funds: "Reading mutual fund NAVs", calculate: "Calculating",
 };
 
 export default function Analyst() {

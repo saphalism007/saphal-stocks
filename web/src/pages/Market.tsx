@@ -27,6 +27,7 @@ export default function Market() {
   const from = useMemo(() => { const d = new Date(); if (range === "3m") d.setMonth(d.getMonth() - 3); else if (range === "1y") d.setFullYear(d.getFullYear() - 1); else if (range === "5y") d.setFullYear(d.getFullYear() - 5); else return "1900-01-01"; return d.toISOString().slice(0, 10); }, [range]);
   const hist = useApi<{ date: string; close: number }[]>(`/market/index/${indexId}?from=${from}`, [indexId, from]);
   const breadth = useApi<{ date: string; adv: number; dec: number; turnover: number }[]>("/market/breadth-history");
+  const fx = useApi<{ latest: string | null; rows: { currency: string; unit: number; buy: number; sell: number; change1m: number | null; change1y: number | null }[]; usd: { date: string; sell: number }[]; source: string; note: string }>("/economy/forex");
   const rotation = useApi<{ nepse: Record<string, number | null>; rows: { indexId: number; name: string; last: number | null; w1: number | null; m1: number | null; m3: number | null; m6: number | null; y1: number | null; fromHigh: number | null; relative3m: number | null }[]; note: string }>("/market/sector-rotation");
   const [list, setList] = useState<"gainers" | "losers" | "turnover" | "volume" | "highs52" | "lows52">("gainers");
   const nav = useNavigate();
@@ -105,6 +106,19 @@ export default function Market() {
           { key: "fromHigh", label: "From 52W high", num: true, render: (r) => pct(r.fromHigh, 1) },
         ]} /> : <Loading />}
       </Card>
+      <div className="grid g3">
+        <Card title="USD / NPR (NRB selling rate, 1 year)" className="span2" sub={fx.data ? `${fx.data.source}. ${fx.data.note}` : undefined}>
+          {fx.data?.usd.length ? <LineChart data={fx.data.usd.map((d) => ({ date: d.date, value: d.sell }))} height={220} theme={theme} color="#f59e0b" /> : <Loading />}
+        </Card>
+        <Card title="Exchange rates" flush sub={fx.data?.latest ? `NRB, ${fx.data.latest}` : undefined}>
+          {fx.data && <DataTable rows={fx.data.rows} cols={[
+            { key: "currency", label: "Currency", render: (r) => <><strong>{r.currency}</strong>{r.unit !== 1 && <span className="tiny faint"> ×{r.unit}</span>}</> },
+            { key: "sell", label: "Sell (Rs.)", num: true, render: (r) => num(r.sell) },
+            { key: "change1m", label: "1M", num: true, render: (r) => pct(r.change1m, 1) },
+            { key: "change1y", label: "1Y", num: true, render: (r) => pct(r.change1y, 1) },
+          ]} />}
+        </Card>
+      </div>
       <Card title="Market breadth history" sub="Advancing minus declining stocks per session (from stored prices)">
         {breadth.data?.length ? <LineChart data={breadth.data.map((d) => ({ date: d.date, value: d.adv - d.dec }))} height={200} baseline={0} theme={theme} area={false} color="#60a5fa" /> : <Notice>Breadth history needs price history to be loaded.</Notice>}
       </Card>

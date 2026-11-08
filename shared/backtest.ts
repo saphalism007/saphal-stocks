@@ -86,7 +86,7 @@ function daysBetween(a: string, b: string) {
 }
 
 /** Returns, per bar, desired position after that bar closes: 1 = be long, 0 = flat, null = no opinion (keep). */
-function signalSeries(bars: Bar[], id: StrategyId, p: StrategyParams): (0 | 1 | null)[] {
+export function signalSeries(bars: Bar[], id: StrategyId, p: StrategyParams): (0 | 1 | null)[] {
   const c = bars.map((b) => b.close);
   const out: (0 | 1 | null)[] = new Array(bars.length).fill(null);
   const cross = (a: (number | null)[], b: (number | null)[], i: number) =>
@@ -285,3 +285,155 @@ export function runBacktest(allBars: Bar[], opts: BacktestOptions): BacktestResu
 
 const round = (x: number) => Math.round(x * 100) / 100;
 export { atr };
+
+// ---------- Portfolio-level backtest (shared capital) ----------
+
+export interface PortfolioBacktestOptions {
+  strategy: StrategyId;
+  params?: StrategyParams;
+  capital?: number;
+  maxPositions?: number; // simultaneous holdings
+  from?: string;
+  stopLossPct?: number | null;
+  takeProfitPct?: number | null;
+  maxHoldDays?: number | null;
+  slippagePct?: number;
+  fees?: FeeConfig;
+  rankBy?: "liquidity" | "momentum";
+}
+
+export interface PortfolioBacktestResult {
+  strategy: StrategyDef;
+  params: StrategyParams;
+  period: { from: string; to: string; sessions: number };
+  equity: { date: string; value: number; cash: number; positions: number; benchmark: number | null }[];
+  trades: (Trade & { symbol: string })[];
+  stats: {
+    startCapital: number; endCapital: number; totalReturnPct: number; cagrPct: number | null; benchmarkReturnPct: number | null;
+    maxDrawdownPct: number; trades: number; winRatePct: number | null; avgTradePct: number | null; profitFactor: number | null;
+    avgPositions: number; exposurePct: number; totalCosts: number; totalTax: number; skippedSignals: number;
+  };
+  caveats: string[];
+}
+
+export function runPortfolioBacktest(series: Record<string, Bar[]>, dates: string[], opts: PortfolioBacktestOptions, benchmark?: Record<string, number>): PortfolioBacktestResult {
+  const def = STRATEGIES.find((s) => s.id === opts.strategy);
+  if (!def) throw new Error(`Unknown strategy ${opts.strategy}`);
+  const params = { ...def.defaults, ...(opts.params || {}) };
+  const fees = opts.fees || DEFAULT_FEES;
+  const capital0 = opts.capital ?? 1_000_000;
+  const maxPos = Math.max(1, opts.maxPositions ?? 10);
+  const slip = (opts.slippagePct ?? 0.2) / 100;
+  // Per-symbol lookups by date.
+  const idx: Record<string, Map<string, number>> = {};
+  const sig: Record<string, (0 | 1 | null)[]> = {};
+  for (const [s, b] of Object.entries(series)) {
+    idx[s] = new Map(b.map((x, i) => [x.date, i]));
+    sig[s] = signalSeries(b, opts.strategy, params);
+  }
+  const days = dates.filter((d) => !opts.from || d >= opts.from);
+  let cash = capital0;
+  const pos = new Map<string, { qty: number; entryPrice: number; entryDate: string; entryCost: number; entryDayIdx: number }>();
+  const lastClose: Record<string, number> = {};
+  const pendingBuys: string[] = [];
+  const pendingSells = new Map<string, string>();
+  const trades: (Trade & { symbol: string })[] = [];
+  const equity: PortfolioBacktestResult["equity"] = [];
+  let totalCosts = 0, totalTax = 0, skipped = 0, posDays = 0, inMarket = 0;
+  let bench0: number | null = null;
+
+  const close = (s: string, dayIdx: number, date: string, raw: number, reason: string) => {
+    const p = pos.get(s)!;
+    const px = raw * (1 - slip);
+    const sc = sellCost(p.qty, px, fees);
+    const gross = sc.net - p.entryCost;
+    const hd = daysBetween(p.entryDate, date);
+    const tax = gross > 0 ? gross * cgtRate(hd, "individual", fees) : 0;
+    cash += sc.net - tax;
+    totalCosts += sc.total; totalTax += tax;
+    trades.push({ symbol: s, entryDate: p.entryDate, entryPrice: round(p.entryPrice), exitDate: date, exitPrice: round(px), qty: p.qty, holdingDays: hd, grossPnl: round(p.qty * (px - p.entryPrice)), costs: round(p.entryCost - p.qty * p.entryPrice + sc.total), tax: round(tax), netPnl: round(gross - tax), returnPct: round(((gross - tax) / p.entryCost) * 100), reason });
+    pos.delete(s);
+    void dayIdx;
+  };
+  const equityNow = () => cash + [...pos.entries()].reduce((t, [s, p]) => t + p.qty * (lastClose[s] ?? p.entryPrice), 0);
+  const avgTurnover = (s: string, i: number) => { const b = series[s]; let t = 0, n = 0; for (let j = Math.max(0, i - 19); j <= i; j++) { t += b[j].amount ?? b[j].close * b[j].volume; n++; } return n ? t / n : 0; };
+  const mom = (s: string, i: number) => { const b = series[s]; return i >= 63 ? b[i].close / b[i - 63].close - 1 : 0; };
+
+  days.forEach((d, dayIdx) => {
+    // 1) Execute orders at today's open: sells first, then buys with equal slices of equity.
+    for (const [s, reason] of pendingSells) {
+      const i = idx[s].get(d);
+      if (i != null && pos.has(s)) close(s, dayIdx, d, series[s][i].open, reason);
+      else if (pos.has(s)) continue; // not traded today: try again tomorrow
+      pendingSells.delete(s);
+    }
+    const slot = equityNow() / maxPos;
+    for (const s of pendingBuys.splice(0)) {
+      if (pos.size >= maxPos || pos.has(s)) { skipped++; continue; }
+      const i = idx[s].get(d);
+      if (i == null) { skipped++; continue; }
+      const px = series[s][i].open * (1 + slip);
+      const budget = Math.min(slot, cash);
+      let q = Math.floor(budget / (px * 1.006));
+      while (q > 0 && buyCost(q, px, fees).net > budget) q--;
+      if (q <= 0) { skipped++; continue; }
+      const bc = buyCost(q, px, fees);
+      cash -= bc.net; totalCosts += bc.total;
+      pos.set(s, { qty: q, entryPrice: px, entryDate: d, entryCost: bc.net, entryDayIdx: dayIdx });
+    }
+    // 2) Intraday stops / targets, then decide tomorrow's actions from today's close.
+    const candidates: { s: string; score: number }[] = [];
+    for (const s of Object.keys(series)) {
+      const i = idx[s].get(d);
+      if (i == null) continue;
+      const b = series[s][i];
+      lastClose[s] = b.close;
+      const p = pos.get(s);
+      if (p) {
+        if (opts.stopLossPct && b.low <= p.entryPrice * (1 - opts.stopLossPct / 100)) { close(s, dayIdx, d, Math.min(b.open, p.entryPrice * (1 - opts.stopLossPct / 100)), "Stop-loss"); continue; }
+        if (opts.takeProfitPct && b.high >= p.entryPrice * (1 + opts.takeProfitPct / 100)) { close(s, dayIdx, d, Math.max(b.open, p.entryPrice * (1 + opts.takeProfitPct / 100)), "Take-profit"); continue; }
+        if (sig[s][i] === 0) pendingSells.set(s, "Exit signal");
+        else if (opts.maxHoldDays && dayIdx - p.entryDayIdx >= opts.maxHoldDays) pendingSells.set(s, "Max holding period");
+      } else if (sig[s][i] === 1) {
+        candidates.push({ s, score: opts.rankBy === "momentum" ? mom(s, i) : avgTurnover(s, i) });
+      }
+    }
+    const free = maxPos - pos.size + [...pendingSells.keys()].filter((s) => pos.has(s)).length;
+    candidates.sort((a, b) => b.score - a.score);
+    skipped += Math.max(0, candidates.length - free);
+    pendingBuys.push(...candidates.slice(0, Math.max(0, free)).map((c) => c.s));
+    const v = equityNow();
+    posDays += pos.size; if (pos.size) inMarket++;
+    const bm = benchmark?.[d];
+    if (bm != null && bench0 == null) bench0 = bm;
+    equity.push({ date: d, value: round(v), cash: round(cash), positions: pos.size, benchmark: bm != null && bench0 ? round((bm / bench0) * capital0) : null });
+  });
+  const lastDay = days[days.length - 1];
+  for (const s of [...pos.keys()]) close(s, days.length - 1, lastDay, lastClose[s], "End of test (marked to close)");
+  if (equity.length) equity[equity.length - 1].value = round(cash);
+
+  let peak = -Infinity, mdd = 0;
+  for (const e of equity) { peak = Math.max(peak, e.value); mdd = Math.max(mdd, (peak - e.value) / peak); }
+  const wins = trades.filter((t) => t.netPnl > 0);
+  const sw = wins.reduce((s, t) => s + t.netPnl, 0), sl = -trades.filter((t) => t.netPnl <= 0).reduce((s, t) => s + t.netPnl, 0);
+  const years = days.length > 1 ? daysBetween(days[0], lastDay) / 365.25 : 0;
+  const lastBench = [...equity].reverse().find((e) => e.benchmark != null)?.benchmark ?? null;
+  return {
+    strategy: def, params, period: { from: days[0], to: lastDay, sessions: days.length }, equity, trades,
+    stats: {
+      startCapital: capital0, endCapital: round(cash), totalReturnPct: round(((cash - capital0) / capital0) * 100),
+      cagrPct: years >= 1 ? round((Math.pow(cash / capital0, 1 / years) - 1) * 100) : null,
+      benchmarkReturnPct: lastBench != null ? round(((lastBench - capital0) / capital0) * 100) : null,
+      maxDrawdownPct: round(mdd * 100), trades: trades.length, winRatePct: trades.length ? round((wins.length / trades.length) * 100) : null,
+      avgTradePct: trades.length ? round(trades.reduce((s, t) => s + t.returnPct, 0) / trades.length) : null, profitFactor: sl > 0 ? round(sw / sl) : null,
+      avgPositions: days.length ? round(posDays / days.length) : 0, exposurePct: days.length ? round((inMarket / days.length) * 100) : 0,
+      totalCosts: round(totalCosts), totalTax: round(totalTax), skippedSignals: skipped,
+    },
+    caveats: [
+      "One pot of capital is shared: each new position gets an equal slice of current equity (capital / max positions). When more stocks signal than free slots, the most liquid (or strongest momentum) are chosen.",
+      "Signals at close, fills at the next session's open with slippage; Nepal commission, SEBON fee, DP charge and CGT included.",
+      "Liquidity and circuit limits are not modelled; small stocks may not fill at these prices. Survivorship bias applies (only currently listed stocks).",
+      "Past results do not predict future returns.",
+    ],
+  };
+}

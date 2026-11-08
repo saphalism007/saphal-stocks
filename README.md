@@ -39,6 +39,7 @@ Created automatically on first run. Never commit it.
 | `AI_EFFORT` | `low`, `medium` (default), `high`, `xhigh`, `max` |
 | `ANTHROPIC_API_KEY` | Your API key (can also be set in Settings → AI) |
 | `INGEST_DAILY_AT` | Daily refresh time in Nepal time (default 15:45, after market close) |
+| `BACKUP_KEEP_DAYS` | Automatic daily backups to keep in `data/backups` (default 7) |
 
 Without an API key the AI Stock Analyst still works in "data report" mode (stock reports, comparisons, rankings, support and breakout scans, portfolio review) and nothing is sent outside your computer.
 

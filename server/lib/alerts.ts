@@ -7,6 +7,8 @@ import { portfolioSummary } from "./portfolioService.ts";
 import { technicalSnapshot } from "../../shared/signals.ts";
 import { detectPatterns } from "../../shared/patterns.ts";
 import { analyzeLevels } from "../../shared/levels.ts";
+import { readVault } from "./vault.ts";
+import { planGoal } from "../../shared/planner.ts";
 
 export const ALERT_TYPES = [
   { type: "price_above", label: "Price rises above", needsSymbol: true, params: ["price"] },
@@ -32,8 +34,9 @@ export const ALERT_TYPES = [
 interface AlertRow { id: number; user_id: number; symbol: string | null; type: string; params: string | null; note: string | null; repeat: number; last_triggered_at: string | null; last_checked_at: string | null }
 
 function notify(userId: number, alertId: number | null, kind: string, title: string, body: string, symbol: string | null, dataDate: string | null) {
-  // De-duplicate: one notification per alert per data date.
+  // De-duplicate: one notification per alert (or per automatic check and title) per data date.
   if (alertId && get("SELECT 1 FROM notifications WHERE alert_id = ? AND data_date IS ?", alertId, dataDate)) return false;
+  if (!alertId && get("SELECT 1 FROM notifications WHERE user_id = ? AND alert_id IS NULL AND kind = ? AND title = ? AND data_date IS ?", userId, kind, title, dataDate)) return false;
   run("INSERT INTO notifications (user_id, alert_id, kind, title, body, symbol, data_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", userId, alertId, kind, title, body, symbol, dataDate, nowIso());
   return true;
 }
@@ -109,7 +112,34 @@ export function evaluateAlerts(): number {
       run("UPDATE alerts SET last_triggered_at = ?, active = ? WHERE id = ?", nowIso(), a.repeat ? 1 : 0, a.id);
     }
   }
-  return fired;
+  return fired + automaticNotifications();
+}
+
+/** Automatic reminders that need no setup: thesis reviews due, and goals falling behind plan (checked monthly). */
+export function automaticNotifications(): number {
+  let n = 0;
+  const today = new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
+  for (const { id: uid } of all<{ id: number }>("SELECT id FROM users")) {
+    try {
+      for (const t of readVault<{ symbol: string; reviewOn: string; status: string; thesis: string }>(uid, "thesis")) {
+        if (t.data.status === "active" && t.data.reviewOn && t.data.reviewOn <= today && notify(uid, null, "thesis_review", `Review your ${t.data.symbol} thesis`, `Review date ${t.data.reviewOn}. Thesis: ${t.data.thesis.slice(0, 200)}`, t.data.symbol, t.data.reviewOn)) n++;
+      }
+      for (const g of readVault<Record<string, string | number>>(uid, "goal")) {
+        const d = g.data;
+        const p = planGoal({ name: String(d.name), costToday: +d.costToday, years: +d.years, inflationPct: +d.inflationPct, currentSaved: +d.currentSaved, monthlyCapacity: +d.monthlyCapacity, annualStepUpPct: +(d.annualStepUpPct ?? 0), investmentCostPct: +(d.investmentCostPct ?? 0), taxOnGainsPct: +(d.taxOnGainsPct ?? 0) });
+        const mod = p.scenarios[1];
+        if (!Number.isFinite(mod.requiredMonthly)) continue;
+        const behind = +d.monthlyCapacity < mod.requiredMonthly * 0.98;
+        const title = behind ? `Goal "${d.name}" is behind plan` : `Goal "${d.name}" is on track`;
+        const body = behind
+          ? `At a moderate ${mod.effectiveReturnPct}% return you need about Rs. ${Math.round(mod.requiredMonthly).toLocaleString("en-IN")}/month; you plan Rs. ${Math.round(+d.monthlyCapacity).toLocaleString("en-IN")}. Update saved amount, monthly amount or timeline in Wealth Planner.`
+          : `Your planned Rs. ${Math.round(+d.monthlyCapacity).toLocaleString("en-IN")}/month covers the Rs. ${Math.round(mod.requiredMonthly).toLocaleString("en-IN")} needed in the moderate scenario. Remember to update the saved amount.`;
+        if (notify(uid, null, "goal_progress", title, body, null, month)) n++;
+      }
+    } catch (e) { console.warn(`[alerts] automatic for user ${uid}: ${e instanceof Error ? e.message : e}`); }
+  }
+  return n;
 }
 
 export function dailyBriefing(userId: number) {

@@ -1,5 +1,6 @@
 import { all, get } from "../db.ts";
-import { computeHoldings, portfolioHealth, type Transaction } from "../../shared/portfolio.ts";
+import { computeHoldings, portfolioHealth, portfolioTimeline, nepaliFiscalYear, type Transaction } from "../../shared/portfolio.ts";
+import { getSetting } from "../db.ts";
 import * as M from "./market.ts";
 
 export function txsFor(portfolioId: number): Transaction[] {
@@ -47,4 +48,28 @@ export function portfolioData(userId: number, portfolioId?: number) {
       };
     }),
   };
+}
+
+export function performanceFor(portfolioId: number) {
+  const txs = txsFor(portfolioId);
+  if (!txs.length) return null;
+  const start = txs.reduce((m, t) => (t.date < m ? t.date : m), txs[0].date);
+  const prices: Record<string, [string, number][]> = {};
+  for (const s of new Set(txs.map((t) => t.symbol))) prices[s] = all<{ date: string; close: number }>("SELECT date, close FROM prices WHERE symbol = ? AND date >= date(?, '-30 days') ORDER BY date", s, start).map((r) => [r.date, r.close]);
+  const idx = all<{ date: string; close: number }>("SELECT date, close FROM indices WHERE index_id = 12 AND date >= ? ORDER BY date", start);
+  const pts = portfolioTimeline(txs, prices, idx.map((r) => r.date), Object.fromEntries(idx.map((r) => [r.date, r.close])), M.fees());
+  const last = pts[pts.length - 1];
+  if (!last) return null;
+  let peak = 0, mdd = 0;
+  for (const p of pts) { peak = Math.max(peak, p.twrIndex); mdd = Math.max(mdd, (peak - p.twrIndex) / peak); }
+  return { from: pts[0].date, to: last.date, value: last.value, netInvested: last.netInvested, twrPct: Math.round((last.twrIndex - 100) * 100) / 100, nepsePct: last.benchmark != null ? Math.round((last.benchmark - 100) * 100) / 100 : null, maxDrawdownPct: Math.round(mdd * 10000) / 100 };
+}
+
+export function taxReportFor(portfolioId: number) {
+  const fyStart = getSetting("fyStart", "07-16");
+  const s = computeHoldings(txsFor(portfolioId), {}, M.fees());
+  const by: Record<string, { gains: number; losses: number; cgt: number; dividends: number; dividendTax: number }> = {};
+  for (const e of s.realizedEvents) { const k = nepaliFiscalYear(e.date, fyStart); by[k] ??= { gains: 0, losses: 0, cgt: 0, dividends: 0, dividendTax: 0 }; if (e.gain >= 0) by[k].gains += e.gain; else by[k].losses -= e.gain; by[k].cgt += e.tax; }
+  for (const e of s.dividendEvents) { const k = nepaliFiscalYear(e.date, fyStart); by[k] ??= { gains: 0, losses: 0, cgt: 0, dividends: 0, dividendTax: 0 }; by[k].dividends += e.gross; by[k].dividendTax += e.tax; }
+  return { fyStart, byFiscalYear: by };
 }

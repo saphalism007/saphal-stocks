@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { sma, ema, rsi, macd, atr, bollinger, pivotPoints, fibonacci, obv, vwap, supertrend, adx, stochastic } from "../shared/indicators.ts";
 import { brokerCommission, buyCost, sellCost, roundTrip, cgtRate, DEFAULT_FEES } from "../shared/costs.ts";
 const DEFAULT_FEES_ZERO = { ...DEFAULT_FEES, commissionSlabs: [{ upTo: null, rate: 0 }], minCommission: 0, sebonFeeRate: 0, dpChargePerScrip: 0 };
-import { computeHoldings, portfolioTimeline, nepaliFiscalYear } from "../shared/portfolio.ts";
+import { computeHoldings, portfolioTimeline, nepaliFiscalYear, rebalancePlan } from "../shared/portfolio.ts";
 import { emi, futureValue, requiredMonthly, planGoal, fdMaturity, allocateLumpSum } from "../shared/planner.ts";
-import { runBacktest } from "../shared/backtest.ts";
+import { runBacktest, runPortfolioBacktest } from "../shared/backtest.ts";
 import { analyzeLevels, findSwings } from "../shared/levels.ts";
 import { detectPatterns } from "../shared/patterns.ts";
 import { adjustForBonus, adjustForRights, parseRightRatio } from "../shared/adjust.ts";
@@ -356,5 +356,40 @@ describe("rights adjustment", () => {
     const none = adjustForRights(mkBars(Array.from({ length: 40 }, () => 500), "2025-05-01"), [{ ratio: "1:1", issuePrice: 100, openingDate: opening }]);
     expect(none.applied).toHaveLength(0);
     expect(none.skipped).toHaveLength(1);
+  });
+});
+
+describe("portfolio backtest", () => {
+  it("shares capital, respects max positions and conserves money", () => {
+    const up = (start: number) => mkBars([...Array.from({ length: 60 }, () => start), ...Array.from({ length: 60 }, (_, i) => start + i * 2), ...Array.from({ length: 30 }, (_, i) => start + 120 - i * 3)]).map((b, i, a) => ({ ...b, open: i ? a[i - 1].close : b.close }));
+    const series = { A: up(100), B: up(200), C: up(300) };
+    const dates = series.A.map((b) => b.date);
+    const r = runPortfolioBacktest(series, dates, { strategy: "sma_cross", params: { fast: 5, slow: 20 }, capital: 300_000, maxPositions: 2, slippagePct: 0 });
+    expect(Math.max(...r.equity.map((e) => e.positions))).toBeLessThanOrEqual(2);
+    expect(r.stats.skippedSignals).toBeGreaterThan(0);
+    expect(r.trades.length).toBeGreaterThan(0);
+    const net = r.trades.reduce((s, t) => s + t.netPnl, 0);
+    expect(r.stats.endCapital - 300_000).toBeCloseTo(net, 0);
+  });
+});
+
+describe("rebalancing", () => {
+  it("sells overweight, buys underweight, funds buys from sells", () => {
+    const s = computeHoldings([
+      { symbol: "A", type: "buy", date: "2024-01-01", quantity: 300, price: 100 },
+      { symbol: "B", type: "buy", date: "2024-01-01", quantity: 100, price: 100 },
+    ], { A: 100, B: 100 });
+    const plan = rebalancePlan(s.holdings, { A: 50, B: 50 }, { A: 100, B: 100 }, 0, undefined, "2026-01-01");
+    const a = plan.trades.find((t) => t.symbol === "A")!, b = plan.trades.find((t) => t.symbol === "B")!;
+    expect(a.side).toBe("sell");
+    expect(a.qty).toBe(100);
+    expect(b.side).toBe("buy");
+    expect(b.qty).toBeGreaterThan(90); // slightly under 100 because sell charges reduce cash
+    expect(b.qty).toBeLessThanOrEqual(100);
+    expect(plan.totals.cashLeft).toBeGreaterThanOrEqual(0);
+  });
+  it("warns when targets do not add to 100%", () => {
+    const s = computeHoldings([{ symbol: "A", type: "buy", date: "2024-01-01", quantity: 100, price: 100 }], { A: 100 });
+    expect(rebalancePlan(s.holdings, { A: 60 }, { A: 100 }).warnings[0]).toMatch(/stays in cash/);
   });
 });

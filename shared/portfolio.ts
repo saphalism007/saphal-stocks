@@ -304,3 +304,66 @@ export function nepaliFiscalYear(date: string, fyStart = "07-16"): string {
   const bs = startY + 57; // AD year in which Shrawan starts + 57 = BS year
   return `${bs}/${String((bs + 1) % 100).padStart(2, "0")}`;
 }
+
+// ---------- Rebalancing ----------
+
+export interface RebalanceTrade { symbol: string; side: "buy" | "sell"; qty: number; price: number; amount: number; charges: number; estCgt: number; fromWeightPct: number; toWeightPct: number }
+
+/**
+ * Trades needed to move from current holdings to target weights (percent of
+ * portfolio value after adding `cashToAdd`). Uses whole shares, Nepal charges, and
+ * estimated CGT on sells (from the earliest remaining lot's holding period).
+ * Trades smaller than `minTradeRs` are skipped to avoid paying minimum commissions for tiny changes.
+ */
+export function rebalancePlan(holdings: Holding[], targets: Record<string, number>, prices: Record<string, number | null>, cashToAdd = 0, cfg: FeeConfig = DEFAULT_FEES, today = new Date().toISOString().slice(0, 10), minTradeRs = 5000) {
+  const open = holdings.filter((h) => h.quantity > 0);
+  const priceOf = (s: string) => prices[s] ?? open.find((h) => h.symbol === s)?.lastPrice ?? null;
+  const current = open.reduce((t, h) => t + h.quantity * (priceOf(h.symbol) ?? h.wacc), 0);
+  const total = current + cashToAdd;
+  const sumT = Object.values(targets).reduce((a, b) => a + (b || 0), 0);
+  const warnings: string[] = [];
+  if (Math.abs(sumT - 100) > 0.5) warnings.push(`Target weights add up to ${sumT.toFixed(1)}%; the remaining ${(100 - sumT).toFixed(1)}% stays in cash.`);
+  const symbols = new Set([...open.map((h) => h.symbol), ...Object.keys(targets)]);
+  const trades: RebalanceTrade[] = [];
+  let cash = cashToAdd;
+  // Sells first (they fund the buys).
+  const sells: RebalanceTrade[] = [], buys: RebalanceTrade[] = [];
+  for (const s of symbols) {
+    const p = priceOf(s);
+    if (!p) { warnings.push(`No price for ${s}; skipped.`); continue; }
+    const h = open.find((x) => x.symbol === s);
+    const curQty = h?.quantity ?? 0;
+    const targetValue = (total * (targets[s] ?? 0)) / 100;
+    const diffQty = Math.trunc((targetValue - curQty * p) / p);
+    if (!diffQty || Math.abs(diffQty * p) < minTradeRs) continue;
+    const fromW = total ? ((curQty * p) / total) * 100 : 0;
+    const toW = total ? (((curQty + diffQty) * p) / total) * 100 : 0;
+    if (diffQty < 0) {
+      const q = Math.min(-diffQty, curQty);
+      const sc = sellCost(q, p, cfg);
+      const gain = sc.net - (h ? h.wacc * q : 0);
+      const hd = h?.lots[0] ? daysBetween(h.lots[0].date, today) : 0;
+      const tax = gain > 0 ? gain * cgtRate(hd, "individual", cfg) : 0;
+      sells.push({ symbol: s, side: "sell", qty: q, price: p, amount: q * p, charges: sc.total, estCgt: tax, fromWeightPct: fromW, toWeightPct: toW });
+      cash += sc.net - tax;
+    } else buys.push({ symbol: s, side: "buy", qty: diffQty, price: p, amount: diffQty * p, charges: buyCost(diffQty, p, cfg).total, estCgt: 0, fromWeightPct: fromW, toWeightPct: toW });
+  }
+  trades.push(...sells);
+  // Scale buys down if cash is short (after charges).
+  const need = buys.reduce((t, b) => t + b.amount + b.charges, 0);
+  const scale = need > cash && need > 0 ? cash / need : 1;
+  if (scale < 1) warnings.push(`Not enough cash for all buys after sells and taxes; buys scaled to ${(scale * 100).toFixed(0)}%.`);
+  for (const b of buys) {
+    let q = Math.floor(b.qty * scale);
+    while (q > 0 && buyCost(q, b.price, cfg).net > cash) q--;
+    if (q <= 0) continue;
+    const bc = buyCost(q, b.price, cfg);
+    cash -= bc.net;
+    trades.push({ ...b, qty: q, amount: q * b.price, charges: bc.total, toWeightPct: total ? ((b.fromWeightPct / 100) * total + q * b.price) / total * 100 : 0 });
+  }
+  return {
+    portfolioValue: current, total, trades,
+    totals: { charges: trades.reduce((t, x) => t + x.charges, 0), estCgt: trades.reduce((t, x) => t + x.estCgt, 0), turnover: trades.reduce((t, x) => t + x.amount, 0), cashLeft: cash },
+    warnings,
+  };
+}

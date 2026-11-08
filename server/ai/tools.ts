@@ -35,6 +35,10 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: "get_sector_stats", description: "Sector medians (P/E, P/B, ROE, cash yield, technical score) and the stocks in a sector, for relative valuation.", input_schema: obj({ sector: { type: "string" } }, ["sector"]) },
   { name: "get_public_issues", description: "IPO, FPO, right share and mutual fund issues: open now, upcoming/approved, recently listed, with listing performance vs issue price where price history exists. Also returns historical IPO listing statistics.", input_schema: obj({ type: { type: "string", enum: ["IPO", "FPO", "Right share", "IPO (local quota)", "IPO (foreign-employed quota)", "Mutual fund"] }, only_active: { type: "boolean" } }) },
   { name: "get_mutual_funds", description: "Listed close-ended mutual funds: fund size, weekly and monthly NAV, market price, premium/discount to NAV, maturity, 1-year price return.", input_schema: obj({}) },
+  { name: "get_portfolio_performance", description: "A portfolio's performance over time (time-weighted return vs NEPSE index, max drawdown, value vs net invested) and its tax summary by Nepali fiscal year (realised gains/losses, CGT, dividends, dividend tax).", input_schema: obj({ portfolio_id: { type: "integer" } }, ["portfolio_id"]) },
+  { name: "plan_rebalance", description: "Trades needed to move a portfolio to target weights (percent per symbol), with Nepal charges and estimated CGT, optionally adding new cash. Weights not summing to 100 leave the rest in cash.", input_schema: obj({ portfolio_id: { type: "integer" }, targets: { type: "object", description: "symbol -> target percent" }, cash_to_add: { type: "number" } }, ["portfolio_id", "targets"]) },
+  { name: "run_portfolio_backtest", description: "Backtest a strategy as one shared-capital account across many stocks (max simultaneous positions, equal slices), vs the NEPSE index, with Nepal costs.", input_schema: obj({ strategy: { type: "string", enum: STRATEGIES.map((s) => s.id) }, years: { type: "number" }, max_positions: { type: "integer" }, universe: { type: "string", enum: ["liquid", "all", "sector"] }, sector: { type: "string" }, stop_loss_pct: { type: "number" } }, ["strategy"]) },
+  { name: "get_exchange_rates", description: "Official NRB exchange rates (NPR per unit) for major and remittance currencies, with 1-month and 1-year changes.", input_schema: obj({}) },
   { name: "get_wealth_profile", description: "The user's saved financial profile and goals (income, expenses, savings, risk tolerance, goals with target dates). Use for personal financial planning questions.", input_schema: obj({}) },
   { name: "calculate", description: "Deterministic calculators: goal plan (with inflation and scenarios), lump-sum allocation, position size, round-trip trade cost with Nepal fees/CGT.", input_schema: obj({
     kind: { type: "string", enum: ["goal", "allocation", "position_size", "round_trip"] },
@@ -187,6 +191,39 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
       return { today, issues: rows.slice(0, 40), note: "status -2 = approved/upcoming (dates not yet announced). Use the Opportunities page for listing-performance statistics." };
     }
     case "get_mutual_funds": return all("SELECT symbol, name, kind, fund_size, weekly_nav, weekly_date, monthly_nav, monthly_date, ltp, ltp_date, premium_pct, maturity_date FROM fund_navs ORDER BY kind, premium_pct");
+    case "get_portfolio_performance": {
+      const own = get("SELECT id FROM portfolios WHERE id = ? AND user_id = ?", Number(input.portfolio_id), userId);
+      if (!own) return { error: "Portfolio not found" };
+      const { performanceFor, taxReportFor } = await import("../lib/portfolioService.ts");
+      return { performance: performanceFor(Number(input.portfolio_id)), tax: taxReportFor(Number(input.portfolio_id)) };
+    }
+    case "plan_rebalance": {
+      const own = get("SELECT id FROM portfolios WHERE id = ? AND user_id = ?", Number(input.portfolio_id), userId);
+      if (!own) return { error: "Portfolio not found" };
+      const { portfolioSummary } = await import("../lib/portfolioService.ts");
+      const { rebalancePlan } = await import("../../shared/portfolio.ts");
+      const d = portfolioSummary(Number(input.portfolio_id));
+      const targets = Object.fromEntries(Object.entries((input.targets || {}) as Record<string, number>).map(([k, v]) => [k.toUpperCase(), Number(v)]));
+      const prices: Record<string, number | null> = {};
+      for (const sym of new Set([...Object.keys(targets), ...d.summary.holdings.map((h) => h.symbol)])) prices[sym] = (M.quote(sym)?.close as number) ?? null;
+      return rebalancePlan(d.summary.holdings, targets, prices, Number(input.cash_to_add) || 0, M.fees());
+    }
+    case "run_portfolio_backtest": {
+      const { runPortfolioBacktest } = await import("../../shared/backtest.ts");
+      const factors = M.allFactors();
+      const list = (input.universe === "sector" ? factors.filter((f) => f.sector === input.sector) : input.universe === "all" ? factors : factors.filter((f) => (f.avgTurnover20 ?? 0) >= 5_000_000)).map((f) => f.symbol).slice(0, 300);
+      const series: Record<string, import("../../shared/types.ts").Bar[]> = {};
+      for (const sym of list) { const b = M.bars(sym).bars; if (b.length >= 100) series[sym] = b; }
+      const idx = all<{ date: string; close: number }>("SELECT date, close FROM indices WHERE index_id = 12 ORDER BY date");
+      const last = idx[idx.length - 1]?.date ?? new Date().toISOString().slice(0, 10);
+      const from = new Date(Date.parse(last) - (Number(input.years) || 5) * 365.25 * 86_400_000).toISOString().slice(0, 10);
+      const r = runPortfolioBacktest(series, idx.map((x) => x.date), { strategy: input.strategy as StrategyId, from, maxPositions: Number(input.max_positions) || 10, stopLossPct: (input.stop_loss_pct as number) ?? null, fees: M.fees() }, Object.fromEntries(idx.map((x) => [x.date, x.close])));
+      return { strategy: r.strategy.name, params: r.params, period: r.period, universe: Object.keys(series).length, stats: r.stats, caveats: r.caveats };
+    }
+    case "get_exchange_rates": {
+      const latest = get<{ d: string }>("SELECT MAX(date) d FROM forex")?.d;
+      return { date: latest, source: "Nepal Rastra Bank", rates: all("SELECT currency, unit, buy, sell FROM forex WHERE date = ? AND currency IN ('USD','EUR','GBP','INR','CNY','JPY','AUD','SAR','QAR','AED','MYR','KRW')", latest) };
+    }
     case "get_wealth_profile": {
       const { readVault } = await import("../lib/vault.ts");
       return { profile: readVault(userId, "profile")[0]?.data ?? null, goals: readVault(userId, "goal").map((g) => g.data) };

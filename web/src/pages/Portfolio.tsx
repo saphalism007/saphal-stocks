@@ -7,6 +7,7 @@ import { useTheme } from "../App.tsx";
 import { num, pct, tone, compact, int, nptDate, todayNpt, rs } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 import { buyCost, sellCost } from "../../../shared/costs.ts";
+import { rebalancePlan } from "../../../shared/portfolio.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -45,7 +46,7 @@ export default function Portfolio() {
 function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void }) {
   const d = useApi<Any>(`/portfolios/${id}`, [id]);
   const [adding, setAdding] = useState<null | "tx" | "paper" | "import">(null);
-  const [view, setView] = useState<"holdings" | "performance" | "tax">("holdings");
+  const [view, setView] = useState<"holdings" | "performance" | "tax" | "rebalance">("holdings");
   const [edit, setEdit] = useState<Any>(null);
   const nav = useNavigate();
   if (d.loading && !d.data) return <Loading />;
@@ -77,8 +78,9 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
         <Stat label="Total return" value={pct(s.totalReturnPct)} tone={tone(s.totalReturnPct)} sub={`on ${compact(s.cashIn)} invested`} />
         {p.kind === "paper" ? <Stat label="Paper cash" value={compact(cash)} sub={`Start ${compact(p.paper_cash)}`} /> : <Stat label="Health score" value={health ? <Score value={health.score} /> : "—"} sub={health ? `${health.diversification.holdings} holdings · ${health.diversification.sectorCount} sectors` : ""} />}
       </div>
-      <Tabs value={view} onChange={setView} tabs={[{ key: "holdings", label: "Holdings & transactions" }, { key: "performance", label: "Performance vs NEPSE" }, { key: "tax", label: "Tax report" }]} />
+      <Tabs value={view} onChange={setView} tabs={[{ key: "holdings", label: "Holdings & transactions" }, { key: "performance", label: "Performance vs NEPSE" }, { key: "tax", label: "Tax report" }, { key: "rebalance", label: "Rebalance" }]} />
       {view === "performance" && <Performance id={id} />}
+      {view === "rebalance" && <Rebalance summary={s} sectors={sectors} extras={extras} />}
       {view === "tax" && <TaxReport id={id} />}
       {view === "holdings" && <>
       <div className="grid g3">
@@ -290,6 +292,84 @@ function TaxReport({ id }: { id: number }) {
         ]} />
       </Card>
       <ul className="tiny faint" style={{ paddingLeft: 18 }}>{d.notes.map((n: string) => <li key={n}>{n}</li>)}</ul>
+    </div>
+  );
+}
+
+function Rebalance({ summary, sectors, extras }: { summary: Any; sectors: Record<string, string>; extras: Any }) {
+  const fees = useApi<Any>("/settings/fees");
+  const open = summary.holdings.filter((h: Any) => h.quantity > 0);
+  const total = open.reduce((t: number, h: Any) => t + (h.marketValue ?? h.costBasis), 0);
+  const [targets, setTargets] = useState<Record<string, number>>(() => Object.fromEntries(open.map((h: Any) => [h.symbol, Math.round((((h.marketValue ?? h.costBasis) / (total || 1)) * 100) * 10) / 10])));
+  const [cash, setCash] = useState(0);
+  const [add, setAdd] = useState("");
+  const [addPrice, setAddPrice] = useState<Record<string, number>>({});
+  const [minTrade, setMinTrade] = useState(5000);
+  const prices: Record<string, number | null> = Object.fromEntries(open.map((h: Any) => [h.symbol, h.lastPrice]));
+  Object.assign(prices, addPrice);
+  const plan = fees.data ? rebalancePlan(summary.holdings, targets, prices, cash, fees.data.current, undefined, minTrade) : null;
+  const sumT = Object.values(targets).reduce((a, b) => a + (+b || 0), 0);
+  const equal = () => { const keys = Object.keys(targets); setTargets(Object.fromEntries(keys.map((k) => [k, Math.round((100 / keys.length) * 10) / 10]))); };
+  const capped = (cap: number) => {
+    // Cap each holding at `cap`% and spread the excess over the others proportionally.
+    let t = { ...targets };
+    for (let k = 0; k < 10; k++) {
+      const over = Object.entries(t).filter(([, v]) => v > cap);
+      if (!over.length) break;
+      const excess = over.reduce((s2, [, v]) => s2 + v - cap, 0);
+      const under = Object.entries(t).filter(([, v]) => v < cap);
+      const base = under.reduce((s2, [, v]) => s2 + v, 0) || 1;
+      t = Object.fromEntries(Object.entries(t).map(([s2, v]) => [s2, v > cap ? cap : v + (excess * v) / base]));
+    }
+    setTargets(Object.fromEntries(Object.entries(t).map(([k, v]) => [k, Math.round(v * 10) / 10])));
+  };
+  const addSymbol = async () => {
+    const s2 = add.trim().toUpperCase();
+    if (!s2 || targets[s2] != null) return;
+    const p = await api<Record<string, number | null>>(`/prices/latest?symbols=${s2}`);
+    if (!p[s2]) return alert(`No price for ${s2}`);
+    setAddPrice({ ...addPrice, [s2]: p[s2] as number });
+    setTargets({ ...targets, [s2]: 0 });
+    setAdd("");
+  };
+  if (!open.length) return <Empty title="No holdings to rebalance" />;
+  return (
+    <div className="grid g3">
+      <Card title="Target weights" sub={`Adds up to ${num(sumT, 1)}%`} actions={<><button className="btn sm" onClick={equal}>Equal weight</button><button className="btn sm" onClick={() => capped(20)}>Cap at 20%</button></>}>
+        <div className="table-wrap"><table className="t"><thead><tr><th>Stock</th><th className="num">Now</th><th className="num">Target %</th></tr></thead><tbody>
+          {Object.keys(targets).map((sym) => { const h = open.find((x: Any) => x.symbol === sym); const now = h ? ((h.marketValue ?? h.costBasis) / (total || 1)) * 100 : 0; return (
+            <tr key={sym}><td><span className="sym">{sym}</span><div className="tiny faint">{sectors[sym] ?? "new"} {extras[sym]?.fundamentalScore != null && <>· fund. {extras[sym].fundamentalScore}</>}</div></td><td className="num">{num(now, 1)}%</td>
+              <td className="num"><input className="input" type="number" step="0.5" style={{ width: 64, padding: "5px 6px" }} value={targets[sym]} onChange={(e) => setTargets({ ...targets, [sym]: +e.target.value })} /></td></tr>
+          ); })}
+        </tbody></table></div>
+        <form className="row" style={{ marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); void addSymbol(); }}><input className="input" placeholder="Add stock" value={add} onChange={(e) => setAdd(e.target.value.toUpperCase())} style={{ width: 120 }} /><button className="btn sm"><I.plus /></button></form>
+        <div className="grid g2" style={{ marginTop: 10 }}>
+          <label className="field">New cash to invest (Rs.)<input className="input" type="number" value={cash} onChange={(e) => setCash(+e.target.value)} /></label>
+          <label className="field">Skip trades under (Rs.)<input className="input" type="number" value={minTrade} onChange={(e) => setMinTrade(+e.target.value)} /></label>
+        </div>
+      </Card>
+      <div className="col span2">
+        {plan && <>
+          <div className="grid g4">
+            <Stat label="Trades" value={plan.trades.length} sub={`Turnover ${compact(plan.totals.turnover)}`} />
+            <Stat label="Charges" value={rs(plan.totals.charges, 0)} sub="Commission, SEBON, DP" />
+            <Stat label="Estimated CGT" value={rs(plan.totals.estCgt, 0)} sub="On sells with gains" />
+            <Stat label="Cash left" value={rs(plan.totals.cashLeft, 0)} />
+          </div>
+          {plan.warnings.map((w) => <Notice key={w} tone="warn">{w}</Notice>)}
+          <Card title="Trades to reach your targets" flush sub={`Prices: latest close. Portfolio value ${compact(plan.portfolioValue)}${cash ? ` + ${compact(cash)} new cash` : ""}.`}>
+            <DataTable rows={plan.trades} empty="Already within your targets (or changes are below the minimum trade size)" cols={[
+              { key: "side", label: "Action", render: (t: Any) => <Badge tone={t.side === "buy" ? "up" : "down"}>{t.side}</Badge> },
+              { key: "symbol", label: "Stock", render: (t: Any) => <span className="sym">{t.symbol}</span> },
+              { key: "qty", label: "Shares", num: true, render: (t: Any) => int(t.qty) }, { key: "price", label: "At ~", num: true, render: (t: Any) => num(t.price) },
+              { key: "amount", label: "Amount", num: true, render: (t: Any) => rs(t.amount, 0) }, { key: "charges", label: "Charges", num: true, render: (t: Any) => rs(t.charges, 0) },
+              { key: "estCgt", label: "Est. CGT", num: true, render: (t: Any) => (t.estCgt ? rs(t.estCgt, 0) : "—") },
+              { key: "w", label: "Weight", num: true, render: (t: Any) => `${num(t.fromWeightPct, 1)}% → ${num(t.toWeightPct, 1)}%` },
+            ]} />
+          </Card>
+          <p className="tiny faint">A plan only; nothing is traded. Consider taxes and whether selling short-term holdings (7.5% CGT) can wait until they become long-term (5%). Rebalancing small differences often costs more in charges than it is worth.</p>
+        </>}
+      </div>
     </div>
   );
 }

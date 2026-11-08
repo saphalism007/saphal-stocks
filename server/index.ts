@@ -14,6 +14,7 @@ import { wealthRouter } from "./routes/wealth.ts";
 import { systemRouter } from "./routes/system.ts";
 import { startScheduler, onJobDone } from "./ingest/jobs.ts";
 import { evaluateAlerts } from "./lib/alerts.ts";
+import { dailyBackup } from "./lib/backup.ts";
 
 seedReference();
 
@@ -57,5 +58,11 @@ onJobDone((job) => { if (["listing", "details", "news"].includes(job)) { try { c
 
 app.listen(config.port, "127.0.0.1", () => {
   console.log(`Saphal Stocks API on http://127.0.0.1:${config.port}  (AI: ${config.ai.provider}${config.ai.hasKey ? "" : ", no key"})`);
-  if (process.env.NO_SCHEDULER !== "1") startScheduler();
+  if (process.env.NO_SCHEDULER !== "1") {
+    startScheduler();
+    const backupTick = () => { try { const f = dailyBackup(); if (f) console.log(`[backup] ${f}`); } catch (e) { console.error("[backup]", e); } };
+    backupTick();
+    setInterval(backupTick, 3_600_000);
+    setInterval(() => { try { evaluateAlerts(); } catch (e) { console.error(e); } }, 6 * 3_600_000); // reminders even on days without new data
+  }
 });

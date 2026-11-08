@@ -1,6 +1,6 @@
 # Progress
 
-Status as of 8 November 2026 (version 0.3.0). ✅ working · 🟡 partial · ⬜ not started.
+Status as of 8 November 2026 (version 0.4.0). ✅ working · 🟡 partial · ⬜ not started.
 
 ## Data infrastructure
 - ✅ Company database, daily OHLCV history (nepse-data), latest prices, 18 indices, dividends, announcements, quarterly statements, NRB forex
@@ -15,6 +15,7 @@ Status as of 8 November 2026 (version 0.3.0). ✅ working · 🟡 partial · ⬜
 - ✅ Daily scheduler remembers its last run across restarts
 
 ## Market & stocks
+- ✅ Economy: one year of official NRB exchange rates, USD/NPR chart, 1M/1Y changes for major and remittance currencies
 - ✅ Total market capitalisation; sector rotation table (1W–1Y returns, relative to NEPSE, distance from 52-week high)
 - ✅ Sector peers on every stock page with rank among peers
 - ✅ Stock comparison page (up to 6 stocks): rebased price chart, valuation, profitability, health, dividends, performance, best-in-row highlighting, cross-sector warning
@@ -29,6 +30,7 @@ Status as of 8 November 2026 (version 0.3.0). ✅ working · 🟡 partial · ⬜
 - ✅ Algorithmic pattern detection with per-stock historical track record
 - ✅ Rule-based setups (breakout, pullback, momentum, oversold bounce, trend continuation, breakdown, overbought at resistance) with all required fields, net-of-cost returns
 - ✅ Backtester with Nepal costs and CGT, 7 strategies, equity curve, trades on chart
+- ✅ Strategy Lab, shared-capital mode: one account, max simultaneous positions, equal slices of equity, signal ranking by liquidity or momentum, equity vs NEPSE
 - ✅ Strategy Lab: one strategy across many stocks (liquid, sector, all, or a list), median return vs buy & hold, % of stocks beaten, pooled win rate, profit factor, drawdown, trade-return histogram
 
 ## Fundamental analysis
@@ -52,6 +54,7 @@ Status as of 8 November 2026 (version 0.3.0). ✅ working · 🟡 partial · ⬜
 - ✅ WACC, realised/unrealised P&L, dividends, net-if-sold-today, allocation, sector exposure, health score
 - ✅ Paper trading with simulated cash; CSV import
 - ✅ Performance over time: daily value, time-weighted return vs NEPSE index, max drawdown
+- ✅ Rebalancing planner: target weights (equal-weight and 20% cap shortcuts), new cash, minimum trade size, whole-share trades with Nepal charges and estimated CGT
 - ✅ Tax report by Nepali fiscal year (realised gains/losses, CGT actual or estimated, dividends and dividend tax) and CSV exports (holdings, transactions, tax)
 - ✅ Trading journal (plan vs outcome, emotions, plan followed, results by setup, average R, net of fees and CGT) and investment thesis tracker (thesis, catalysts, metrics, invalidation, review dates, price since thesis, AI review)
 - 🟡 No automatic import from Mero Share (no public API)
@@ -65,18 +68,20 @@ Status as of 8 November 2026 (version 0.3.0). ✅ working · 🟡 partial · ⬜
 
 ## Alerts, news, education
 - ✅ 18 alert types, evaluated after every data refresh, de-duplicated per data date
+- ✅ Automatic reminders (no setup): thesis reviews due, and monthly goal on-track / behind-plan checks
 - ✅ Daily briefing on the Overview page (all six questions), customizable (show/hide, reorder sections)
 - ✅ News and announcements feed with categories and AI explanation
 - ✅ Learning center: 16 Nepal-focused lessons
 - ⬜ Email/phone push notifications (in-app only)
 
 ## Security
+- ✅ Automatic daily database backups (7 kept, `BACKUP_KEEP_DAYS`)
 - ✅ Local-only server, scrypt passwords, secure cookies, rate-limited login, origin checks, input validation, AES-256-GCM for personal data, export, backup, deletion
 
 ## Roadmap (next)
 1. Run with an API key and tune the analyst prompt on real questions.
 2. Cash-flow and multi-year annual statements from uploaded annual reports (AI extraction into structured tables).
-3. Combined portfolio-level backtesting (capital shared across stocks, position limits).
-4. Historical valuation bands (P/E and P/B over time) as quarterly history accumulates.
-5. Open-ended mutual fund NAVs (needs a source; managers publish on their own sites).
+3. Historical valuation bands (P/E and P/B over time) as quarterly history accumulates.
+4. Open-ended mutual fund NAVs (needs a source; managers publish on their own sites).
+5. Interest rates and other NRB macro indicators (needs a verified source).
 6. Push to a new private GitHub repository.

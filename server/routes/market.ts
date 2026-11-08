@@ -3,7 +3,7 @@ import { z } from "zod";
 import { all, get } from "../db.ts";
 import * as M from "../lib/market.ts";
 import { RANK_STRATEGIES, rankStocks } from "../../shared/ranking.ts";
-import { runBacktest, STRATEGIES, type StrategyId } from "../../shared/backtest.ts";
+import { runBacktest, runPortfolioBacktest, STRATEGIES, type StrategyId } from "../../shared/backtest.ts";
 import { patternTrackRecord } from "../../shared/patterns.ts";
 import { syncCompanyDetail, syncHistory } from "../ingest/jobs.ts";
 import { buildStockReport } from "../ai/offline.ts";
@@ -329,4 +329,42 @@ marketRouter.get("/stocks/:symbol/peers", (req, res) => {
     ranks: { fundamental: rank("fundamentalScore"), technical: rank("technicalScore"), pe: rank("pe", true), pb: rank("pb", true), roe: rank("roe"), cashYield: rank("cashYield"), return1y: rank("return1y") },
     peers: peers.map((p) => ({ symbol: p.symbol, name: p.name, price: p.price, pe: p.pe, pb: p.pb, roe: p.roe, cashYield: p.cashYield, return1y: p.return1y, fundamentalScore: p.fundamentalScore, technicalScore: p.technicalScore, avgTurnover20: p.avgTurnover20 })),
   });
+});
+
+marketRouter.post("/backtest/portfolio", (req, res) => {
+  const p = z.object({
+    strategy: z.enum(STRATEGIES.map((s) => s.id) as [StrategyId, ...StrategyId[]]), params: z.record(z.number()).optional(),
+    years: z.number().min(1).max(15).default(5), universe: z.enum(["liquid", "all", "sector", "symbols"]).default("liquid"), sector: z.string().optional(),
+    symbols: z.array(SYM).max(100).optional(), capital: z.number().positive().max(1e10).default(1_000_000), maxPositions: z.number().int().min(1).max(50).default(10),
+    stopLossPct: z.number().min(0).max(90).nullable().optional(), takeProfitPct: z.number().min(0).max(1000).nullable().optional(), maxHoldDays: z.number().int().min(1).max(2000).nullable().optional(),
+    rankBy: z.enum(["liquidity", "momentum"]).default("liquidity"),
+  }).parse(req.body);
+  const factors = M.allFactors();
+  let list = p.universe === "symbols" ? p.symbols ?? [] : p.universe === "sector" ? factors.filter((f) => f.sector === p.sector).map((f) => f.symbol)
+    : p.universe === "liquid" ? factors.filter((f) => (f.avgTurnover20 ?? 0) >= 5_000_000).map((f) => f.symbol) : factors.map((f) => f.symbol);
+  list = list.slice(0, 300);
+  const series: Record<string, import("../../shared/types.ts").Bar[]> = {};
+  for (const s of list) { const b = M.bars(s).bars; if (b.length >= 100) series[s] = b; }
+  const idx = all<{ date: string; close: number }>("SELECT date, close FROM indices WHERE index_id = 12 ORDER BY date");
+  const last = idx[idx.length - 1]?.date ?? new Date().toISOString().slice(0, 10);
+  const from = new Date(Date.parse(last) - p.years * 365.25 * 86_400_000).toISOString().slice(0, 10);
+  const r = runPortfolioBacktest(series, idx.map((x) => x.date), { ...p, from, fees: M.fees() }, Object.fromEntries(idx.map((x) => [x.date, x.close])));
+  res.json({ ...r, universe: Object.keys(series).length, trades: r.trades.slice(-300), tradesTotal: r.trades.length });
+});
+
+marketRouter.get("/economy/forex", (_req, res) => {
+  const latest = get<{ d: string }>("SELECT MAX(date) d FROM forex")?.d;
+  if (!latest) return res.json({ latest: null, rows: [], usd: [] });
+  const at = (cur: string, daysBack: number) => get<{ sell: number; unit: number }>("SELECT sell, unit FROM forex WHERE currency = ? AND date <= date(?, ?) ORDER BY date DESC LIMIT 1", cur, latest, `-${daysBack} days`);
+  const KEY = ["USD", "EUR", "GBP", "INR", "CNY", "JPY", "AUD", "CAD", "SAR", "QAR", "AED", "MYR", "KRW", "KWD", "BHD"];
+  const rows = all<{ currency: string; unit: number; buy: number; sell: number }>("SELECT currency, unit, buy, sell FROM forex WHERE date = ?", latest)
+    .filter((r) => KEY.includes(r.currency))
+    .sort((a, b) => KEY.indexOf(a.currency) - KEY.indexOf(b.currency))
+    .map((r) => {
+      const m1 = at(r.currency, 30), y1 = at(r.currency, 365);
+      const chg = (o?: { sell: number; unit: number }) => (o?.sell && o.unit === r.unit ? Math.round(((r.sell - o.sell) / o.sell) * 1000) / 10 : null);
+      return { ...r, change1m: chg(m1), change1y: chg(y1) };
+    });
+  const usd = all<{ date: string; sell: number }>("SELECT date, sell FROM forex WHERE currency = 'USD' ORDER BY date");
+  res.json({ latest, rows, usd, source: "Nepal Rastra Bank (official rates, NPR per unit shown)", note: "A weaker rupee (higher NPR per USD) raises import costs and remittance value in rupees; the NPR is pegged to the Indian rupee at 1.6." });
 });

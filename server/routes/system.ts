@@ -9,6 +9,7 @@ import { config, setEnvValue, DATA_DIR } from "../config.ts";
 import { readVault } from "../lib/vault.ts";
 import { politeFetch } from "../lib/fetcher.ts";
 import { dataQuality } from "../lib/dataQuality.ts";
+import { listBackups } from "../lib/backup.ts";
 
 export const systemRouter = Router();
 
@@ -123,3 +124,4 @@ systemRouter.post("/backup", (_req, res) => {
 });
 
 systemRouter.get("/data/quality", (_req, res) => res.json(dataQuality()));
+systemRouter.get("/backups", (_req, res) => res.json({ dir: "data/backups", files: listBackups(), keepDays: Number(process.env.BACKUP_KEEP_DAYS || 7) }));

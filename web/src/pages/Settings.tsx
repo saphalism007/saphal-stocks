@@ -144,6 +144,7 @@ function SecurityTab() {
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const sessions = useApi<any[]>("/auth/sessions");
+  const backups = useApi<any>("/backups");
   const change = async () => { try { await api("/auth/password", { body: pw }); setMsg("Password changed. Other sessions were signed out."); setPw({ current: "", next: "" }); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); } };
   return (
     <div className="grid g2">
@@ -166,8 +167,9 @@ function SecurityTab() {
         </ul>
         <div className="row">
           <a className="btn" href="/api/account/export"><I.download /> Export my data (JSON)</a>
-          <button className="btn" onClick={async () => { const r = await api<any>("/backup", { body: {} }); setMsg(`Backup written to ${r.file}`); }}>Back up database</button>
+          <button className="btn" onClick={async () => { const r = await api<any>("/backup", { body: {} }); setMsg(`Backup written to ${r.file}`); backups.reload(); }}>Back up database</button>
         </div>
+        {backups.data && <p className="tiny faint" style={{ marginTop: 8 }}>Automatic daily backups (last {backups.data.keepDays} kept) in <code>{backups.data.dir}</code>: {backups.data.files.slice(0, 8).join(", ") || "none yet"}. Copy this folder and your <code>.env</code> key somewhere safe (e.g. an external drive).</p>}
         <div className="sep" />
         <div className="small" style={{ fontWeight: 600 }} >Delete personal data</div>
         <p className="small muted">Deletes portfolios, watchlists, alerts, notifications, financial profile, goals, documents and AI conversations. Market data is kept. This cannot be undone.</p>

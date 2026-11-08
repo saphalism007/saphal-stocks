@@ -256,13 +256,21 @@ export async function syncNews(): Promise<number> {
 }
 
 export async function syncForex(): Promise<number> {
-  const to = new Date().toISOString().slice(0, 10);
-  const from = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
-  const rows = await P.nrbForex(from, to);
+  // Backfill one year on first run (the API pages by up to 100 days), then the last 30 days.
+  const haveFrom = get<{ d: string }>("SELECT MIN(date) d FROM forex")?.d;
+  const today = Date.now();
+  const start = !haveFrom || haveFrom > new Date(today - 330 * 86_400_000).toISOString().slice(0, 10) ? today - 365 * 86_400_000 : today - 30 * 86_400_000;
   const st = db.prepare("INSERT INTO forex (date, currency, unit, buy, sell) VALUES (?, ?, ?, ?, ?) ON CONFLICT(date, currency) DO UPDATE SET buy = excluded.buy, sell = excluded.sell, unit = excluded.unit");
-  tx(() => { for (const r of rows) st.run(r.date, r.currency, r.unit, r.buy, r.sell); });
-  fresh("forex", P.SOURCES.nrb, rows.reduce((m, r) => (r.date > m ? r.date : m), ""), rows.length);
-  return rows.length;
+  let n = 0;
+  for (let t = start; t < today; t += 90 * 86_400_000) {
+    const from = new Date(t).toISOString().slice(0, 10);
+    const to = new Date(Math.min(today, t + 89 * 86_400_000)).toISOString().slice(0, 10);
+    const rows = await P.nrbForex(from, to);
+    tx(() => { for (const r of rows) st.run(r.date, r.currency, r.unit, r.buy, r.sell); });
+    n += rows.length;
+  }
+  fresh("forex", P.SOURCES.nrb, get<{ d: string }>("SELECT MAX(date) d FROM forex")?.d ?? null, n);
+  return n;
 }
 
 /** Symbols listed in the nepse-data repository (one GitHub API call). */
