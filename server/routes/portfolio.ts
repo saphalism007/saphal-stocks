@@ -5,7 +5,8 @@ import { portfolioSummary, txsFor, latestPrices } from "../lib/portfolioService.
 import * as M from "../lib/market.ts";
 import { ALERT_TYPES, evaluateAlerts, dailyBriefing } from "../lib/alerts.ts";
 import { buyCost, sellCost } from "../../shared/costs.ts";
-import { computeHoldings } from "../../shared/portfolio.ts";
+import { computeHoldings, portfolioTimeline, nepaliFiscalYear } from "../../shared/portfolio.ts";
+import { getSetting, setSetting } from "../db.ts";
 
 export const portfolioRouter = Router();
 const SYM = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,12}$/);
@@ -210,4 +211,87 @@ portfolioRouter.get("/briefing", (req, res) => res.json(dailyBriefing(uid(req)))
 portfolioRouter.get("/prices/latest", (req, res) => {
   const syms = String(req.query.symbols || "").split(",").map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z0-9]{1,12}$/.test(s)).slice(0, 200);
   res.json(latestPrices(syms));
+});
+
+// ---------- performance history ----------
+portfolioRouter.get("/portfolios/:id/history", (req, res) => {
+  const p = ownPortfolio(req, Number(req.params.id));
+  const txs = txsFor(p.id);
+  if (!txs.length) return res.json({ points: [], stats: null });
+  const start = txs.reduce((m, t) => (t.date < m ? t.date : m), txs[0].date);
+  const syms = [...new Set(txs.map((t) => t.symbol))];
+  const prices: Record<string, [string, number][]> = {};
+  // Unadjusted prices: transaction quantities are actual share counts (bonus shares are recorded as transactions).
+  for (const s of syms) prices[s] = all<{ date: string; close: number }>("SELECT date, close FROM prices WHERE symbol = ? AND date >= date(?, '-30 days') ORDER BY date", s, start).map((r) => [r.date, r.close]);
+  const idx = all<{ date: string; close: number }>("SELECT date, close FROM indices WHERE index_id = 12 AND date >= ? ORDER BY date", start);
+  let dates = idx.map((r) => r.date);
+  if (!dates.length) dates = all<{ date: string }>("SELECT DISTINCT date FROM prices WHERE date >= ? ORDER BY date", start).map((r) => r.date);
+  const bench = Object.fromEntries(idx.map((r) => [r.date, r.close]));
+  const points = portfolioTimeline(txs, prices, dates, bench, M.fees());
+  const lastP = points[points.length - 1];
+  let peak = 0, mdd = 0;
+  for (const pt of points) { peak = Math.max(peak, pt.twrIndex); if (peak > 0) mdd = Math.max(mdd, (peak - pt.twrIndex) / peak); }
+  const years = points.length > 1 ? (Date.parse(lastP.date) - Date.parse(points[0].date)) / (365.25 * 86_400_000) : 0;
+  res.json({
+    points,
+    stats: lastP ? {
+      from: points[0].date, to: lastP.date, value: lastP.value, netInvested: lastP.netInvested,
+      twrPct: Math.round((lastP.twrIndex - 100) * 100) / 100,
+      twrAnnualPct: years >= 1 ? Math.round((Math.pow(lastP.twrIndex / 100, 1 / years) - 1) * 10000) / 100 : null,
+      benchmarkPct: lastP.benchmark != null ? Math.round((lastP.benchmark - 100) * 100) / 100 : null,
+      maxDrawdownPct: Math.round(mdd * 10000) / 100,
+    } : null,
+    method: "Time-weighted return: each day's return excludes money you added or withdrew, so it measures your stock selection and timing, comparable with the NEPSE index. Uses actual (unadjusted) closing prices and your recorded bonus/right transactions.",
+  });
+});
+
+// ---------- tax report by Nepali fiscal year ----------
+function taxReport(portfolioId: number, fyStart: string) {
+  const s = computeHoldings(txsFor(portfolioId), {}, M.fees());
+  const byFy = new Map<string, { fy: string; realizedGain: number; realizedLoss: number; cgt: number; cgtEstimated: boolean; sells: number; dividendsGross: number; dividendTax: number }>();
+  const row = (fy: string) => { let r = byFy.get(fy); if (!r) { r = { fy, realizedGain: 0, realizedLoss: 0, cgt: 0, cgtEstimated: false, sells: 0, dividendsGross: 0, dividendTax: 0 }; byFy.set(fy, r); } return r; };
+  for (const e of s.realizedEvents) { const r = row(nepaliFiscalYear(e.date, fyStart)); if (e.gain >= 0) r.realizedGain += e.gain; else r.realizedLoss += -e.gain; r.cgt += e.tax; r.sells++; if (e.taxEstimated) r.cgtEstimated = true; }
+  for (const e of s.dividendEvents) { const r = row(nepaliFiscalYear(e.date, fyStart)); r.dividendsGross += e.gross; r.dividendTax += e.tax; }
+  return {
+    fyStart, years: [...byFy.values()].sort((a, b) => (a.fy < b.fy ? 1 : -1)),
+    sells: s.realizedEvents.map((e) => ({ ...e, fy: nepaliFiscalYear(e.date, fyStart), longTerm: e.holdingDays > M.fees().holdingDaysForLongTerm })),
+    dividends: s.dividendEvents.map((e) => ({ ...e, fy: nepaliFiscalYear(e.date, fyStart) })),
+    notes: [
+      "Capital gains tax on listed shares is a final withholding tax deducted by the broker at sale; amounts marked estimated were calculated from your holding period because you did not record the actual tax.",
+      "Losses on listed shares cannot normally be set off against gains for this final withholding tax; check with a tax professional or IRD for your situation.",
+      "Fiscal years are mapped from AD dates using the fiscal year start day set below (Shrawan 1 falls on 16 or 17 July).",
+    ],
+  };
+}
+
+portfolioRouter.get("/portfolios/:id/tax-report", (req, res) => {
+  const p = ownPortfolio(req, Number(req.params.id));
+  const fyStart = typeof req.query.fyStart === "string" && /^\d{2}-\d{2}$/.test(req.query.fyStart) ? req.query.fyStart : getSetting("fyStart", "07-16");
+  if (typeof req.query.fyStart === "string") setSetting("fyStart", fyStart);
+  res.json(taxReport(p.id, fyStart));
+});
+
+// ---------- CSV exports ----------
+const csv = (rows: (string | number | null | undefined)[][]) => rows.map((r) => r.map((v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(",")).join("\n") + "\n";
+const sendCsv = (res: import("express").Response, name: string, body: string) => { res.setHeader("Content-Type", "text/csv; charset=utf-8"); res.setHeader("Content-Disposition", `attachment; filename="${name}"`); res.send(body); };
+const safeName = (s: string) => s.replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+
+portfolioRouter.get("/portfolios/:id/export/:what", (req, res) => {
+  const p = ownPortfolio(req, Number(req.params.id));
+  const day = new Date().toISOString().slice(0, 10);
+  if (req.params.what === "transactions.csv") {
+    return sendCsv(res, `${safeName(p.name)}-transactions-${day}.csv`, csv([["date", "symbol", "type", "quantity", "price", "commission", "other_charges", "tax", "notes"], ...txsFor(p.id).map((t) => [t.date, t.symbol, t.type, t.quantity, t.price, t.commission, t.otherCharges, t.tax, t.notes])]));
+  }
+  if (req.params.what === "holdings.csv") {
+    const d = portfolioSummary(p.id);
+    return sendCsv(res, `${safeName(p.name)}-holdings-${day}.csv`, csv([["symbol", "sector", "quantity", "wacc", "cost_basis", "last_price", "market_value", "unrealized_pnl", "unrealized_pct", "realized_pnl", "dividends_net", "price_date"],
+      ...d.summary.holdings.map((h) => [h.symbol, d.sectors[h.symbol] ?? "", h.quantity, h.wacc.toFixed(2), h.costBasis.toFixed(2), h.lastPrice, h.marketValue?.toFixed(2), h.unrealizedPnl?.toFixed(2), h.unrealizedPct?.toFixed(2), h.realizedPnl.toFixed(2), h.dividendsReceived.toFixed(2), d.priceDate])]));
+  }
+  if (req.params.what === "tax.csv") {
+    const t = taxReport(p.id, getSetting("fyStart", "07-16"));
+    return sendCsv(res, `${safeName(p.name)}-tax-${day}.csv`, csv([["fiscal_year", "date", "kind", "symbol", "quantity", "proceeds_or_gross", "cost_basis", "gain", "holding_days", "tax", "tax_estimated"],
+      ...t.sells.map((e) => [e.fy, e.date, "sale", e.symbol, e.qty, e.proceeds.toFixed(2), e.costBasis.toFixed(2), e.gain.toFixed(2), e.holdingDays, e.tax.toFixed(2), e.taxEstimated ? "yes" : "no"]),
+      ...t.dividends.map((e) => [e.fy, e.date, "cash dividend", e.symbol, "", e.gross.toFixed(2), "", "", "", e.tax.toFixed(2), ""])]));
+  }
+  res.status(404).json({ error: "Unknown export" });
 });

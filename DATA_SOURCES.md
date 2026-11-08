@@ -39,7 +39,7 @@ Checked on 8 November 2026. Every stored record carries its source, and every da
 
 - **End-of-day only.** There is no free, permitted intraday feed; signals and alerts use daily closes.
 - **Quarterly statement history** starts from what is fetched; older quarters are not offered by the source. Year-over-year growth appears once last year's same quarter has been stored. PDFs of older reports can be uploaded under Reports for AI document analysis.
-- **Bonus adjustment** uses dividend records and applies only when the expected price gap is found in the data. Right-share adjustments are not applied.
+- **Bonus and right-share adjustments** use dividend and issue records and apply only when the expected ex-date price gap is found in the data. Remaining unexplained gaps are listed on Settings → Data quality.
 - **Investment product rates** (FD rates, bond coupons, fund returns) change constantly and are not scraped. The directory links to official sources and lets you record a verified rate and date.
 - **Fees and taxes** are editable defaults; re-check SEBON, NEPSE and IRD notices after each budget.
 

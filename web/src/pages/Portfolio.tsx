@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, DataTable, Score, Modal, Fresh } from "../components/ui.tsx";
+import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, DataTable, Score, Modal, Fresh, Tabs } from "../components/ui.tsx";
+import { MultiLineChart, LineChart } from "../components/PriceChart.tsx";
+import { useTheme } from "../App.tsx";
 import { num, pct, tone, compact, int, nptDate, todayNpt, rs } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 import { buyCost, sellCost } from "../../../shared/costs.ts";
@@ -43,6 +45,7 @@ export default function Portfolio() {
 function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void }) {
   const d = useApi<Any>(`/portfolios/${id}`, [id]);
   const [adding, setAdding] = useState<null | "tx" | "paper" | "import">(null);
+  const [view, setView] = useState<"holdings" | "performance" | "tax">("holdings");
   const [edit, setEdit] = useState<Any>(null);
   const nav = useNavigate();
   if (d.loading && !d.data) return <Loading />;
@@ -59,6 +62,8 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
         <div className="row">
           {p.kind === "paper" ? <button className="btn primary" onClick={() => setAdding("paper")}><I.plus /> Paper order</button> : <button className="btn primary" onClick={() => setAdding("tx")}><I.plus /> Add transaction</button>}
           <button className="btn" onClick={() => setAdding("import")}><I.upload /> Import CSV</button>
+          <a className="btn" href={`/api/portfolios/${id}/export/holdings.csv`}><I.download /> Holdings</a>
+          <a className="btn" href={`/api/portfolios/${id}/export/transactions.csv`}><I.download /> Transactions</a>
           <Link className="btn" to={`/analyst?q=${encodeURIComponent(`Analyze my portfolio "${p.name}" (id ${id}): health, concentration, holdings with deteriorating fundamentals, what to hold, trim or review, and how to rebalance.`)}`}><I.ai /> AI review</Link>
           <button className="btn ghost danger" onClick={del} aria-label="Delete portfolio"><I.trash /></button>
         </div>
@@ -72,6 +77,10 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
         <Stat label="Total return" value={pct(s.totalReturnPct)} tone={tone(s.totalReturnPct)} sub={`on ${compact(s.cashIn)} invested`} />
         {p.kind === "paper" ? <Stat label="Paper cash" value={compact(cash)} sub={`Start ${compact(p.paper_cash)}`} /> : <Stat label="Health score" value={health ? <Score value={health.score} /> : "—"} sub={health ? `${health.diversification.holdings} holdings · ${health.diversification.sectorCount} sectors` : ""} />}
       </div>
+      <Tabs value={view} onChange={setView} tabs={[{ key: "holdings", label: "Holdings & transactions" }, { key: "performance", label: "Performance vs NEPSE" }, { key: "tax", label: "Tax report" }]} />
+      {view === "performance" && <Performance id={id} />}
+      {view === "tax" && <TaxReport id={id} />}
+      {view === "holdings" && <>
       <div className="grid g3">
         <Card title="Holdings" className="span2" flush>
           <DataTable rows={open} onRow={(h: Any) => nav(`/stocks/${h.symbol}`)} empty="No open positions" cols={[
@@ -116,6 +125,7 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
           { key: "x", label: "", render: (t: Any) => <span className="row" style={{ flexWrap: "nowrap" }}><button className="btn ghost sm" onClick={() => setEdit(t)}>Edit</button><button className="btn ghost sm danger" onClick={async () => { if (confirm("Delete this transaction?")) { await api(`/transactions/${t.id}`, { method: "DELETE" }); reload(); } }}><I.trash /></button></span> },
         ]} />
       </Card>
+      </>}
       {(adding === "tx" || edit) && <TxModal portfolioId={id} tx={edit} onClose={() => { setAdding(null); setEdit(null); }} onDone={() => { setAdding(null); setEdit(null); reload(); }} />}
       {adding === "paper" && <PaperModal portfolioId={id} cash={cash} onClose={() => setAdding(null)} onDone={() => { setAdding(null); reload(); }} />}
       {adding === "import" && <ImportModal portfolioId={id} onClose={() => setAdding(null)} onDone={() => { setAdding(null); reload(); }} />}
@@ -219,5 +229,67 @@ function ImportModal({ portfolioId, onClose, onDone }: { portfolioId: number; on
         {err && <Notice tone="warn">{err}</Notice>}
       </div>
     </Modal>
+  );
+}
+
+function Performance({ id }: { id: number }) {
+  const h = useApi<Any>(`/portfolios/${id}/history`, [id]);
+  const { theme } = useTheme();
+  if (h.loading && !h.data) return <Loading label="Rebuilding daily portfolio values" />;
+  if (h.error) return <ErrorBox error={h.error} />;
+  const st = h.data?.stats;
+  if (!st) return <Empty title="No transactions yet">Add transactions to see performance over time.</Empty>;
+  const pts = h.data.points as Any[];
+  return (
+    <div className="col">
+      <div className="grid g4">
+        <Stat label="Your return (time-weighted)" value={pct(st.twrPct, 1)} tone={tone(st.twrPct)} sub={st.twrAnnualPct != null ? `${pct(st.twrAnnualPct, 1)} per year` : `since ${nptDate(st.from)}`} />
+        <Stat label="NEPSE index, same period" value={pct(st.benchmarkPct, 1)} tone={tone(st.benchmarkPct)} sub={st.benchmarkPct != null ? (st.twrPct > st.benchmarkPct ? <span className="up">You beat the index by {num(st.twrPct - st.benchmarkPct, 1)} pts</span> : <span className="down">Index ahead by {num(st.benchmarkPct - st.twrPct, 1)} pts</span>) : ""} />
+        <Stat label="Max drawdown" value={`-${num(st.maxDrawdownPct, 1)}%`} tone="down" sub="Largest fall from a peak" />
+        <Stat label="Value vs net invested" value={compact(st.value)} sub={`Net invested ${compact(st.netInvested)}`} />
+      </div>
+      <Card title="Return index vs NEPSE (both start at 100)">
+        <MultiLineChart series={[{ name: "Portfolio", data: pts.map((p) => ({ date: p.date, value: p.twrIndex })) }, { name: "NEPSE", data: pts.filter((p) => p.benchmark != null).map((p) => ({ date: p.date, value: p.benchmark })) }]} baseline={100} theme={theme} />
+        <div className="legend" style={{ marginTop: 6 }}><span><i style={{ background: "#34d399" }} />Portfolio</span><span><i style={{ background: "#60a5fa" }} />NEPSE index</span></div>
+      </Card>
+      <Card title="Portfolio value (Rs.)"><LineChart data={pts.map((p) => ({ date: p.date, value: p.value }))} height={220} theme={theme} /></Card>
+      <p className="tiny faint">{h.data.method}</p>
+    </div>
+  );
+}
+
+function TaxReport({ id }: { id: number }) {
+  const [fyStart, setFyStart] = useState<string | null>(null);
+  const t = useApi<Any>(`/portfolios/${id}/tax-report${fyStart ? `?fyStart=${fyStart}` : ""}`, [id, fyStart]);
+  if (t.loading && !t.data) return <Loading />;
+  if (t.error) return <ErrorBox error={t.error} />;
+  const d = t.data;
+  return (
+    <div className="col">
+      <div className="row between">
+        <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>Fiscal year starts (MM-DD)<input className="input" style={{ width: 90 }} defaultValue={d.fyStart} onBlur={(e) => /^\d{2}-\d{2}$/.test(e.target.value) && setFyStart(e.target.value)} /></label>
+        <a className="btn" href={`/api/portfolios/${id}/export/tax.csv`}><I.download /> Download tax CSV</a>
+      </div>
+      <Card title="By fiscal year" flush>
+        <DataTable rows={d.years} empty="No sales or dividends recorded" cols={[
+          { key: "fy", label: "Fiscal year" }, { key: "sells", label: "Sales", num: true },
+          { key: "realizedGain", label: "Gains", num: true, render: (r: Any) => <span className="up">{rs(r.realizedGain, 0)}</span> },
+          { key: "realizedLoss", label: "Losses", num: true, render: (r: Any) => <span className="down">{rs(r.realizedLoss, 0)}</span> },
+          { key: "cgt", label: "Capital gains tax", num: true, render: (r: Any) => <>{rs(r.cgt, 0)}{r.cgtEstimated && <div className="tiny warn">includes estimates</div>}</> },
+          { key: "dividendsGross", label: "Cash dividends (gross)", num: true, render: (r: Any) => rs(r.dividendsGross, 0) },
+          { key: "dividendTax", label: "Dividend tax", num: true, render: (r: Any) => rs(r.dividendTax, 0) },
+        ]} />
+      </Card>
+      <Card title="Sales" flush>
+        <DataTable rows={d.sells} empty="No sales" cols={[
+          { key: "date", label: "Date", render: (e: Any) => nptDate(e.date) }, { key: "fy", label: "FY" }, { key: "symbol", label: "Stock", render: (e: Any) => <span className="sym">{e.symbol}</span> },
+          { key: "qty", label: "Qty", num: true, render: (e: Any) => int(e.qty) }, { key: "proceeds", label: "Net proceeds", num: true, render: (e: Any) => rs(e.proceeds, 0) },
+          { key: "costBasis", label: "WACC cost", num: true, render: (e: Any) => rs(e.costBasis, 0) }, { key: "gain", label: "Gain", num: true, render: (e: Any) => <span className={tone(e.gain)}>{rs(e.gain, 0)}</span> },
+          { key: "holdingDays", label: "Held", num: true, render: (e: Any) => <>{e.holdingDays} d <Badge tone={e.longTerm ? "up" : "warn"}>{e.longTerm ? "long" : "short"}</Badge></> },
+          { key: "tax", label: "CGT", num: true, render: (e: Any) => <>{rs(e.tax, 0)}{e.taxEstimated && <span className="tiny warn"> est.</span>}</> },
+        ]} />
+      </Card>
+      <ul className="tiny faint" style={{ paddingLeft: 18 }}>{d.notes.map((n: string) => <li key={n}>{n}</li>)}</ul>
+    </div>
   );
 }

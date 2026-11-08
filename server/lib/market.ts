@@ -1,7 +1,7 @@
 // Reads market data from the database and runs the shared engines on it.
 import { all, get, getSetting } from "../db.ts";
 import type { Bar } from "../../shared/types.ts";
-import { adjustForBonus } from "../../shared/adjust.ts";
+import { adjustForBonus, adjustForRights } from "../../shared/adjust.ts";
 import { generateSetups, technicalSnapshot } from "../../shared/signals.ts";
 import { analyzeFundamentals, type QuarterReport, type FundamentalAnalysis } from "../../shared/fundamentals.ts";
 import { annualisedVolatility, type StockFactors } from "../../shared/ranking.ts";
@@ -25,11 +25,19 @@ export function bonusEvents(symbol: string) {
 }
 
 /** Bars adjusted for bonus issues (only where the gap is visible in the data). */
+export function rightEvents(symbol: string) {
+  return all<{ ratio: string; price: number; opening_date: string }>("SELECT ratio, price, opening_date FROM issues WHERE symbol = ? AND issue_type = 'Right share' AND ratio IS NOT NULL AND opening_date != ''", symbol)
+    .map((r) => ({ ratio: r.ratio, issuePrice: r.price, openingDate: r.opening_date }));
+}
+
+/** Bars adjusted for bonus and right issues (only where the expected gap is visible in the data). */
 export function bars(symbol: string, opts: { adjusted?: boolean; limit?: number } = {}) {
   const raw = rawBars(symbol);
-  const adj = opts.adjusted === false ? { bars: raw, applied: [], skipped: [] } : adjustForBonus(raw, bonusEvents(symbol));
-  const out = opts.limit ? adj.bars.slice(-opts.limit) : adj.bars;
-  return { bars: out, adjustments: adj.applied, skippedAdjustments: adj.skipped };
+  if (opts.adjusted === false) return { bars: opts.limit ? raw.slice(-opts.limit) : raw, adjustments: [], skippedAdjustments: [], rightAdjustments: [] };
+  const bonus = adjustForBonus(raw, bonusEvents(symbol));
+  const rights = adjustForRights(bonus.bars, rightEvents(symbol));
+  const out = opts.limit ? rights.bars.slice(-opts.limit) : rights.bars;
+  return { bars: out, adjustments: bonus.applied, skippedAdjustments: [...bonus.skipped, ...rights.skipped.map((x) => ({ bookCloseDate: x.openingDate, bonusPct: 0, fiscalYear: `right ${x.ratio}`, reason: x.reason }))], rightAdjustments: rights.applied };
 }
 
 export function company(symbol: string) {
@@ -81,7 +89,7 @@ export function analyzeStock(symbol: string) {
   });
   const lastBar = b.bars[b.bars.length - 1];
   return {
-    symbol: sym, company: c, quote: quote(sym), lastBar, bars: b.bars.length, adjustments: b.adjustments, skippedAdjustments: b.skippedAdjustments,
+    symbol: sym, company: c, quote: quote(sym), lastBar, bars: b.bars.length, adjustments: b.adjustments, rightAdjustments: b.rightAdjustments, skippedAdjustments: b.skippedAdjustments,
     technical: sig.snapshot, levels: sig.levels, patterns: sig.patterns, setups: sig.setups, fundamentals: fa,
     dataFreshness: { lastPriceDate: lastBar?.date ?? null, latestReport: fa?.latestPeriod ?? null, companyInfoFetched: c?.info_fetched_at ?? null },
   };
@@ -147,7 +155,12 @@ export function marketSummary() {
     turnover: top(q, "turnover", 1).map(pick), volume: top(q, "volume", 1).map(pick),
     sectors, highs52: highs52.slice(0, 20), lows52: lows52.slice(0, 20), highs52Count: highs52.length, lows52Count: lows52.length,
     indices: idx, trend, sentiment,
-    marketCap: null as number | null,
+    marketCap: (() => {
+      const r = get<{ cap: number; n: number }>(`SELECT SUM(q.close * c.listed_shares) cap, COUNT(*) n FROM quotes q JOIN companies c ON c.symbol = q.symbol
+        WHERE q.date = ? AND c.listed_shares > 0 AND (c.sector IS NULL OR c.sector NOT IN ('Mutual Fund','Corporate Debentures','Promoter Share'))`, date);
+      return r?.cap ?? null;
+    })(),
+    marketCapNote: "Sum of last close x listed shares for listed equities (excludes mutual funds, debentures and promoter shares). Listed shares can lag recent bonus issues.",
   };
 }
 

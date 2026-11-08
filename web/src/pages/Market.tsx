@@ -16,6 +16,7 @@ interface Summary {
   indices: { index_id: number; name: string; date: string; close: number; change: number; change_pct: number; turnover: number }[];
   trend: { label: string; notes: string[] } | null;
   sentiment: { label: string; breadthRatio: number; method: string } | null;
+  marketCap: number | null; marketCapNote: string;
 }
 interface Row { symbol: string; name: string; sector: string; close: number; changePct: number; turnover: number; volume: number }
 
@@ -26,6 +27,7 @@ export default function Market() {
   const from = useMemo(() => { const d = new Date(); if (range === "3m") d.setMonth(d.getMonth() - 3); else if (range === "1y") d.setFullYear(d.getFullYear() - 1); else if (range === "5y") d.setFullYear(d.getFullYear() - 5); else return "1900-01-01"; return d.toISOString().slice(0, 10); }, [range]);
   const hist = useApi<{ date: string; close: number }[]>(`/market/index/${indexId}?from=${from}`, [indexId, from]);
   const breadth = useApi<{ date: string; adv: number; dec: number; turnover: number }[]>("/market/breadth-history");
+  const rotation = useApi<{ nepse: Record<string, number | null>; rows: { indexId: number; name: string; last: number | null; w1: number | null; m1: number | null; m3: number | null; m6: number | null; y1: number | null; fromHigh: number | null; relative3m: number | null }[]; note: string }>("/market/sector-rotation");
   const [list, setList] = useState<"gainers" | "losers" | "turnover" | "volume" | "highs52" | "lows52">("gainers");
   const nav = useNavigate();
   const { theme } = useTheme();
@@ -55,6 +57,7 @@ export default function Market() {
         </Card>
         <div className="col">
           <Stat label="Turnover" value={compact(m.totals.turnover)} sub={`${int(m.totals.volume)} shares · ${int(m.totals.trades)} transactions`} />
+          <Stat label="Market capitalisation" value={compact(m.marketCap)} sub={<span title={m.marketCapNote}>Listed equities (approx.)</span>} />
           <Stat label="Advancers / decliners" value={<><span className="up">{m.counts.advancers}</span> / <span className="down">{m.counts.decliners}</span></>} sub={`${m.counts.unchanged} unchanged · ${m.counts.traded} traded`} />
           <Stat label="Sentiment (breadth)" value={<span style={{ fontSize: 17 }}>{m.sentiment?.label ?? "—"}</span>} sub={m.sentiment ? `${Math.round(m.sentiment.breadthRatio * 100)}% of movers advanced` : ""} />
           <Stat label="52-week highs / lows" value={<><span className="up">{m.highs52Count}</span> / <span className="down">{m.lows52Count}</span></>} sub="Stocks closing at their 52-week extreme" />
@@ -93,6 +96,14 @@ export default function Market() {
             );
           })}
         </div>
+      </Card>
+      <Card title="Sector rotation" flush sub={rotation.data ? `${rotation.data.note} NEPSE: 1M ${pct(rotation.data.nepse.m1, 1)}, 3M ${pct(rotation.data.nepse.m3, 1)}, 1Y ${pct(rotation.data.nepse.y1, 1)}.` : undefined}>
+        {rotation.data ? <DataTable rows={rotation.data.rows} onRow={(r) => setIndexId(r.indexId)} initialSort={{ key: "relative3m", dir: -1 }} cols={[
+          { key: "name", label: "Sector index" }, { key: "last", label: "Last", num: true, render: (r) => num(r.last) },
+          ...(["w1", "m1", "m3", "m6", "y1"] as const).map((k) => ({ key: k, label: { w1: "1W", m1: "1M", m3: "3M", m6: "6M", y1: "1Y" }[k], num: true, render: (r: typeof rotation.data.rows[number]) => <span className={tone(r[k])}>{pct(r[k], 1)}</span> })),
+          { key: "relative3m", label: "vs NEPSE (3M)", num: true, render: (r) => <span className={tone(r.relative3m)} style={{ fontWeight: 600 }}>{r.relative3m == null ? "—" : `${r.relative3m > 0 ? "+" : ""}${num(r.relative3m, 1)} pts`}</span> },
+          { key: "fromHigh", label: "From 52W high", num: true, render: (r) => pct(r.fromHigh, 1) },
+        ]} /> : <Loading />}
       </Card>
       <Card title="Market breadth history" sub="Advancing minus declining stocks per session (from stored prices)">
         {breadth.data?.length ? <LineChart data={breadth.data.map((d) => ({ date: d.date, value: d.adv - d.dec }))} height={200} baseline={0} theme={theme} area={false} color="#60a5fa" /> : <Notice>Breadth history needs price history to be loaded.</Notice>}

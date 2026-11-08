@@ -49,7 +49,12 @@ export interface PortfolioSummary {
   cashIn: number; // sum of buy outflows
   cashOut: number; // sum of sell inflows + dividends
   missingPrices: string[];
+  realizedEvents: RealizedEvent[];
+  dividendEvents: DividendEvent[];
 }
+
+export interface RealizedEvent { date: string; symbol: string; qty: number; proceeds: number; costBasis: number; gain: number; tax: number; holdingDays: number; taxEstimated: boolean }
+export interface DividendEvent { date: string; symbol: string; gross: number; tax: number; net: number }
 
 export function chargesFor(tx: Transaction, cfg: FeeConfig = DEFAULT_FEES) {
   if (tx.type === "buy") {
@@ -75,6 +80,8 @@ export function computeHoldings(txs: Transaction[], prices: Record<string, numbe
   const map = new Map<string, Holding & { _cashIn: number }>();
   let cashIn = 0;
   let cashOut = 0;
+  const realizedEvents: RealizedEvent[] = [];
+  const dividendEvents: DividendEvent[] = [];
   const get = (s: string) => {
     let h = map.get(s);
     if (!h) {
@@ -110,13 +117,15 @@ export function computeHoldings(txs: Transaction[], prices: Record<string, numbe
         const basis = h.wacc * q;
         // CGT: use recorded tax if given, else estimate from holding period of earliest remaining lot (FIFO for holding period only).
         let tax = tx.tax;
+        const firstLot = h.lots.find((l) => l.qty > 0);
+        const hd = firstLot ? daysBetween(firstLot.date, tx.date) : 0;
+        const estimated = tax == null;
         if (tax == null && tx.type === "sell") {
-          const firstLot = h.lots.find((l) => l.qty > 0);
-          const hd = firstLot ? daysBetween(firstLot.date, tx.date) : 0;
           const gain = proceeds - basis;
           tax = gain > 0 ? gain * cgtRate(hd, "individual", cfg) : 0;
         }
         h.realizedPnl += proceeds - basis - (tax ?? 0);
+        realizedEvents.push({ date: tx.date, symbol: tx.symbol, qty: q, proceeds, costBasis: basis, gain: proceeds - basis, tax: tax ?? 0, holdingDays: hd, taxEstimated: estimated });
         h.costBasis -= basis;
         h.quantity -= q;
         if (h.quantity === 0) h.costBasis = 0;
@@ -128,8 +137,10 @@ export function computeHoldings(txs: Transaction[], prices: Record<string, numbe
         break;
       }
       case "cash_dividend": {
-        const net = tx.price - (tx.tax ?? tx.price * cfg.dividendTax);
+        const dtax = tx.tax ?? tx.price * cfg.dividendTax;
+        const net = tx.price - dtax;
         h.dividendsReceived += net;
+        dividendEvents.push({ date: tx.date, symbol: tx.symbol, gross: tx.price, tax: dtax, net });
         cashOut += net;
         break;
       }
@@ -169,7 +180,7 @@ export function computeHoldings(txs: Transaction[], prices: Record<string, numbe
   return {
     holdings: holdings.sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0)),
     invested, marketValue, unrealizedPnl: unrealized, realizedPnl: realized, dividends, totalReturn,
-    totalReturnPct: cashIn ? (totalReturn / cashIn) * 100 : null, cashIn, cashOut, missingPrices: missing,
+    totalReturnPct: cashIn ? (totalReturn / cashIn) * 100 : null, cashIn, cashOut, missingPrices: missing, realizedEvents, dividendEvents,
   };
 }
 
@@ -231,4 +242,65 @@ export function positionSize(capital: number, riskPct: number, entry: number, st
   while (qty > 0 && buyCost(qty, entry, cfg).net > capital) qty--;
   const cost = buyCost(qty, entry, cfg);
   return { quantity: qty, positionValue: cost.amount, totalCost: cost.net, riskAmount: qty * perShareRisk, positionPctOfCapital: (cost.net / capital) * 100 };
+}
+
+// ---------- performance over time ----------
+
+export interface TimelinePoint { date: string; value: number; netInvested: number; twrIndex: number; benchmark: number | null }
+
+/**
+ * Daily portfolio value from transactions and (unadjusted) closing prices, with a
+ * time-weighted return index (cash flows removed) and an optional benchmark rebased to 100.
+ * prices: symbol -> sorted [date, close][]; dates: trading days to evaluate.
+ */
+export function portfolioTimeline(txs: Transaction[], prices: Record<string, [string, number][]>, dates: string[], benchmark?: Record<string, number>, cfg: FeeConfig = DEFAULT_FEES): TimelinePoint[] {
+  const sorted = [...txs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.id ?? 0) - (b.id ?? 0)));
+  if (!sorted.length) return [];
+  const start = sorted[0].date;
+  const days = dates.filter((d) => d >= start);
+  const qty: Record<string, number> = {};
+  const ptr: Record<string, number> = {};
+  const last: Record<string, number> = {};
+  let ti = 0;
+  let netInvested = 0;
+  let prevValue = 0;
+  let twr = 100;
+  let bench0: number | null = null;
+  const out: TimelinePoint[] = [];
+  for (const d of days) {
+    let inflow = 0, outflow = 0;
+    while (ti < sorted.length && sorted[ti].date <= d) {
+      const t = sorted[ti++];
+      const ch = chargesFor(t, cfg);
+      if (["buy", "ipo", "right", "merger_in"].includes(t.type)) { qty[t.symbol] = (qty[t.symbol] ?? 0) + t.quantity; inflow += t.quantity * t.price + ch.total; if (!last[t.symbol]) last[t.symbol] = t.price; }
+      else if (t.type === "bonus") qty[t.symbol] = (qty[t.symbol] ?? 0) + t.quantity;
+      else if (t.type === "sell" || t.type === "merger_out") { const q = Math.min(t.quantity, qty[t.symbol] ?? 0); qty[t.symbol] = (qty[t.symbol] ?? 0) - q; outflow += q * t.price - ch.total - (t.tax ?? 0); }
+      else if (t.type === "cash_dividend") outflow += t.price - (t.tax ?? t.price * cfg.dividendTax);
+    }
+    let value = 0;
+    for (const [sym, q] of Object.entries(qty)) {
+      if (!q) continue;
+      const series = prices[sym] || [];
+      let i = ptr[sym] ?? 0;
+      while (i < series.length && series[i][0] <= d) { last[sym] = series[i][1]; i++; }
+      ptr[sym] = i;
+      value += q * (last[sym] ?? 0);
+    }
+    netInvested += inflow - outflow;
+    // Flows at the start of the day: money added is invested at today's prices, so buy-day gains/losses and fees count.
+    if (prevValue + inflow > 0) twr *= (value + outflow) / (prevValue + inflow);
+    prevValue = value;
+    const b = benchmark?.[d];
+    if (b != null && bench0 == null) bench0 = b;
+    out.push({ date: d, value: Math.round(value), netInvested: Math.round(netInvested), twrIndex: Math.round(twr * 100) / 100, benchmark: b != null && bench0 ? Math.round((b / bench0) * 10000) / 100 : null });
+  }
+  return out;
+}
+
+/** Nepali fiscal year label (e.g. "2082/83") for an AD date. FY starts on Shrawan 1 (about 16-17 July); the start day is configurable. */
+export function nepaliFiscalYear(date: string, fyStart = "07-16"): string {
+  const y = Number(date.slice(0, 4));
+  const startY = date.slice(5) >= fyStart ? y : y - 1;
+  const bs = startY + 57; // AD year in which Shrawan starts + 57 = BS year
+  return `${bs}/${String((bs + 1) % 100).padStart(2, "0")}`;
 }

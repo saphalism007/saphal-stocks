@@ -54,7 +54,7 @@ marketRouter.get("/stocks/:symbol", (req, res) => {
 marketRouter.get("/stocks/:symbol/bars", (req, res) => {
   const sym = SYM.parse(req.params.symbol);
   const b = M.bars(sym, { adjusted: req.query.adjusted !== "0" });
-  res.json({ symbol: sym, bars: b.bars, adjustments: b.adjustments, skipped: b.skippedAdjustments });
+  res.json({ symbol: sym, bars: b.bars, adjustments: b.adjustments, rightAdjustments: b.rightAdjustments, skipped: b.skippedAdjustments });
 });
 
 marketRouter.get("/stocks/:symbol/report", (req, res) => {
@@ -298,5 +298,35 @@ marketRouter.post("/backtest/universe", (req, res) => {
       "Nepal commissions, SEBON fee, DP charge, CGT and 0.2% slippage are included. Circuit limits and liquidity limits are not modelled.",
       "Past performance does not predict future results.",
     ],
+  });
+});
+
+marketRouter.get("/market/sector-rotation", (_req, res) => {
+  const ids = all<{ index_id: number; name: string }>("SELECT DISTINCT index_id, name FROM indices WHERE index_id NOT IN (12, 16, 4, 15)");
+  const nepse = all<{ close: number }>("SELECT close FROM indices WHERE index_id = 12 ORDER BY date DESC LIMIT 260").map((r) => r.close);
+  const ret = (c: number[], n: number) => (c.length > n ? Math.round(((c[0] - c[n]) / c[n]) * 1000) / 10 : null);
+  const rows = ids.map((i) => {
+    const c = all<{ close: number }>("SELECT close FROM indices WHERE index_id = ? ORDER BY date DESC LIMIT 260", i.index_id).map((r) => r.close);
+    const hi = c.length ? Math.max(...c.slice(0, 250)) : null;
+    const r3 = ret(c, 63), n3 = ret(nepse, 63);
+    return { indexId: i.index_id, name: i.name, last: c[0] ?? null, w1: ret(c, 5), m1: ret(c, 21), m3: r3, m6: ret(c, 126), y1: ret(c, 250), fromHigh: hi && c[0] ? Math.round(((c[0] - hi) / hi) * 1000) / 10 : null, relative3m: r3 != null && n3 != null ? Math.round((r3 - n3) * 10) / 10 : null };
+  });
+  res.json({ nepse: { w1: ret(nepse, 5), m1: ret(nepse, 21), m3: ret(nepse, 63), m6: ret(nepse, 126), y1: ret(nepse, 250) }, rows: rows.sort((a, b) => (b.relative3m ?? -999) - (a.relative3m ?? -999)), note: "Returns from stored daily index closes (sessions: 1W = 5, 1M = 21, 3M = 63, 6M = 126, 1Y = 250). Relative 3M = sector index 3M return minus NEPSE 3M return." });
+});
+
+marketRouter.get("/stocks/:symbol/peers", (req, res) => {
+  const sym = SYM.parse(req.params.symbol);
+  const c = M.company(sym);
+  if (!c?.sector) return res.json({ sector: null, peers: [] });
+  const peers = M.allFactors().filter((f) => f.sector === c.sector);
+  const rank = (key: keyof (typeof peers)[number], asc = false) => {
+    const sorted = peers.filter((p) => p[key] != null).sort((a, b) => ((a[key] as number) - (b[key] as number)) * (asc ? 1 : -1));
+    const i = sorted.findIndex((p) => p.symbol === sym);
+    return i >= 0 ? { rank: i + 1, of: sorted.length } : null;
+  };
+  res.json({
+    sector: c.sector,
+    ranks: { fundamental: rank("fundamentalScore"), technical: rank("technicalScore"), pe: rank("pe", true), pb: rank("pb", true), roe: rank("roe"), cashYield: rank("cashYield"), return1y: rank("return1y") },
+    peers: peers.map((p) => ({ symbol: p.symbol, name: p.name, price: p.price, pe: p.pe, pb: p.pb, roe: p.roe, cashYield: p.cashYield, return1y: p.return1y, fundamentalScore: p.fundamentalScore, technicalScore: p.technicalScore, avgTurnover20: p.avgTurnover20 })),
   });
 });

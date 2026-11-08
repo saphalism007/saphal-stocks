@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { sma, ema, rsi, macd, atr, bollinger, pivotPoints, fibonacci, obv, vwap, supertrend, adx, stochastic } from "../shared/indicators.ts";
-import { brokerCommission, buyCost, sellCost, roundTrip, cgtRate } from "../shared/costs.ts";
-import { computeHoldings } from "../shared/portfolio.ts";
+import { brokerCommission, buyCost, sellCost, roundTrip, cgtRate, DEFAULT_FEES } from "../shared/costs.ts";
+const DEFAULT_FEES_ZERO = { ...DEFAULT_FEES, commissionSlabs: [{ upTo: null, rate: 0 }], minCommission: 0, sebonFeeRate: 0, dpChargePerScrip: 0 };
+import { computeHoldings, portfolioTimeline, nepaliFiscalYear } from "../shared/portfolio.ts";
 import { emi, futureValue, requiredMonthly, planGoal, fdMaturity, allocateLumpSum } from "../shared/planner.ts";
 import { runBacktest } from "../shared/backtest.ts";
 import { analyzeLevels, findSwings } from "../shared/levels.ts";
 import { detectPatterns } from "../shared/patterns.ts";
-import { adjustForBonus } from "../shared/adjust.ts";
+import { adjustForBonus, adjustForRights, parseRightRatio } from "../shared/adjust.ts";
 import { analyzeFundamentals, parsePeriod, scale, dividendDiscount, grahamNumber } from "../shared/fundamentals.ts";
 import { rankStocks, RANK_STRATEGIES, type StockFactors } from "../shared/ranking.ts";
 import type { Bar } from "../shared/types.ts";
@@ -297,5 +298,63 @@ describe("dividend sustainability", () => {
     const fa = base(25, 30);
     expect(fa.redFlags.some((s) => s.includes("may not be sustainable"))).toBe(true);
     expect(fa.dataNotes.some((s) => s.includes("dilution"))).toBe(true);
+  });
+});
+
+describe("portfolio timeline & fiscal year", () => {
+  it("time-weighted return ignores added money", () => {
+    const zero = { ...DEFAULT_FEES_ZERO };
+    const txs = [
+      { symbol: "A", type: "buy" as const, date: "2025-01-01", quantity: 100, price: 100 },
+      { symbol: "A", type: "buy" as const, date: "2025-01-03", quantity: 100, price: 110 },
+    ];
+    const prices = { A: [["2025-01-01", 100], ["2025-01-02", 110], ["2025-01-03", 110], ["2025-01-04", 121]] as [string, number][] };
+    const pts = portfolioTimeline(txs, prices, ["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"], { "2025-01-01": 1000, "2025-01-04": 1100 }, zero);
+    expect(pts.map((p) => p.value)).toEqual([10000, 11000, 22000, 24200]);
+    expect(pts[3].twrIndex).toBeCloseTo(121, 6); // +10% then +10%, the second buy does not count as return
+    expect(pts[3].netInvested).toBe(21000);
+    expect(pts[3].benchmark).toBeCloseTo(110, 6);
+  });
+  it("counts a loss on the purchase day", () => {
+    const zero = { ...DEFAULT_FEES_ZERO };
+    const pts = portfolioTimeline([{ symbol: "A", type: "buy", date: "2025-01-01", quantity: 10, price: 120 }], { A: [["2025-01-01", 100]] }, ["2025-01-01"], undefined, zero);
+    expect(pts[0].twrIndex).toBeCloseTo(83.33, 2);
+  });
+  it("maps AD dates to Nepali fiscal years", () => {
+    expect(nepaliFiscalYear("2026-07-20")).toBe("2083/84");
+    expect(nepaliFiscalYear("2026-07-10")).toBe("2082/83");
+    expect(nepaliFiscalYear("2025-12-31")).toBe("2082/83");
+  });
+  it("records realized events and dividend tax", () => {
+    const s = computeHoldings([
+      { symbol: "A", type: "buy", date: "2024-01-01", quantity: 10, price: 100, commission: 0, otherCharges: 0 },
+      { symbol: "A", type: "sell", date: "2025-06-01", quantity: 10, price: 150, commission: 0, otherCharges: 0 },
+      { symbol: "A", type: "cash_dividend", date: "2024-12-01", quantity: 0, price: 200 },
+    ], {});
+    expect(s.realizedEvents[0].gain).toBeCloseTo(500, 6);
+    expect(s.realizedEvents[0].tax).toBeCloseTo(25, 6); // held > 365 days -> 5%
+    expect(s.realizedEvents[0].taxEstimated).toBe(true);
+    expect(s.dividendEvents[0].tax).toBeCloseTo(10, 6);
+  });
+});
+
+describe("rights adjustment", () => {
+  it("parses ratios", () => {
+    expect(parseRightRatio("1:0.42")).toBeCloseTo(0.42, 6);
+    expect(parseRightRatio("2:1")).toBeCloseTo(0.5, 6);
+    expect(parseRightRatio("10:3")).toBeCloseTo(0.3, 6);
+    expect(parseRightRatio("abc")).toBeNull();
+  });
+  it("adjusts history before the ex-rights gap only when it matches", () => {
+    // 1:1 rights at Rs. 100 when price is 500 -> TERP 300.
+    const closes = [...Array.from({ length: 20 }, () => 500), ...Array.from({ length: 20 }, () => 300)];
+    const bars = mkBars(closes, "2025-05-01").map((b, i, arr) => ({ ...b, open: i > 0 ? arr[i - 1].close * (i === 20 ? 0.6 : 1) : b.close }));
+    const opening = new Date(Date.parse(bars[20].date) + 30 * 86_400_000).toISOString().slice(0, 10);
+    const r = adjustForRights(bars, [{ ratio: "1:1", issuePrice: 100, openingDate: opening }]);
+    expect(r.applied).toHaveLength(1);
+    expect(r.bars[0].close).toBeCloseTo(300, 6);
+    const none = adjustForRights(mkBars(Array.from({ length: 40 }, () => 500), "2025-05-01"), [{ ratio: "1:1", issuePrice: 100, openingDate: opening }]);
+    expect(none.applied).toHaveLength(0);
+    expect(none.skipped).toHaveLength(1);
   });
 });

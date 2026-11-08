@@ -5,15 +5,16 @@ import { nptDate, ago, int } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type Tab = "data" | "ai" | "fees" | "security";
+type Tab = "data" | "quality" | "ai" | "fees" | "security";
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("data");
   return (
     <div className="page">
       <div className="page-head"><div><h1>Settings</h1><p>Data sources and refresh, AI provider, Nepal fees and taxes, security, export and deletion.</p></div></div>
-      <Tabs value={tab} onChange={setTab} tabs={[{ key: "data", label: "Data" }, { key: "ai", label: "AI" }, { key: "fees", label: "Fees & taxes" }, { key: "security", label: "Security & privacy" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ key: "data", label: "Data" }, { key: "quality", label: "Data quality" }, { key: "ai", label: "AI" }, { key: "fees", label: "Fees & taxes" }, { key: "security", label: "Security & privacy" }]} />
       {tab === "data" && <DataTab />}
+      {tab === "quality" && <QualityTab />}
       {tab === "ai" && <AiTab />}
       {tab === "fees" && <FeesTab />}
       {tab === "security" && <SecurityTab />}
@@ -172,6 +173,39 @@ function SecurityTab() {
         <p className="small muted">Deletes portfolios, watchlists, alerts, notifications, financial profile, goals, documents and AI conversations. Market data is kept. This cannot be undone.</p>
         <div className="row"><input className="input" placeholder="Type DELETE MY DATA" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} /><button className="btn danger" disabled={confirmText !== "DELETE MY DATA"} onClick={async () => { await api("/account/delete-personal-data", { body: { confirm: confirmText } }); setMsg("Personal data deleted."); setConfirmText(""); }}>Delete</button></div>
       </Card>
+    </div>
+  );
+}
+
+function QualityTab() {
+  const q = useApi<any>("/data/quality");
+  const [check, setCheck] = useState("");
+  if (q.loading && !q.data) return <Loading label="Checking stored data" />;
+  if (!q.data) return null;
+  const d = q.data;
+  const rows = d.findings.filter((f: any) => !check || f.check === check);
+  return (
+    <div className="col">
+      <div className="grid g4">
+        <Card title="Errors"><div className="mono down" style={{ fontSize: 22 }}>{d.counts.error}</div><div className="small muted">Impossible values</div></Card>
+        <Card title="Warnings"><div className="mono warn" style={{ fontSize: 22 }}>{d.counts.warning}</div><div className="small muted">May distort analysis</div></Card>
+        <Card title="Info"><div className="mono" style={{ fontSize: 22 }}>{d.counts.info}</div><div className="small muted">Gaps in coverage</div></Card>
+        <Card title="Data dates"><div className="small">Prices {nptDate(d.latestPrices)}<br />NEPSE index {nptDate(d.latestIndex)}</div><div className="tiny faint">Checked {ago(d.checkedAt)}</div></Card>
+      </div>
+      <div className="pill-tabs">
+        <button className="chip" style={!check ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined} onClick={() => setCheck("")}>All ({d.findings.length})</button>
+        {Object.entries(d.summary).map(([k, n]) => <button key={k} className="chip" style={check === k ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined} onClick={() => setCheck(k)}>{k} ({n as number})</button>)}
+      </div>
+      <Card flush>
+        <DataTable rows={rows} empty="No issues found" cols={[
+          { key: "severity", label: "Severity", render: (f: any) => <Badge tone={f.severity === "error" ? "down" : f.severity === "warning" ? "warn" : ""}>{f.severity}</Badge> },
+          { key: "check", label: "Check" },
+          { key: "symbol", label: "Stock", render: (f: any) => f.symbol ? <a href={`/stocks/${f.symbol}`} className="sym">{f.symbol}</a> : "—" },
+          { key: "date", label: "Date / period", render: (f: any) => <span className="small">{f.date ?? "—"}</span> },
+          { key: "detail", label: "Detail", render: (f: any) => <span className="small muted">{f.detail}</span> },
+        ]} />
+      </Card>
+      <p className="tiny faint">Checks: impossible OHLC values, stocks without trades for 30+ days, single-session moves beyond NEPSE's daily band after bonus and right adjustments, balance sheets that don't balance, statements 2+ quarters out of date, companies without statements, and prices vs index date mismatch.</p>
     </div>
   );
 }

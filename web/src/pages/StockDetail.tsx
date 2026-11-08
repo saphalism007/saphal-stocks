@@ -145,7 +145,7 @@ function Summary({ d, rep, bars, onTab }: { d: Any; rep: Any; bars: Bar[]; onTab
             </div>
           )) : <Empty title="No patterns detected" />}
         </Card>
-        {d.adjustments?.length > 0 && <Notice>Prices are adjusted for {d.adjustments.length} bonus issue(s) detected in the data ({d.adjustments.map((x: Any) => `${x.bonusPct}% on ${nptDate(x.exDate)}`).join(", ")}).</Notice>}
+        {(d.adjustments?.length > 0 || d.rightAdjustments?.length > 0) && <Notice>Prices are adjusted for corporate actions found in the data: {[...(d.adjustments ?? []).map((x: Any) => `${x.bonusPct}% bonus on ${nptDate(x.exDate)}`), ...(d.rightAdjustments ?? []).map((x: Any) => `${x.ratio} rights at Rs. ${x.issuePrice} on ${nptDate(x.exDate)}`)].join(", ")}.</Notice>}
         <Disclaimer />
       </div>
     </div>
@@ -217,7 +217,7 @@ function ChartTab({ d, bars }: { d: Any; bars: { bars: Bar[]; adjustments: Any[]
           <label className="chk"><input type="checkbox" checked={showSetup} onChange={(e) => setShowSetup(e.target.checked)} />Setup lines</label>
         </div>
         <PriceChart bars={bars.bars} overlays={ov} lower={lower} levels={levels} markers={markers} height={560} kind={kind} theme={theme} />
-        <p className="tiny faint" style={{ marginTop: 6 }}>{bars.adjustments.length ? `Adjusted for ${bars.adjustments.length} bonus issue(s). ` : ""}{bars.skipped.length ? `${bars.skipped.length} bonus record(s) not applied (no matching price gap). ` : ""}Daily data. Scroll to zoom, drag to pan.</p>
+        <p className="tiny faint" style={{ marginTop: 6 }}>{bars.adjustments.length ? `Adjusted for ${bars.adjustments.length} bonus issue(s). ` : ""}{(bars as Any).rightAdjustments?.length ? `Adjusted for ${(bars as Any).rightAdjustments.length} right issue(s). ` : ""}{bars.skipped.length ? `${bars.skipped.length} bonus record(s) not applied (no matching price gap). ` : ""}Daily data. Scroll to zoom, drag to pan.</p>
       </Card>
       <div className="grid g3">
         <Card title="Indicators" sub={`Technical score ${t?.technicalScore ?? "—"}/100`}>
@@ -344,7 +344,31 @@ function FundamentalsTab({ d }: { d: Any }) {
           { key: "formula", label: "Formula / note", render: (m: Any) => <span className="small muted">{m.formula ?? m.note ?? ""}</span> },
         ]} />
       </Card>
+      <Peers sym={d.symbol} />
     </div>
+  );
+}
+
+function Peers({ sym }: { sym: string }) {
+  const p = useApi<Any>(`/stocks/${sym}/peers`, [sym]);
+  const nav = useNavigate();
+  if (!p.data?.sector) return null;
+  const r = p.data.ranks;
+  const chip = (label: string, x: Any) => x ? <Badge key={label} tone={x.rank <= Math.ceil(x.of / 3) ? "up" : x.rank > (2 * x.of) / 3 ? "down" : ""}>{label}: #{x.rank} of {x.of}</Badge> : null;
+  return (
+    <Card title={`Sector peers · ${p.data.sector}`} flush sub="Where this company ranks among peers (cheapest P/E and P/B rank first)"
+      actions={<button className="btn sm" onClick={() => nav(`/compare?s=${[sym, ...p.data.peers.filter((x: Any) => x.symbol !== sym).sort((a: Any, b: Any) => (b.avgTurnover20 ?? 0) - (a.avgTurnover20 ?? 0)).slice(0, 3).map((x: Any) => x.symbol)].join(",")}`)}>Compare with top peers</button>}>
+      <div className="row" style={{ padding: "10px 16px" }}>{[chip("Fundamental", r.fundamental), chip("Technical", r.technical), chip("P/E", r.pe), chip("P/B", r.pb), chip("ROE", r.roe), chip("Yield", r.cashYield), chip("1Y return", r.return1y)]}</div>
+      <DataTable rows={p.data.peers} onRow={(x: Any) => nav(`/stocks/${x.symbol}`)} maxHeight={420} initialSort={{ key: "fundamentalScore", dir: -1 }} rowKey={(x: Any) => x.symbol} cols={[
+        { key: "symbol", label: "Stock", render: (x: Any) => <span className="sym" style={x.symbol === sym ? { color: "var(--accent)" } : undefined}>{x.symbol}{x.symbol === sym ? " ◀" : ""}</span> },
+        { key: "price", label: "Price", num: true, render: (x: Any) => num(x.price) },
+        { key: "pe", label: "P/E", num: true, render: (x: Any) => num(x.pe, 1) }, { key: "pb", label: "P/B", num: true, render: (x: Any) => num(x.pb, 2) },
+        { key: "roe", label: "ROE %", num: true, render: (x: Any) => num(x.roe, 1) }, { key: "cashYield", label: "Yield %", num: true, render: (x: Any) => num(x.cashYield, 2) },
+        { key: "return1y", label: "1Y", num: true, render: (x: Any) => <span className={tone(x.return1y)}>{pct(x.return1y, 1)}</span> },
+        { key: "fundamentalScore", label: "Fund.", num: true, render: (x: Any) => <Score value={x.fundamentalScore} /> },
+        { key: "technicalScore", label: "Tech.", num: true, render: (x: Any) => <Score value={x.technicalScore} /> },
+      ]} />
+    </Card>
   );
 }
 

@@ -275,7 +275,7 @@ export function runBacktest(allBars: Bar[], opts: BacktestOptions): BacktestResu
       totalTax: round(totalTax),
     },
     caveats: [
-      "Prices are not adjusted for bonus/right issues; large bonus-related price drops can trigger false exits and distort returns.",
+      "Prices are adjusted for bonus and right issues only where the expected price gap is found in the data; any unadjusted corporate action can trigger false signals.",
       "Fills assume you could trade at the next session's open plus slippage; thinly traded NEPSE stocks may not allow that.",
       "Circuit limits (10% daily band) and T+2 settlement are not modelled.",
       "Past results do not predict future returns. Few trades means the statistics are unreliable.",

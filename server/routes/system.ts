@@ -8,6 +8,7 @@ import { DEFAULT_FEES } from "../../shared/costs.ts";
 import { config, setEnvValue, DATA_DIR } from "../config.ts";
 import { readVault } from "../lib/vault.ts";
 import { politeFetch } from "../lib/fetcher.ts";
+import { dataQuality } from "../lib/dataQuality.ts";
 
 export const systemRouter = Router();
 
@@ -120,3 +121,5 @@ systemRouter.post("/backup", (_req, res) => {
   db.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
   res.json({ ok: true, file });
 });
+
+systemRouter.get("/data/quality", (_req, res) => res.json(dataQuality()));

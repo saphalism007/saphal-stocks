@@ -1,19 +1,22 @@
 # Progress
 
-Status as of 8 November 2026 (version 0.2.0). ✅ working · 🟡 partial · ⬜ not started.
+Status as of 8 November 2026 (version 0.3.0). ✅ working · 🟡 partial · ⬜ not started.
 
 ## Data infrastructure
 - ✅ Company database, daily OHLCV history (nepse-data), latest prices, 18 indices, dividends, announcements, quarterly statements, NRB forex
 - ✅ Scheduled daily refresh (15:45 NPT) + refresh on start-up when data is stale; manual refresh per dataset
 - ✅ Validation, idempotent upserts, retries with backoff, run log, per-dataset freshness and error tracking
-- ✅ Bonus-share price adjustment (evidence-based)
+- ✅ Bonus-share and right-share price adjustment (evidence-based: applied only when the expected ex-date gap is found)
+- ✅ Data quality monitor: impossible OHLC, stale/suspended stocks, unexplained moves beyond the daily band, unbalanced balance sheets, outdated or missing statements, price/index date mismatch
 - 🟡 Statement history accumulates from now on (source offers only the latest quarter)
-- ⬜ Right-share price adjustment; intraday data (no permitted source)
+- ⬜ Intraday data (no permitted source)
 
 - ✅ Public issues (IPO/FPO/rights/quotas) and listed mutual fund NAVs, refreshed daily
 - ✅ Daily scheduler remembers its last run across restarts
 
 ## Market & stocks
+- ✅ Total market capitalisation; sector rotation table (1W–1Y returns, relative to NEPSE, distance from 52-week high)
+- ✅ Sector peers on every stock page with rank among peers
 - ✅ Stock comparison page (up to 6 stocks): rebased price chart, valuation, profitability, health, dividends, performance, best-in-row highlighting, cross-sector warning
 - ✅ Market dashboard: indices, breadth, turnover, gainers/losers, turnover/volume leaders, 52-week highs/lows, sector performance and sub-index heat map, NEPSE trend, breadth history
 - ✅ Stocks list and screener (valuation, ROE, yield, trend, liquidity, scores)
@@ -48,6 +51,8 @@ Status as of 8 November 2026 (version 0.2.0). ✅ working · 🟡 partial · ⬜
 - ✅ Multiple portfolios, all transaction types (buy, sell, IPO, right, bonus, cash dividend, merger), auto Nepal charges or manual override, CGT on sells
 - ✅ WACC, realised/unrealised P&L, dividends, net-if-sold-today, allocation, sector exposure, health score
 - ✅ Paper trading with simulated cash; CSV import
+- ✅ Performance over time: daily value, time-weighted return vs NEPSE index, max drawdown
+- ✅ Tax report by Nepali fiscal year (realised gains/losses, CGT actual or estimated, dividends and dividend tax) and CSV exports (holdings, transactions, tax)
 - ✅ Trading journal (plan vs outcome, emotions, plan followed, results by setup, average R, net of fees and CGT) and investment thesis tracker (thesis, catalysts, metrics, invalidation, review dates, price since thesis, AI review)
 - 🟡 No automatic import from Mero Share (no public API)
 
