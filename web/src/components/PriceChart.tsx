@@ -142,3 +142,27 @@ export function LineChart({ data, height = 240, color, baseline, theme, area = t
   if (!data.length) return <div className="empty"><strong>No data</strong></div>;
   return <div ref={ref} className="chart-box" style={{ height }} />;
 }
+
+const PALETTE = ["#34d399", "#60a5fa", "#f59e0b", "#f472b6", "#a78bfa", "#f87171"];
+/** Several series on one chart (e.g. prices rebased to 100). */
+export function MultiLineChart({ series, height = 300, baseline, theme }: { series: { name: string; data: { date: string; value: number }[] }[]; height?: number; baseline?: number; theme?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ref.current || !series.length) return;
+    const grid = cssVar("--border");
+    const chart = createChart(ref.current, {
+      height, autoSize: true,
+      layout: { background: { color: "transparent" }, textColor: cssVar("--text-2"), fontFamily: "JetBrains Mono, monospace", fontSize: 11 },
+      grid: { vertLines: { visible: false }, horzLines: { color: grid + "66" } }, rightPriceScale: { borderColor: grid }, timeScale: { borderColor: grid },
+    });
+    series.forEach((s, i) => {
+      const ls = chart.addSeries(LineSeries, { color: PALETTE[i % PALETTE.length], lineWidth: 2, priceLineVisible: false, title: s.name });
+      ls.setData(s.data.map((d) => ({ time: d.date as Time, value: d.value })));
+      if (i === 0 && baseline != null) ls.createPriceLine({ price: baseline, color: cssVar("--text-3"), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
+    });
+    chart.timeScale().fitContent();
+    return () => chart.remove();
+  }, [JSON.stringify(series.map((s) => [s.name, s.data.length, s.data[s.data.length - 1]?.value])), height, baseline, theme]);
+  return <div ref={ref} className="chart-box" style={{ height }} />;
+}
+export const SERIES_COLORS = PALETTE;

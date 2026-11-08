@@ -1,6 +1,6 @@
 # Saphal Stocks
 
-A personal financial intelligence platform for Nepal: NEPSE market data and research, technical and fundamental analysis engines, an AI stock analyst that reasons over the platform's own data, portfolio management with Nepal fees and taxes, and a wealth planner.
+A personal financial intelligence platform for Nepal: NEPSE market data and research, technical and fundamental analysis engines, stock comparison, a multi-stock Strategy Lab, an AI stock analyst that reasons over the platform's own data, portfolio management with Nepal fees and taxes, a trading journal and thesis tracker, an IPO and mutual fund tracker, and a wealth planner.
 
 Everything runs on your own computer. Market data comes from public sources (see [DATA_SOURCES.md](DATA_SOURCES.md)); your portfolio and financial profile stay in a local, encrypted database.
 

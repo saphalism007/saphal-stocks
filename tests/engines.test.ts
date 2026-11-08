@@ -279,3 +279,23 @@ describe("ranking", () => {
     expect(r.ranked[0].score).toBeGreaterThan(r.ranked[1].score);
   });
 });
+
+describe("dividend sustainability", () => {
+  const base = (cashPct: number, bonusPct = 0) => analyzeFundamentals({
+    symbol: "X", sector: "Commercial Bank", price: 500, priceDate: null, listedShares: 1_000_000, faceValue: 100,
+    reports: [{ symbol: "X", period: "4th Quarter 2082/2083", fiscalYear: "2082/2083", quarter: 4, source: "t", fetchedAt: "",
+      items: [{ statement: "balance_sheet", label: "Total equity", value: 200_000 }, { statement: "income", label: "Profit for the period", value: 20_000 }] }],
+    dividends: [2082, 2081, 2080, 2079, 2078].map((y) => ({ fiscalYear: `${y}/${y + 1}`, cashPct, bonusPct, bookCloseDate: null, announcementDate: null })),
+  });
+  it("computes payout from last dividend and annualised EPS", () => {
+    const fa = base(10); // EPS = 20,000k / 1M = Rs. 20; DPS = Rs. 10
+    expect(fa.byKey.eps).toBeCloseTo(20, 6);
+    expect(fa.byKey.payoutCash).toBeCloseTo(50, 6);
+    expect(fa.strengths.some((s) => s.includes("Sustainable-looking dividend"))).toBe(true);
+  });
+  it("flags dividends larger than earnings and bonus-heavy history", () => {
+    const fa = base(25, 30);
+    expect(fa.redFlags.some((s) => s.includes("may not be sustainable"))).toBe(true);
+    expect(fa.dataNotes.some((s) => s.includes("dilution"))).toBe(true);
+  });
+});

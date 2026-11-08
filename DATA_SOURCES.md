@@ -15,6 +15,8 @@ Checked on 8 November 2026. Every stored record carries its source, and every da
 | Company announcements | ShareSansar `company-announcements` | JSON (POST, as above) | Headlines and links only; full text stays on the source site. |
 | Latest quarterly statements (balance sheet, P&L, key metrics such as EPS, NPL, CAR, solvency) | ShareSansar `company-quarterly-report` | HTML fragment (POST, as above) | Only the latest quarter is offered, so history accumulates as the app keeps fetching each quarter. Values are in Rs. '000 as published by the company. |
 | Market-wide announcements and news headlines | ShareSansar `announcement`, `category/latest`, `category/ipo-fpo-news`, `category/dividend-right-bonus` | HTML | Headlines, dates and links only. |
+| IPO, FPO, right share, local/foreign-employed quota and mutual fund issues (units, price, dates, issue manager, listing date) | ShareSansar `existing-issues` | JSON (DataTables, `type` 1–8, 50 rows/page) | Listing performance is computed only when stored prices start within 7 days of listing. |
+| Listed mutual fund NAVs (weekly/monthly NAV, market price, premium/discount, maturity) | ShareSansar `mutual-fund-navs` | JSON (`type=-1` active, `type=1` matured) | Each weekly NAV seen is kept in `fund_nav_history`, so NAV history builds up over time. |
 | Foreign exchange rates | [Nepal Rastra Bank forex API](https://www.nrb.org.np/api/forex/v1/rates) | Official JSON API | |
 
 ### Politeness and reliability

@@ -1,6 +1,6 @@
 // Ingestion jobs: fetch from providers, validate, upsert, and record freshness.
 // Jobs run through a single in-process queue so we never hammer a provider.
-import { db, all, get, run, tx, nowIso } from "../db.ts";
+import { db, all, get, run, tx, nowIso, getSetting, setSetting } from "../db.ts";
 import * as P from "./providers.ts";
 import { parsePeriod } from "../../shared/fundamentals.ts";
 import { fetchJson } from "../lib/fetcher.ts";
@@ -271,6 +271,46 @@ export async function nepseDataSymbols(): Promise<string[]> {
   return j.tree.map((t) => t.path.match(/^data\/company-wise\/([A-Z0-9]+)\.csv$/)?.[1]).filter(Boolean) as string[];
 }
 
+// ---------- public issues & mutual funds ----------
+export async function syncIssues(): Promise<number> {
+  const now = nowIso();
+  let n = 0;
+  const st = db.prepare(`INSERT INTO issues (issue_type, symbol, company, ratio, units, price, price_low, price_high, cutoff, opening_date, closing_date, final_date, listing_date, issue_manager, status, share_type, ss_company_id, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(issue_type, ss_company_id, opening_date, units) DO UPDATE SET symbol = excluded.symbol, company = excluded.company, ratio = excluded.ratio, price = excluded.price,
+    price_low = excluded.price_low, price_high = excluded.price_high, cutoff = excluded.cutoff, closing_date = excluded.closing_date, final_date = excluded.final_date,
+    listing_date = excluded.listing_date, issue_manager = excluded.issue_manager, status = excluded.status, share_type = excluded.share_type, fetched_at = excluded.fetched_at`);
+  for (const t of P.ISSUE_TYPES) {
+    try {
+      const rows = await P.ssIssues(t.type, t.type === 1 || t.type === 3 ? 150 : 50);
+      tx(() => { for (const r of rows) st.run(r.issueType, r.symbol, r.company, r.ratio, r.units, r.price, r.priceLow, r.priceHigh, r.cutoff, r.openingDate ?? "", r.closingDate, r.finalDate, r.listingDate, r.issueManager, r.status, r.shareType, r.ssCompanyId ?? 0, now); });
+      n += rows.length;
+    } catch (e) { console.warn(`[issues] ${t.label}: ${e instanceof Error ? e.message : e}`); }
+  }
+  fresh("issues", P.SOURCES.sharesansar, new Date().toISOString().slice(0, 10), n);
+  return n;
+}
+
+export async function syncFunds(): Promise<number> {
+  const rows = await P.ssFundNavs();
+  const now = nowIso();
+  const st = db.prepare(`INSERT INTO fund_navs (symbol, name, kind, fund_size, maturity_date, maturity_period, daily_nav, daily_date, weekly_nav, weekly_date, monthly_nav, monthly_date, ltp, ltp_date, premium_pct, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(symbol) DO UPDATE SET name = excluded.name, kind = excluded.kind, fund_size = excluded.fund_size, maturity_date = excluded.maturity_date,
+    maturity_period = excluded.maturity_period, daily_nav = excluded.daily_nav, daily_date = excluded.daily_date, weekly_nav = excluded.weekly_nav, weekly_date = excluded.weekly_date,
+    monthly_nav = excluded.monthly_nav, monthly_date = excluded.monthly_date, ltp = excluded.ltp, ltp_date = excluded.ltp_date, premium_pct = excluded.premium_pct, fetched_at = excluded.fetched_at`);
+  const hist = db.prepare("INSERT OR IGNORE INTO fund_nav_history (symbol, date, nav, basis) VALUES (?, ?, ?, ?)");
+  tx(() => {
+    for (const r of rows) {
+      st.run(r.symbol, r.name, r.kind, r.fundSize, r.maturityDate, r.maturityPeriod, r.dailyNav, r.dailyDate, r.weeklyNav, r.weeklyDate, r.monthlyNav, r.monthlyDate, r.ltp, r.ltpDate, r.premiumPct, now);
+      // Keep every weekly NAV we see so NAV history builds up over time.
+      if (r.weeklyNav != null && r.weeklyDate) hist.run(r.symbol, r.weeklyDate, r.weeklyNav, "weekly");
+      if (r.dailyNav != null && r.dailyDate) hist.run(r.symbol, r.dailyDate, r.dailyNav, "daily");
+    }
+  });
+  fresh("mutual_funds", P.SOURCES.sharesansar, rows.reduce((m, r) => (r.weeklyDate && r.weeklyDate > m ? r.weeklyDate : m), ""), rows.length);
+  return rows.length;
+}
+
 // ---------- orchestration ----------
 export function queueDailyRefresh() {
   enqueue("listing", (s) => syncListing(s));
@@ -278,6 +318,8 @@ export function queueDailyRefresh() {
   enqueue("indices", (s) => syncIndices(s));
   enqueue("news", () => syncNews());
   enqueue("forex", () => syncForex());
+  enqueue("issues", () => syncIssues());
+  enqueue("funds", () => syncFunds());
   enqueue("details", (s) => syncAllDetails(s, { maxAgeDays: 7 }));
 }
 
@@ -291,20 +333,24 @@ export function nptNow() {
   return { date: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes(), weekday: d.getUTCDay() };
 }
 
-let lastScheduledDate = "";
 export function startScheduler() {
   const [hh, mm] = (process.env.INGEST_DAILY_AT || "15:45").split(":").map(Number);
   const at = hh * 60 + mm;
   const tick = () => {
     const n = nptNow();
-    if (n.minutes >= at && lastScheduledDate !== n.date) {
-      lastScheduledDate = n.date;
+    if (n.minutes < at || getSetting<string>("lastScheduledRefresh", "") === n.date) return;
+    // Skip if prices were already refreshed after today's scheduled time (e.g. the server restarted).
+    const last = get<{ last_success_at: string }>("SELECT last_success_at FROM data_freshness WHERE dataset = 'prices_latest'");
+    const scheduledUtc = Date.parse(`${n.date}T00:00:00Z`) + (at - 345) * 60_000;
+    setSetting("lastScheduledRefresh", n.date);
+    if (last && Date.parse(last.last_success_at) >= scheduledUtc) return;
+    {
       console.log(`[scheduler] daily refresh for ${n.date} (NPT)`);
       queueDailyRefresh();
     }
   };
   setInterval(tick, 60_000);
-  // On boot: if the market data is older than a day (or empty), refresh now.
+  // On boot: if the market data is older than 12 hours (or empty), refresh now.
   const latest = get<{ last_success_at: string }>("SELECT last_success_at FROM data_freshness WHERE dataset = 'prices_latest'");
   if (!latest || Date.now() - Date.parse(latest.last_success_at) > 12 * 3_600_000) queueDailyRefresh();
 }

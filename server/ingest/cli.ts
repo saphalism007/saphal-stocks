@@ -1,7 +1,7 @@
 // Command-line data refresh:  npm run ingest -- [listing|history|indices|details|news|forex|all] [SYMBOL...]
 import "../db.ts";
 import { seedReference } from "../seed.ts";
-import { syncListing, syncHistory, syncIndices, syncAllDetails, syncNews, syncForex, syncCompanyDetail } from "./jobs.ts";
+import { syncListing, syncHistory, syncIndices, syncAllDetails, syncNews, syncForex, syncCompanyDetail, syncIssues, syncFunds } from "./jobs.ts";
 import { evaluateAlerts } from "../lib/alerts.ts";
 
 seedReference();
@@ -16,6 +16,8 @@ async function main() {
   if (what === "indices" || what === "all") log(`indices: ${await syncIndices(progress() as never)} rows`);
   if (what === "news" || what === "all") log(`news: ${await syncNews()} items`);
   if (what === "forex" || what === "all") log(`forex: ${await syncForex()} rows`);
+  if (what === "issues" || what === "all") log(`issues: ${await syncIssues()} rows`);
+  if (what === "funds" || what === "all") log(`funds: ${await syncFunds()} rows`);
   if (what === "details" || what === "all") log(`details: ${await syncAllDetails(progress() as never, symbols.length ? { symbols } : { maxAgeDays: 7 })} companies`);
   log(`alerts fired: ${evaluateAlerts()}`);
 }

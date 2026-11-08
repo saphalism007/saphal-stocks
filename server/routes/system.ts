@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { join } from "node:path";
 import { all, get, run, db, getSetting, setSetting } from "../db.ts";
-import { jobStates, enqueue, queueDailyRefresh, syncListing, syncHistory, syncIndices, syncNews, syncForex, syncAllDetails } from "../ingest/jobs.ts";
+import { jobStates, enqueue, queueDailyRefresh, syncListing, syncHistory, syncIndices, syncNews, syncForex, syncAllDetails, syncIssues, syncFunds } from "../ingest/jobs.ts";
 import { evaluateAlerts } from "../lib/alerts.ts";
 import { DEFAULT_FEES } from "../../shared/costs.ts";
 import { config, setEnvValue, DATA_DIR } from "../config.ts";
@@ -38,7 +38,7 @@ systemRouter.get("/data/status", (_req, res) => {
 });
 
 systemRouter.post("/data/refresh", (req, res) => {
-  const { job } = z.object({ job: z.enum(["all", "listing", "history", "indices", "details", "news", "forex", "alerts"]) }).parse(req.body);
+  const { job } = z.object({ job: z.enum(["all", "listing", "history", "indices", "details", "news", "forex", "alerts", "issues", "funds"]) }).parse(req.body);
   if (job === "all") queueDailyRefresh();
   else if (job === "listing") enqueue("listing", (s) => syncListing(s));
   else if (job === "history") enqueue("history", (s) => syncHistory(s));
@@ -46,6 +46,8 @@ systemRouter.post("/data/refresh", (req, res) => {
   else if (job === "details") enqueue("details", (s) => syncAllDetails(s, { maxAgeDays: 0 }));
   else if (job === "news") enqueue("news", () => syncNews());
   else if (job === "forex") enqueue("forex", () => syncForex());
+  else if (job === "issues") enqueue("issues", () => syncIssues());
+  else if (job === "funds") enqueue("funds", () => syncFunds());
   else if (job === "alerts") enqueue("alerts", async () => evaluateAlerts());
   res.json({ ok: true, jobs: jobStates() });
 });

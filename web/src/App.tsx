@@ -8,6 +8,9 @@ const Overview = lazy(() => import("./pages/Overview.tsx"));
 const Market = lazy(() => import("./pages/Market.tsx"));
 const Stocks = lazy(() => import("./pages/Stocks.tsx"));
 const StockDetail = lazy(() => import("./pages/StockDetail.tsx"));
+const Compare = lazy(() => import("./pages/Compare.tsx"));
+const StrategyLab = lazy(() => import("./pages/StrategyLab.tsx"));
+const Journal = lazy(() => import("./pages/Journal.tsx"));
 const Fundamental = lazy(() => import("./pages/Fundamental.tsx"));
 const Technical = lazy(() => import("./pages/Technical.tsx"));
 const Analyst = lazy(() => import("./pages/Analyst.tsx"));
@@ -29,11 +32,14 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/", label: "Overview", icon: "overview" },
   { section: "Markets", to: "/market", label: "NEPSE Market", icon: "market" },
   { to: "/stocks", label: "Stocks", icon: "stocks" },
+  { to: "/compare", label: "Compare", icon: "fundamental" },
   { to: "/fundamental", label: "Fundamental Analysis", icon: "fundamental" },
   { to: "/technical", label: "Technical Analysis", icon: "technical" },
+  { to: "/strategy-lab", label: "Strategy Lab", icon: "refresh" },
   { to: "/analyst", label: "AI Stock Analyst", icon: "ai" },
   { section: "My money", to: "/portfolio", label: "Portfolio", icon: "portfolio" },
   { to: "/watchlist", label: "Watchlist", icon: "watch" },
+  { to: "/journal", label: "Journal & Theses", icon: "reports" },
   { to: "/opportunities", label: "Investment Opportunities", icon: "opportunities" },
   { to: "/planner", label: "Wealth Planner", icon: "planner" },
   { section: "Stay informed", to: "/news", label: "Financial News", icon: "news" },
@@ -136,6 +142,9 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
               <Route path="/market" element={<Market />} />
               <Route path="/stocks" element={<Stocks />} />
               <Route path="/stocks/:symbol" element={<StockDetail />} />
+              <Route path="/compare" element={<Compare />} />
+              <Route path="/strategy-lab" element={<StrategyLab />} />
+              <Route path="/journal" element={<Journal />} />
               <Route path="/fundamental" element={<Fundamental />} />
               <Route path="/technical" element={<Technical />} />
               <Route path="/analyst" element={<Analyst />} />

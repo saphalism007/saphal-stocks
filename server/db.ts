@@ -113,6 +113,21 @@ const MIGRATIONS: string[] = [
     role TEXT, content TEXT, display TEXT, tools TEXT, created_at TEXT
   );
   `,
+  // 4: public issues and mutual fund NAVs
+  `
+  CREATE TABLE issues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, issue_type TEXT NOT NULL, symbol TEXT, company TEXT, ratio TEXT, units REAL, price REAL,
+    price_low REAL, price_high REAL, cutoff REAL, opening_date TEXT, closing_date TEXT, final_date TEXT, listing_date TEXT,
+    issue_manager TEXT, status INTEGER, share_type TEXT, ss_company_id INTEGER, fetched_at TEXT,
+    UNIQUE(issue_type, ss_company_id, opening_date, units)
+  );
+  CREATE INDEX issues_symbol ON issues(symbol);
+  CREATE TABLE fund_navs (
+    symbol TEXT PRIMARY KEY, name TEXT, kind TEXT, fund_size REAL, maturity_date TEXT, maturity_period TEXT, daily_nav REAL, daily_date TEXT,
+    weekly_nav REAL, weekly_date TEXT, monthly_nav REAL, monthly_date TEXT, ltp REAL, ltp_date TEXT, premium_pct REAL, fetched_at TEXT
+  );
+  CREATE TABLE fund_nav_history (symbol TEXT, date TEXT, nav REAL, basis TEXT, PRIMARY KEY(symbol, date, basis)) WITHOUT ROWID;
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

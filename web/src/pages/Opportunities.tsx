@@ -1,7 +1,9 @@
 import { Fragment } from "react";
 import { useMemo, useState } from "react";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Loading, Badge, Notice, Modal, Tabs, Empty } from "../components/ui.tsx";
+import { Card, Loading, Badge, Notice, Modal, Tabs, Empty, DataTable, Stat, Seg } from "../components/ui.tsx";
+import { Link } from "react-router-dom";
+import { num, pct, tone, compact, int } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 import { nptDate } from "../lib/format.ts";
 
@@ -14,7 +16,7 @@ export default function Opportunities() {
   const products = useApi<any[]>("/products");
   const resources = useApi<any[]>("/resources");
   const links = useApi<any>("/resources/link-status");
-  const [tab, setTab] = useState<"products" | "directory">("products");
+  const [tab, setTab] = useState<"products" | "issues" | "funds" | "directory">("products");
   const [cat, setCat] = useState("");
   const [q, setQ] = useState("");
   const [edit, setEdit] = useState<any>(null);
@@ -31,7 +33,9 @@ export default function Opportunities() {
         <div className="row"><button className="btn" onClick={check} disabled={checking}>{checking ? <span className="spinner" /> : <I.refresh />} Check all links</button>{links.data && <span className="tiny faint">Last checked {nptDate(links.data.at, true)}</span>}</div>
       </div>
       <Notice tone="warn">Rates change. Contractual rates (FDs, bonds, debentures) are fixed only once you invest; variable and historical returns are not promises. This directory deliberately does not invent current rates: check the official source, then use <strong>Record rate</strong> to save the figure and the date you verified it.</Notice>
-      <Tabs value={tab} onChange={setTab} tabs={[{ key: "products", label: `Investment products (${products.data?.length ?? 0})` }, { key: "directory", label: `Official resources (${resources.data?.length ?? 0})` }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ key: "products", label: `Investment products (${products.data?.length ?? 0})` }, { key: "issues", label: "IPO / FPO / right issues" }, { key: "funds", label: "Mutual funds" }, { key: "directory", label: `Official resources (${resources.data?.length ?? 0})` }]} />
+      {tab === "issues" && <Issues />}
+      {tab === "funds" && <Funds />}
       {tab === "products" && (
         <>
           <div className="row">
@@ -104,5 +108,77 @@ function ProductModal({ p, onClose, onDone }: { p: any; onClose: () => void; onD
         {err && <Notice tone="warn">{err}</Notice>}
       </div>
     </Modal>
+  );
+}
+
+function Issues() {
+  const [type, setType] = useState("IPO");
+  const [filter, setFilter] = useState<"active" | "all">("active");
+  const rows = useApi<any[]>(`/issues?type=${encodeURIComponent(type)}`, [type]);
+  const stats = useApi<any>("/issues/ipo-stats");
+  const shown = (rows.data ?? []).filter((r) => filter === "all" || ["Open now", "Opening soon", "Approved / upcoming"].includes(r.statusLabel) || (r.listing_date && Date.parse(r.listing_date) > Date.now() - 120 * 86_400_000));
+  const st = stats.data;
+  const tones: Record<string, "up" | "blue" | "warn" | ""> = { "Open now": "up", "Opening soon": "blue", "Approved / upcoming": "warn", Listed: "", Closed: "" };
+  return (
+    <div className="col">
+      {type === "IPO" && st && (
+        <div className="grid g4">
+          <Stat label="IPOs with listing history" value={st.count} sub={`${st.skippedNoListingHistory} recent listings lack early price data`} />
+          <Stat label="Median first-session close" value={pct(st.medianFirstDayPct, 0)} sub="vs issue price" />
+          <Stat label="Median after 20 sessions" value={pct(st.median20SessionPct, 0)} sub={`${st.pctAboveIssueAfter20}% above issue price`} />
+          <Stat label="Median since issue (today)" value={pct(st.medianNowPct, 0)} />
+        </div>
+      )}
+      {type === "IPO" && <Notice>Listing gains have historically been large because most IPOs are priced at Rs. 100 and NEPSE's first-day price band lets new listings rise in steps. This is past data, not a promise: allotment is a lottery, and many IPO stocks later fall from their post-listing peaks. {st?.note}</Notice>}
+      <div className="row">
+        <select className="input" value={type} onChange={(e) => setType(e.target.value)}>{["IPO", "FPO", "Right share", "IPO (local quota)", "IPO (foreign-employed quota)", "IPO (QIIs)", "Mutual fund"].map((t) => <option key={t}>{t}</option>)}</select>
+        <Seg value={filter} onChange={setFilter} options={[{ key: "active", label: "Open, upcoming & recent" }, { key: "all", label: "All" }]} />
+        <a className="btn sm" href="https://iporesult.cdsc.com.np" target="_blank" rel="noopener noreferrer"><I.external /> Check allotment result</a>
+        <a className="btn sm" href="https://meroshare.cdsc.com.np" target="_blank" rel="noopener noreferrer"><I.external /> Apply in Mero Share</a>
+      </div>
+      <Card flush sub="Source: ShareSansar issue list (refreshed daily)">
+        {rows.loading && !rows.data ? <Loading /> : (
+          <DataTable rows={shown} empty="Nothing open or upcoming right now" cols={[
+            { key: "statusLabel", label: "Status", render: (r: any) => <Badge tone={tones[r.statusLabel]}>{r.statusLabel}</Badge> },
+            { key: "symbol", label: "Company", render: (r: any) => <>{r.symbol ? <Link to={`/stocks/${r.symbol}`} className="sym">{r.symbol}</Link> : null}<div className="small">{r.company}</div><div className="tiny faint">{r.sector ?? ""}</div></> },
+            { key: "units", label: "Units", num: true, render: (r: any) => int(r.units) },
+            { key: "price", label: "Price", num: true, render: (r: any) => r.price_low ? `${num(r.price_low)}–${num(r.price_high)}` : num(r.price) },
+            { key: "ratio", label: "Ratio", render: (r: any) => r.ratio ?? "—" },
+            { key: "opening_date", label: "Opens", render: (r: any) => r.opening_date ? nptDate(r.opening_date) : "—" },
+            { key: "closing_date", label: "Closes", render: (r: any) => r.closing_date ? nptDate(r.final_date || r.closing_date) : "—" },
+            { key: "listing_date", label: "Listed", render: (r: any) => r.listing_date ? nptDate(r.listing_date) : "—" },
+            { key: "perf", label: "Since issue", num: true, sort: (r: any) => r.performance?.sinceIssuePct, render: (r: any) => r.performance?.sinceIssuePct != null ? <span className={tone(r.performance.sinceIssuePct)}>{pct(r.performance.sinceIssuePct, 0)}</span> : <span className="tiny faint" title={r.performance?.note}>{r.performance?.note ? "no early data" : "—"}</span> },
+            { key: "issue_manager", label: "Issue manager", render: (r: any) => <span className="small muted">{r.issue_manager}</span> },
+          ]} />
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function Funds() {
+  const f = useApi<any[]>("/funds");
+  const [kind, setKind] = useState<"active" | "matured">("active");
+  const rows = (f.data ?? []).filter((x) => x.kind === kind);
+  return (
+    <div className="col">
+      <Notice>Close-ended mutual funds trade on NEPSE, often at a <strong>discount</strong> to their net asset value (NAV): you buy Rs. 10 of assets for less. A discount can persist until maturity. NAV history is stored from now on, so NAV growth comparisons improve over time. Open-ended funds (SIPs) are bought from the fund manager; check each manager's site for their NAV.</Notice>
+      <Seg value={kind} onChange={setKind} options={[{ key: "active", label: "Listed (active)" }, { key: "matured", label: "Matured / other" }]} />
+      <Card flush sub="Source: ShareSansar mutual fund NAV list">
+        {f.loading && !f.data ? <Loading /> : (
+          <DataTable rows={rows} initialSort={{ key: "premium_pct", dir: 1 }} cols={[
+            { key: "symbol", label: "Fund", render: (r: any) => <><Link to={`/stocks/${r.symbol}`} className="sym">{r.symbol}</Link><div className="small">{r.name}</div></> },
+            { key: "fund_size", label: "Fund size", num: true, render: (r: any) => compact(r.fund_size) },
+            { key: "weekly_nav", label: "Weekly NAV", num: true, render: (r: any) => <>{num(r.weekly_nav)}<div className="tiny faint">{nptDate(r.weekly_date)}</div></> },
+            { key: "monthly_nav", label: "Monthly NAV", num: true, render: (r: any) => <>{num(r.monthly_nav)}<div className="tiny faint">{r.monthly_date}</div></> },
+            { key: "ltp", label: "Market price", num: true, render: (r: any) => num(r.ltp) },
+            { key: "premium_pct", label: "Premium / discount", num: true, render: (r: any) => <span className={r.premium_pct < 0 ? "up" : "down"}>{pct(r.premium_pct, 1)}</span> },
+            { key: "priceReturn1y", label: "Price 1Y", num: true, render: (r: any) => <span className={tone(r.priceReturn1y)}>{pct(r.priceReturn1y, 1)}</span> },
+            { key: "maturity_date", label: "Matures", render: (r: any) => <>{nptDate(r.maturity_date)}<div className="tiny faint">{r.maturity_period}</div></> },
+          ]} />
+        )}
+      </Card>
+      <p className="tiny faint">Green discount = market price below NAV. Fund performance should be judged on NAV growth plus distributions over several years, not on market price alone.</p>
+    </div>
   );
 }

@@ -279,3 +279,60 @@ export function classifyAnnouncement(title: string): string {
   if (/annual report|audited/.test(t)) return "Annual report";
   return "Disclosure";
 }
+
+// ---------------- Issues (IPO / FPO / rights) and mutual fund NAVs ----------------
+export const ISSUE_TYPES: { type: number; label: string }[] = [
+  { type: 1, label: "IPO" }, { type: 2, label: "FPO" }, { type: 3, label: "Right share" }, { type: 4, label: "Mutual fund" },
+  { type: 5, label: "IPO (local quota)" }, { type: 7, label: "IPO (foreign-employed quota)" }, { type: 8, label: "IPO (QIIs)" },
+];
+
+export interface IssueRow {
+  issueType: string; symbol: string | null; company: string; ratio: string | null; units: number | null; price: number | null;
+  priceLow: number | null; priceHigh: number | null; cutoff: number | null; openingDate: string | null; closingDate: string | null; finalDate: string | null;
+  listingDate: string | null; issueManager: string | null; status: number | null; shareType: string | null; ssCompanyId: number | null;
+}
+
+const d10 = (s: unknown) => (typeof s === "string" && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null);
+
+export async function ssIssues(type: number, max = 200): Promise<IssueRow[]> {
+  const label = ISSUE_TYPES.find((t) => t.type === type)?.label ?? String(type);
+  const out: IssueRow[] = [];
+  for (let start = 0; start < max; start += 50) {
+    const j = await fetchJson<{ recordsTotal: number; data: Record<string, unknown>[] }>(`${SS}/existing-issues?type=${type}&draw=1&start=${start}&length=50`, { headers: { "X-Requested-With": "XMLHttpRequest" }, browserLike: true });
+    for (const r of j.data || []) {
+      const c = (r.company || {}) as Record<string, string>;
+      out.push({
+        issueType: label, symbol: stripTags(c.symbol || "").toUpperCase() || null, company: stripTags(c.companyname || ""), ratio: (r.ratio_value as string) || null,
+        units: num(r.total_units as string), price: num(r.issue_price as string), priceLow: num(r.issue_prrng_low as string), priceHigh: num(r.issue_prrng_high as string),
+        cutoff: num(r.cutoff_price as string), openingDate: d10(r.opening_date), closingDate: d10(r.closing_date), finalDate: d10(r.final_date), listingDate: d10(r.listing_date),
+        issueManager: (r.issue_manager as string) || null, status: typeof r.status === "number" ? r.status : num(r.status as string), shareType: (r.displayable_share_type as string) || null,
+        ssCompanyId: num(r.companyid as string),
+      });
+    }
+    if (!j.data || j.data.length < 50 || start + 50 >= j.recordsTotal) break;
+  }
+  return out;
+}
+
+export interface FundNavRow { symbol: string; name: string; kind: "active" | "matured"; fundSize: number | null; maturityDate: string | null; maturityPeriod: string | null; dailyNav: number | null; dailyDate: string | null; weeklyNav: number | null; weeklyDate: string | null; monthlyNav: number | null; monthlyDate: string | null; ltp: number | null; ltpDate: string | null; premiumPct: number | null }
+
+export async function ssFundNavs(): Promise<FundNavRow[]> {
+  const out: FundNavRow[] = [];
+  for (const [type, kind] of [[-1, "active"], [1, "matured"]] as const) {
+    const rows: Record<string, unknown>[] = [];
+    for (let start = 0; start < 400; start += 50) {
+      const j = await fetchJson<{ recordsTotal: number; data: Record<string, unknown>[] }>(`${SS}/mutual-fund-navs?type=${type}&draw=1&start=${start}&length=50`, { headers: { "X-Requested-With": "XMLHttpRequest" }, browserLike: true });
+      rows.push(...(j.data || []));
+      if (!j.data || j.data.length < 50 || start + 50 >= j.recordsTotal) break;
+    }
+    for (const r of rows) {
+      out.push({
+        symbol: String(r.symbol || "").toUpperCase(), name: stripTags(String(r.companyname || "")), kind, fundSize: num(r.fund_size as string), maturityDate: d10(r.maturity_date),
+        maturityPeriod: (r.maturity_period as string) || null, dailyNav: num(r.daily_nav_price as string), dailyDate: d10(r.daily_date), weeklyNav: num(r.weekly_nav_price as string), weeklyDate: d10(r.weekly_date),
+        monthlyNav: num(r.monthly_nav_price as string), monthlyDate: (r.monthly_date as string) || null, ltp: num(r.close as string), ltpDate: d10(r.published_date),
+        premiumPct: typeof r.prem_dis === "number" ? Math.round(r.prem_dis * 100) / 100 : num(r.prem_dis as string),
+      });
+    }
+  }
+  return out.filter((r) => r.symbol);
+}

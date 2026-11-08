@@ -153,3 +153,150 @@ marketRouter.get("/news", (req, res) => {
 marketRouter.get("/forex", (_req, res) => {
   res.json(all("SELECT * FROM forex WHERE date = (SELECT MAX(date) FROM forex) ORDER BY currency"));
 });
+
+// ---------- public issues (IPO/FPO/rights) with listing performance ----------
+function issueStatus(r: { status: number | null; opening_date: string | null; closing_date: string | null; final_date: string | null; listing_date: string | null }, today: string) {
+  const open = r.opening_date || null, close = r.final_date || r.closing_date || null;
+  if (open && close && open <= today && today <= close) return "Open now";
+  if (open && open > today) return "Opening soon";
+  if (r.status === -2 || !open) return "Approved / upcoming";
+  if (r.listing_date && r.listing_date <= today) return "Listed";
+  return "Closed";
+}
+
+marketRouter.get("/issues", (req, res) => {
+  const today = new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 10);
+  const type = typeof req.query.type === "string" && req.query.type ? req.query.type : null;
+  const rows = all<Record<string, unknown> & { symbol: string | null; price: number | null; listing_date: string | null; status: number | null; opening_date: string | null; closing_date: string | null; final_date: string | null; issue_type: string }>(
+    `SELECT i.*, c.sector FROM issues i LEFT JOIN companies c ON c.symbol = i.symbol ${type ? "WHERE i.issue_type = ?" : ""} ORDER BY (i.opening_date = '') DESC, i.opening_date DESC LIMIT 600`, ...(type ? [type] : []));
+  res.json(rows.map((r) => {
+    let perf: Record<string, number | string | null> | null = null;
+    if (r.symbol && r.listing_date && r.price && /IPO|FPO/.test(r.issue_type)) {
+      const bars = all<{ date: string; close: number }>("SELECT date, close FROM prices WHERE symbol = ? AND date >= ? ORDER BY date LIMIT 60", r.symbol, r.listing_date);
+      const last = get<{ date: string; close: number }>("SELECT date, close FROM prices WHERE symbol = ? ORDER BY date DESC LIMIT 1", r.symbol);
+      const nearListing = bars.length && Date.parse(bars[0].date) - Date.parse(r.listing_date) <= 7 * 86_400_000;
+      if (bars.length && !nearListing) perf = { note: `Price history around listing is not available (first stored session ${bars[0].date}).`, lastClose: get<{ close: number }>("SELECT close FROM prices WHERE symbol = ? ORDER BY date DESC LIMIT 1", r.symbol)?.close ?? null, sinceIssuePct: null } as Record<string, number | string | null>;
+      if (bars.length && nearListing) {
+        const ret = (p: number | undefined) => (p == null ? null : Math.round(((p - (r.price as number)) / (r.price as number)) * 1000) / 10);
+        perf = { firstDate: bars[0].date, firstClose: bars[0].close, firstDayPct: ret(bars[0].close), after20Pct: ret(bars[19]?.close), lastClose: last?.close ?? null, lastDate: last?.date ?? null, sinceIssuePct: ret(last?.close) };
+      }
+    }
+    return { ...r, statusLabel: issueStatus(r, today), performance: perf };
+  }));
+});
+
+marketRouter.get("/issues/ipo-stats", (_req, res) => {
+  const rows = all<{ symbol: string; price: number; listing_date: string; sector: string | null }>(
+    "SELECT i.symbol, i.price, i.listing_date, c.sector FROM issues i LEFT JOIN companies c ON c.symbol = i.symbol WHERE i.issue_type = 'IPO' AND i.listing_date IS NOT NULL AND i.price > 0 AND i.symbol IS NOT NULL");
+  const out: { symbol: string; sector: string | null; listing: string; firstClosePct: number; d20Pct: number | null; nowPct: number | null }[] = [];
+  let skipped = 0;
+  for (const r of rows) {
+    const b = all<{ close: number }>("SELECT close FROM prices WHERE symbol = ? AND date >= ? ORDER BY date LIMIT 21", r.symbol, r.listing_date);
+    const last = get<{ close: number }>("SELECT close FROM prices WHERE symbol = ? ORDER BY date DESC LIMIT 1", r.symbol);
+    const first = get<{ date: string }>("SELECT date FROM prices WHERE symbol = ? AND date >= ? ORDER BY date LIMIT 1", r.symbol, r.listing_date);
+    if (!b.length || !first || Date.parse(first.date) - Date.parse(r.listing_date) > 7 * 86_400_000) { skipped++; continue; }
+    const pct = (p: number) => ((p - r.price) / r.price) * 100;
+    out.push({ symbol: r.symbol, sector: r.sector, listing: r.listing_date, firstClosePct: pct(b[0].close), d20Pct: b[20] ? pct(b[20].close) : null, nowPct: last ? pct(last.close) : null });
+  }
+  const med = (v: number[]) => { const s = [...v].sort((a, b) => a - b); return s.length ? Math.round(s[Math.floor(s.length / 2)] * 10) / 10 : null; };
+  const d20 = out.map((o) => o.d20Pct).filter((x): x is number => x != null);
+  res.json({
+    count: out.length, skippedNoListingHistory: skipped,
+    medianFirstDayPct: med(out.map((o) => o.firstClosePct)),
+    median20SessionPct: med(d20),
+    pctAboveIssueAfter20: d20.length ? Math.round((d20.filter((x) => x > 0).length / d20.length) * 100) : null,
+    medianNowPct: med(out.map((o) => o.nowPct).filter((x): x is number => x != null)),
+    note: "Returns vs issue price, from stored daily closes. NEPSE circuit limits mean new listings often rise in steps over several sessions. Survivorship: only IPOs that list and trade are included.",
+    rows: out.sort((a, b) => (a.listing < b.listing ? 1 : -1)),
+  });
+});
+
+marketRouter.get("/funds", (_req, res) => {
+  const funds = all<Record<string, unknown> & { symbol: string }>("SELECT f.*, (SELECT COUNT(*) FROM fund_nav_history h WHERE h.symbol = f.symbol) navPoints FROM fund_navs f ORDER BY f.kind, f.symbol");
+  res.json(funds.map((f) => {
+    const q = get<{ return1y: number | null }>(`SELECT (SELECT close FROM prices WHERE symbol = ? ORDER BY date DESC LIMIT 1) AS lastp, (SELECT close FROM prices WHERE symbol = ? AND date <= date('now','-365 days') ORDER BY date DESC LIMIT 1) AS yearp`, f.symbol, f.symbol) as unknown as { lastp: number | null; yearp: number | null };
+    return { ...f, priceReturn1y: q?.lastp && q?.yearp ? Math.round(((q.lastp - q.yearp) / q.yearp) * 1000) / 10 : null };
+  }));
+});
+
+marketRouter.get("/compare", (req, res) => {
+  const syms = String(req.query.symbols || "").split(",").map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z0-9]{1,12}$/.test(s)).slice(0, 6);
+  const days = Math.min(Math.max(Number(req.query.days) || 365, 30), 3650);
+  const factors = new Map(M.allFactors().map((f) => [f.symbol, f]));
+  const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  res.json({
+    from,
+    stocks: syms.map((s) => {
+      const c = M.company(s);
+      if (!c) return { symbol: s, error: "Unknown symbol" };
+      const fa = M.fundamentalsFor(s);
+      const b = M.bars(s).bars.filter((x) => x.date >= from);
+      const base = b[0]?.close;
+      return {
+        symbol: s, name: c.name, sector: c.sector, factors: factors.get(s) ?? null,
+        period: fa?.latestPeriod ?? null, score: fa?.score ?? null,
+        metrics: Object.fromEntries((fa?.metrics ?? []).map((m) => [m.key, { label: m.label, value: m.value, unit: m.unit }])),
+        dividend: fa?.dividend ?? null, redFlags: fa?.redFlags ?? [], strengths: fa?.strengths ?? [],
+        rebased: base ? b.map((x) => ({ date: x.date, value: Math.round((x.close / base) * 10000) / 100 })) : [],
+      };
+    }),
+  });
+});
+
+// ---------- strategy lab: one strategy across many stocks ----------
+marketRouter.post("/backtest/universe", (req, res) => {
+  const p = z.object({
+    strategy: z.enum(STRATEGIES.map((s) => s.id) as [StrategyId, ...StrategyId[]]), params: z.record(z.number()).optional(),
+    years: z.number().min(1).max(15).default(5), universe: z.enum(["liquid", "all", "sector", "symbols"]).default("liquid"),
+    sector: z.string().optional(), symbols: z.array(SYM).max(100).optional(), stopLossPct: z.number().min(0).max(90).nullable().optional(),
+    takeProfitPct: z.number().min(0).max(1000).nullable().optional(), maxHoldDays: z.number().int().min(1).max(2000).nullable().optional(), capital: z.number().positive().default(100000),
+  }).parse(req.body);
+  let list: string[];
+  const factors = M.allFactors();
+  if (p.universe === "symbols") list = p.symbols ?? [];
+  else if (p.universe === "sector") list = factors.filter((f) => f.sector === p.sector).map((f) => f.symbol);
+  else if (p.universe === "liquid") list = factors.filter((f) => (f.avgTurnover20 ?? 0) >= 5_000_000).map((f) => f.symbol);
+  else list = factors.map((f) => f.symbol);
+  list = list.slice(0, 400);
+  const fees = M.fees();
+  const results: Record<string, unknown>[] = [];
+  const allTrades: { returnPct: number; netPnl: number; holdingDays: number }[] = [];
+  let skipped = 0;
+  for (const sym of list) {
+    const b = M.bars(sym).bars;
+    if (b.length < 260) { skipped++; continue; }
+    const from = new Date(Date.parse(b[b.length - 1].date) - p.years * 365.25 * 86_400_000).toISOString().slice(0, 10);
+    if (b[0].date > from) { skipped++; continue; } // not enough history for the full window: skip for a fair comparison
+    const r = runBacktest(b, { strategy: p.strategy, params: p.params, from, capital: p.capital, stopLossPct: p.stopLossPct ?? null, takeProfitPct: p.takeProfitPct ?? null, maxHoldDays: p.maxHoldDays ?? null, fees });
+    results.push({ symbol: sym, sector: factors.find((f) => f.symbol === sym)?.sector, ...r.stats, beatBuyHold: r.stats.totalReturnPct > r.stats.buyHoldReturnPct });
+    for (const t of r.trades) allTrades.push({ returnPct: t.returnPct, netPnl: t.netPnl, holdingDays: t.holdingDays });
+  }
+  const med = (v: number[]) => { const s = v.filter(Number.isFinite).sort((a, b) => a - b); return s.length ? Math.round(s[Math.floor(s.length / 2)] * 100) / 100 : null; };
+  const mean = (v: number[]) => (v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) / 100 : null);
+  const wins = allTrades.filter((t) => t.netPnl > 0);
+  const grossW = wins.reduce((s, t) => s + t.netPnl, 0), grossL = -allTrades.filter((t) => t.netPnl <= 0).reduce((s, t) => s + t.netPnl, 0);
+  const rets = results.map((r) => r.totalReturnPct as number), bh = results.map((r) => r.buyHoldReturnPct as number);
+  // Histogram of per-trade returns.
+  const buckets = [-50, -20, -10, -5, 0, 5, 10, 20, 50, Infinity];
+  const hist = buckets.map((hi, i) => ({ range: i === 0 ? `< ${hi}%` : hi === Infinity ? `> ${buckets[i - 1]}%` : `${buckets[i - 1]}% to ${hi}%`, count: allTrades.filter((t) => t.returnPct < hi && (i === 0 || t.returnPct >= buckets[i - 1])).length }));
+  res.json({
+    strategy: STRATEGIES.find((s) => s.id === p.strategy), params: { ...STRATEGIES.find((s) => s.id === p.strategy)!.defaults, ...(p.params || {}) }, years: p.years,
+    tested: results.length, skippedShortHistory: skipped,
+    summary: {
+      medianReturnPct: med(rets), medianBuyHoldPct: med(bh), meanReturnPct: mean(rets),
+      pctStocksProfitable: results.length ? Math.round((rets.filter((r) => r > 0).length / results.length) * 100) : null,
+      pctBeatBuyHold: results.length ? Math.round((results.filter((r) => r.beatBuyHold).length / results.length) * 100) : null,
+      totalTrades: allTrades.length, winRatePct: allTrades.length ? Math.round((wins.length / allTrades.length) * 1000) / 10 : null,
+      avgTradePct: mean(allTrades.map((t) => t.returnPct)), medianHoldingDays: med(allTrades.map((t) => t.holdingDays)),
+      profitFactor: grossL > 0 ? Math.round((grossW / grossL) * 100) / 100 : null, medianMaxDrawdownPct: med(results.map((r) => r.maxDrawdownPct as number)),
+    },
+    histogram: hist,
+    results: results.sort((a, b) => (b.totalReturnPct as number) - (a.totalReturnPct as number)),
+    caveats: [
+      "Each stock is tested separately with the same starting capital; this is not a combined portfolio simulation.",
+      "Stocks without price history covering the whole period are skipped, which biases results toward companies that survived (survivorship bias).",
+      "Nepal commissions, SEBON fee, DP charge, CGT and 0.2% slippage are included. Circuit limits and liquidity limits are not modelled.",
+      "Past performance does not predict future results.",
+    ],
+  });
+});

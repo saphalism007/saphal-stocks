@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useApi } from "../lib/api.ts";
 import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score } from "../components/ui.tsx";
@@ -17,8 +18,22 @@ interface Briefing {
 interface Mover { symbol: string; name: string; changePct: number; close: number }
 interface SetupRow { symbol: string; name?: string; type: string; side: string; price: number; entryLow: number; entryHigh: number; stopLoss: number; targets: number[]; riskReward: number; quality: number }
 
+const SECTION_LABELS: Record<string, string> = { stats: "Key numbers (index, breadth, turnover, trend)", market: "What happened in NEPSE + my portfolio", attention: "Stocks that deserve attention + setups", reports: "Reports, news on my stocks, opportunities" };
+const DEFAULT_LAYOUT = Object.keys(SECTION_LABELS).map((key) => ({ key, on: true }));
+
+function loadLayout() {
+  try {
+    const l = JSON.parse(localStorage.getItem("ss-overview-layout") || "null") as { key: string; on: boolean }[] | null;
+    if (l && l.length === DEFAULT_LAYOUT.length && l.every((x) => SECTION_LABELS[x.key])) return l;
+  } catch { /* ignore */ }
+  return DEFAULT_LAYOUT;
+}
+
 export default function Overview() {
   const { data: b, error, loading, reload } = useApi<Briefing>("/briefing");
+  const [layout, setLayout] = useState(loadLayout);
+  const [editing, setEditing] = useState(false);
+  const save = (l: { key: string; on: boolean }[]) => { setLayout(l); try { localStorage.setItem("ss-overview-layout", JSON.stringify(l)); } catch { /* ignore */ } };
   const status = useApi<{ freshness: { dataset: string; as_of: string; last_success_at: string }[]; jobs: { name: string; status: string; message: string }[]; counts: { priceRows: number } }>("/data/status");
   const nav = useNavigate();
   if (loading && !b) return <Loading label="Preparing your briefing" />;
@@ -27,25 +42,19 @@ export default function Overview() {
   const running = status.data?.jobs.filter((j) => j.status === "running" || j.status === "queued") ?? [];
   const latest = status.data?.freshness.find((f) => f.dataset === "prices_latest");
   const m = b.market;
-  return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Good {greeting()}. Here is your market briefing.</h1>
-          <p>{b.date ? <>NEPSE data for <strong>{nptDate(b.date)}</strong>.</> : "No market data yet."} <Fresh date={latest?.as_of} fetched={latest?.last_success_at} source="ShareSansar / nepse-data" /></p>
-        </div>
-        <div className="row"><Link className="btn" to="/analyst">Ask the AI analyst</Link></div>
-      </div>
-      {running.length > 0 && <Notice>Data refresh in progress: {running.map((j) => `${j.name} (${j.message})`).join(" · ")}. Pages fill in as data arrives.</Notice>}
-      {!b.date && <Notice tone="warn">No market data has been loaded yet. Go to <Link to="/settings">Settings → Data</Link> and run a refresh.</Notice>}
-
+  const sections: Record<string, React.ReactNode> = {
+    stats: (
+      <>
       <div className="grid g4">
         <Stat label="NEPSE Index" value={num(m.nepse?.close)} sub={<span className={tone(m.nepse?.changePct)}>{num(m.nepse?.change)} ({pct(m.nepse?.changePct)})</span>} />
         <Stat label="Breadth" value={<><span className="up">{m.breadth.advancers}</span> / <span className="down">{m.breadth.decliners}</span></>} sub={m.sentiment ? `${m.sentiment.label} · ${m.breadth.unchanged} unchanged` : "—"} />
         <Stat label="Turnover" value={compact(m.turnover)} sub={`${int(m.breadth.traded)} scrips traded`} />
         <Stat label="Market trend" value={<span style={{ fontSize: 17 }}>{m.trend?.label ?? "—"}</span>} sub={m.trend?.notes[0] ?? "Needs index history"} />
       </div>
-
+      </>
+    ),
+    market: (
+      <>
       <div className="grid g3">
         <Card title="1 · What happened in NEPSE" className="span2">
           <div className="grid g2">
@@ -76,7 +85,10 @@ export default function Overview() {
           ))}
         </Card>
       </div>
-
+      </>
+    ),
+    attention: (
+      <>
       <div className="grid g2">
         <Card title="2 · Stocks that deserve attention" sub="Your watchlist and holdings with the biggest moves">
           {b.attention.length === 0 ? <Empty title="Nothing to flag">Add stocks to your <Link to="/watchlist">watchlist</Link> to see them here.</Empty> : (
@@ -91,7 +103,10 @@ export default function Overview() {
           <SetupTable rows={[...b.mySetups, ...b.topSetups.filter((s) => !b.mySetups.some((x) => x.symbol === s.symbol))].slice(0, 8)} />
         </Card>
       </div>
-
+      </>
+    ),
+    reports: (
+      <>
       <div className="grid g3">
         <Card title="4 · Companies that published reports" sub="Last 3 days">
           {b.reports.length === 0 ? <Empty title="No new quarterly reports" /> : <div className="list">{b.reports.map((r) => <NewsRow key={r.url} r={r} />)}</div>}
@@ -103,6 +118,34 @@ export default function Overview() {
           {b.opportunities.length === 0 ? <Empty title="No new IPO/FPO/debenture notices in 10 days" /> : <div className="list">{b.opportunities.map((r) => <NewsRow key={r.url} r={r} />)}</div>}
         </Card>
       </div>
+      </>
+    ),
+  };
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Good {greeting()}. Here is your market briefing.</h1>
+          <p>{b.date ? <>NEPSE data for <strong>{nptDate(b.date)}</strong>.</> : "No market data yet."} <Fresh date={latest?.as_of} fetched={latest?.last_success_at} source="ShareSansar / nepse-data" /></p>
+        </div>
+        <div className="row"><button className="btn" onClick={() => setEditing(!editing)}>Customize</button><Link className="btn" to="/analyst">Ask the AI analyst</Link></div>
+      </div>
+      {running.length > 0 && <Notice>Data refresh in progress: {running.map((j) => `${j.name} (${j.message})`).join(" · ")}. Pages fill in as data arrives.</Notice>}
+      {!b.date && <Notice tone="warn">No market data has been loaded yet. Go to <Link to="/settings">Settings → Data</Link> and run a refresh.</Notice>}
+
+      {editing && (
+        <Card title="Customize dashboard" actions={<button className="btn sm primary" onClick={() => setEditing(false)}>Done</button>}>
+          {layout.map((x, i) => (
+            <div key={x.key} className="row" style={{ padding: "4px 0" }}>
+              <label className="chk" style={{ flex: 1 }}><input type="checkbox" checked={x.on} onChange={(e) => save(layout.map((y) => (y.key === x.key ? { ...y, on: e.target.checked } : y)))} />{SECTION_LABELS[x.key]}</label>
+              <button className="btn ghost sm" disabled={i === 0} onClick={() => { const l = [...layout]; [l[i - 1], l[i]] = [l[i], l[i - 1]]; save(l); }} aria-label="Move up">↑</button>
+              <button className="btn ghost sm" disabled={i === layout.length - 1} onClick={() => { const l = [...layout]; [l[i + 1], l[i]] = [l[i], l[i + 1]]; save(l); }} aria-label="Move down">↓</button>
+            </div>
+          ))}
+          <button className="btn sm" onClick={() => save(DEFAULT_LAYOUT)}>Reset</button>
+        </Card>
+      )}
+      {layout.filter((x) => x.on).map((x) => <div key={x.key} style={{ display: "contents" }}>{sections[x.key]}</div>)}
       {b.unreadAlerts > 0 && <Notice><Link to="/alerts">{b.unreadAlerts} unread alert{b.unreadAlerts > 1 ? "s" : ""}</Link></Notice>}
     </div>
   );

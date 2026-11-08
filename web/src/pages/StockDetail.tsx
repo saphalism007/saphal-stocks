@@ -53,6 +53,7 @@ export default function StockDetail() {
           </div>
           <button className="btn" onClick={() => setShowWatch(true)}><I.star /> Watch</button>
           <button className="btn" onClick={() => setShowAlert(true)}><I.alerts /> Alert</button>
+          <button className="btn" onClick={() => nav(`/compare?s=${sym}`)}>Compare</button>
           <button className="btn" onClick={() => nav(`/analyst?q=${encodeURIComponent(`Analyse ${sym}: is it a good investment at the current price, and is there a good trade setup?`)}`)}><I.ai /> Ask AI</button>
           <button className="btn" onClick={refresh} disabled={busy} title="Fetch latest profile, dividends, announcements and quarterly report">{busy ? <span className="spinner" /> : <I.refresh />} Update</button>
         </div>

@@ -33,6 +33,8 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: "get_announcements", description: "Company announcements and market news headlines stored from public sources, newest first. Filter by symbol, category or recent days.", input_schema: obj({ symbol: { type: "string" }, category: { type: "string" }, days: { type: "integer" }, limit: { type: "integer", maximum: 50 } }) },
   { name: "search_documents", description: "Search the text of uploaded PDF reports (annual/quarterly reports, auditor reports). Returns matching passages with document title, period and page number for citation.", input_schema: obj({ query: { type: "string" }, symbol: { type: "string" }, limit: { type: "integer", maximum: 12 } }, ["query"]) },
   { name: "get_sector_stats", description: "Sector medians (P/E, P/B, ROE, cash yield, technical score) and the stocks in a sector, for relative valuation.", input_schema: obj({ sector: { type: "string" } }, ["sector"]) },
+  { name: "get_public_issues", description: "IPO, FPO, right share and mutual fund issues: open now, upcoming/approved, recently listed, with listing performance vs issue price where price history exists. Also returns historical IPO listing statistics.", input_schema: obj({ type: { type: "string", enum: ["IPO", "FPO", "Right share", "IPO (local quota)", "IPO (foreign-employed quota)", "Mutual fund"] }, only_active: { type: "boolean" } }) },
+  { name: "get_mutual_funds", description: "Listed close-ended mutual funds: fund size, weekly and monthly NAV, market price, premium/discount to NAV, maturity, 1-year price return.", input_schema: obj({}) },
   { name: "get_wealth_profile", description: "The user's saved financial profile and goals (income, expenses, savings, risk tolerance, goals with target dates). Use for personal financial planning questions.", input_schema: obj({}) },
   { name: "calculate", description: "Deterministic calculators: goal plan (with inflation and scenarios), lump-sum allocation, position size, round-trip trade cost with Nepal fees/CGT.", input_schema: obj({
     kind: { type: "string", enum: ["goal", "allocation", "position_size", "round_trip"] },
@@ -177,6 +179,14 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
       };
       return { sector: input.sector, stocks: rows.length, medians: { pe: med("pe"), pb: med("pb"), roe: med("roe"), cashYield: med("cashYield"), technicalScore: med("technicalScore"), fundamentalScore: med("fundamentalScore") }, members: rows.map((r) => ({ symbol: r.symbol, name: r.name, price: r.price, pe: r.pe, pb: r.pb, roe: r.roe, fundamentalScore: r.fundamentalScore, technicalScore: r.technicalScore })) };
     }
+    case "get_public_issues": {
+      const today = new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 10);
+      const type = (input.type as string) || "IPO";
+      let rows = all<Record<string, unknown> & { opening_date: string; closing_date: string | null; final_date: string | null; status: number | null; listing_date: string | null }>("SELECT symbol, company, issue_type, ratio, units, price, opening_date, closing_date, final_date, listing_date, issue_manager, status FROM issues WHERE issue_type = ? ORDER BY (opening_date = '') DESC, opening_date DESC LIMIT 80", type);
+      if (input.only_active) rows = rows.filter((r) => r.status === -2 || !r.opening_date || (r.final_date || r.closing_date || "") >= today || (r.listing_date && r.listing_date >= new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10)));
+      return { today, issues: rows.slice(0, 40), note: "status -2 = approved/upcoming (dates not yet announced). Use the Opportunities page for listing-performance statistics." };
+    }
+    case "get_mutual_funds": return all("SELECT symbol, name, kind, fund_size, weekly_nav, weekly_date, monthly_nav, monthly_date, ltp, ltp_date, premium_pct, maturity_date FROM fund_navs ORDER BY kind, premium_pct");
     case "get_wealth_profile": {
       const { readVault } = await import("../lib/vault.ts");
       return { profile: readVault(userId, "profile")[0]?.data ?? null, goals: readVault(userId, "goal").map((g) => g.data) };

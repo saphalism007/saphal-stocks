@@ -245,6 +245,20 @@ export function analyzeFundamentals(input: FundamentalInput): FundamentalAnalysi
   const yearsPaid = recent5.filter((d) => (d.cashPct ?? 0) + (d.bonusPct ?? 0) > 0).length;
   byKey.cashYield = r2(cashYield);
   byKey.yearsPaid5 = yearsPaid;
+  // Dividend sustainability: last declared dividend per share vs current annualised EPS.
+  const eps0 = core?.eps ?? null;
+  const dps = ld?.cashPct != null ? (ld.cashPct / 100) * face : null;
+  const totalPs = ld ? (((ld.cashPct ?? 0) + (ld.bonusPct ?? 0)) / 100) * face : null;
+  if (dps != null && eps0 != null && eps0 > 0) {
+    const payout = (dps / eps0) * 100;
+    metrics.push({ key: "payoutCash", label: "Cash payout ratio (last dividend / EPS)", value: r2(payout), unit: "%", basis: "computed", formula: `Rs. ${r2(dps)} cash per share / annualised EPS` });
+    if (totalPs != null) metrics.push({ key: "payoutTotal", label: "Total payout incl. bonus", value: r2((totalPs / eps0) * 100), unit: "%", basis: "computed", formula: "(cash + bonus %) x face value / EPS" });
+    byKey.payoutCash = r2(payout);
+    if (payout > 100) redFlags.push(`Last cash dividend (Rs. ${r2(dps)}/share) is more than current annualised EPS: at this profit level it may not be sustainable.`);
+    else if (payout >= 20 && payout <= 70 && yearsPaid >= 4) strengths.push(`Sustainable-looking dividend: ${r2(payout)}% cash payout with ${yearsPaid}/5 years paid.`);
+  }
+  const bonusHeavy = recent5.filter((d) => (d.bonusPct ?? 0) > (d.cashPct ?? 0)).length;
+  if (bonusHeavy >= 3) dataNotes.push(`Dividends were mostly bonus shares in ${bonusHeavy} of the last 5 years: bonus shares grow share count (dilution) and EPS falls unless profit grows as fast.`);
 
   // Scoring by sector model.
   const v = byKey;
