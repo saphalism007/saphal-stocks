@@ -89,6 +89,10 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 - ✅ Versions and updates: version and code in the app, update check with Update now, `npm run deploy` publishes and prints a TALLY line that matches the app (0.6.1, 9 November 2026)
 - ⬜ Background alerts on iOS (web apps cannot run in the background; alerts are checked when the app opens)
 
+## v0.10: NepView-inspired market tools and Start Investing
+- ✅ Market home (leaders, turnover vs previous session, disclosures, sector heatmap with periods, movers), Technical Signals board, Quarterly Results with year-on-year (stored statements or official result headlines), IPO center with BOIDs, Floorsheet with broker activity, Chart Terminal with drawings, company cards, pros and cons
+- ✅ Start Investing guide with official links checked daily (shared/guide.ts)
+
 ## v0.9: trading opportunities and professional wealth management
 - ✅ Trading Opportunities (shared/opportunities.ts, tested): BUY/SELL/HOLD/WATCH/AVOID/INSUFFICIENT per stock from stored data; rules: ≥120 sessions, fresh prices, liquidity ≥ Rs. 10 lakh/day, setup quality ≥ 60, R:R ≥ 1.8 before and ≥ 1.5 after costs, stop below the buy range and ≥ 1.5% away, oversold bounces need a confirmed reversal; three targets (setup, next resistance, then marked R-projections); review date
 - ✅ Track record: walk-forward replay of the BUY rule (no look-ahead, next-open fills, fees and CGT) and a daily forward signal log judged against later prices; confidence tempered by each setup type's results

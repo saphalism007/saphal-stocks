@@ -7,6 +7,8 @@ import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score, Scor
 import { PriceChart, LineChart, type Overlay, type Lower, type ChartLevel, type ChartSegment, type ChartZone } from "../components/PriceChart.tsx";
 import { resample, trendlines, type Timeframe } from "../../../shared/timeframe.ts";
 import { AuditViewer } from "../components/AuditViewer.tsx";
+import { BrokerActivity } from "./Floorsheet.tsx";
+import { prosCons } from "../../../shared/proscons.ts";
 import { num, pct, tone, compact, int, nptDate, isNum } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 import { useTheme, usePrefs } from "../App.tsx";
@@ -15,7 +17,7 @@ import type { Bar } from "../../../shared/types.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
-type TabKey = "summary" | "chart" | "levels" | "fundamentals" | "financials" | "dividends" | "news" | "backtest" | "audit";
+type TabKey = "summary" | "chart" | "levels" | "fundamentals" | "financials" | "dividends" | "news" | "backtest" | "audit" | "brokers";
 
 export default function StockDetail() {
   const { symbol = "" } = useParams();
@@ -56,6 +58,7 @@ export default function StockDetail() {
           </div>
           <button className="btn primary" onClick={() => { setTab("audit"); setTimeout(() => document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}><I.reports /> Audit report</button>
           <button className="btn" onClick={() => setShowWatch(true)}><I.star /> Watch</button>
+          <button className="btn" onClick={() => nav(`/terminal/${sym}`)}><I.technical /> Terminal</button>
           <button className="btn" onClick={() => setShowAlert(true)}><I.alerts /> Alert</button>
           <button className="btn" onClick={() => nav(`/compare?s=${sym}`)}>Compare</button>
           <button className="btn" onClick={() => nav(`/analyst?q=${encodeURIComponent(`Analyse ${sym}: is it a good investment at the current price, and is there a good trade setup?`)}`)}><I.ai /> Ask AI</button>
@@ -78,7 +81,7 @@ export default function StockDetail() {
       <Tabs value={tab} onChange={setTab} tabs={[
         { key: "summary", label: "Summary" }, { key: "chart", label: "Chart & technicals" }, { key: "levels", label: "Support & resistance" },
         { key: "fundamentals", label: "Fundamentals" }, { key: "financials", label: "Financial statements" }, { key: "audit", label: "Reports & audit" }, { key: "dividends", label: "Dividends" },
-        { key: "news", label: "Announcements" }, { key: "backtest", label: "Backtest" },
+        { key: "news", label: "Announcements" }, { key: "brokers", label: "Brokers" }, { key: "backtest", label: "Backtest" },
       ]} />
 
       {tab === "summary" && <Summary d={d} rep={rep.data} bars={barsQ.data?.bars ?? []} onTab={setTab} />}
@@ -87,6 +90,7 @@ export default function StockDetail() {
       {tab === "fundamentals" && <FundamentalsTab d={d} />}
       {tab === "financials" && <FinancialsTab sym={sym} />}
       {tab === "audit" && <AuditTab sym={sym} />}
+      {tab === "brokers" && <Card title="Broker activity" sub="From the floorsheet: which brokers' clients bought and sold most"><BrokerActivity symbol={sym} /></Card>}
       {tab === "dividends" && <DividendsTab d={d} />}
       {tab === "news" && <NewsTab sym={sym} />}
       {tab === "backtest" && <BacktestTab sym={sym} />}
@@ -325,12 +329,14 @@ function FundamentalsTab({ d }: { d: Any }) {
   if (!fa) return <Empty title="No fundamental data" />;
   const sec = sectors.data?.find((s: Any) => s.sector === d.company.sector);
   const price = d.lastBar?.close;
+  const pc = prosCons(d.company.sector ?? "", fa.byKey, { profitYoY: fa.growth?.find((g: Any) => g.label.startsWith("Net profit YoY"))?.value ?? null, dividendYears5: fa.dividend?.history?.length ? fa.dividend.yearsPaidLast5 : null, sectorPe: sec?.medianPe ?? null, price });
   const lastCashPerShare = fa.dividend.cashPct != null ? (fa.dividend.cashPct / 100) * (d.company.paid_up_value ?? 100) : null;
   const ddmValue = lastCashPerShare != null ? dividendDiscount(lastCashPerShare, ddm.growth / 100, ddm.required / 100) : null;
   const gn = isNum(fa.byKey.eps) && isNum(fa.byKey.bvps) ? grahamNumber(fa.byKey.eps, fa.byKey.bvps) : null;
   return (
     <div className="col">
       {fa.dataNotes.map((n: string) => <Notice key={n}>{n}</Notice>)}
+      <ProsCons items={pc} period={fa.latestPeriod} />
       <div className="grid g3">
         <Card title={`Fundamental score: ${fa.score.overall ?? "—"}`} sub={fa.score.model}>
           <div className="col">{fa.score.components.map((c: Any) => (
@@ -637,5 +643,24 @@ function AuditTab({ sym }: { sym: string }) {
         {d.quarterly.length === 0 ? <Empty title="No quarterly report announcements stored" /> : <div className="list">{d.quarterly.map((r: Any) => <Row key={r.url} r={r} />)}</div>}
       </Card>
     </div>
+  );
+}
+
+function ProsCons({ items, period }: { items: { side: "pro" | "con"; category: string; text: string }[]; period?: string | null }) {
+  if (!items.length) return null;
+  const col = (side: "pro" | "con") => items.filter((x) => x.side === side);
+  return (
+    <Card title="Pros and cons" sub={`In plain words, from the latest statements${period ? ` (${period})` : ""}`}>
+      <div className="grid g2">
+        {(["pro", "con"] as const).map((side) => (
+          <div key={side}>
+            <h4 className={`small ${side === "pro" ? "up" : "down"}`} style={{ margin: "0 0 6px" }}>{side === "pro" ? "Pros" : "Cons"}</h4>
+            {col(side).length === 0 ? <p className="small faint">None stand out.</p> : col(side).map((x) => (
+              <div key={x.text} className="pc-item"><span className="small">{x.text}</span><span className="tiny faint">{x.category}</span></div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }

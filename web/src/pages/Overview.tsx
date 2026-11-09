@@ -58,14 +58,14 @@ export default function Overview() {
           <h2>NEPSE Intelligence</h2><div className="small muted">Market, charts, analysis, AI trading assistant and your portfolio</div>
           <div className="pillar-links">
             <Link to="/trading"><I.technical />Trading opportunities</Link><Link to="/market"><I.market />Market overview</Link><Link to="/stocks"><I.stocks />Stock analysis</Link>
-            <Link to={`/analyst?q=${encodeURIComponent("Which NEPSE stocks have strong technical and fundamental setups right now? Separate short-term trades from long-term investments, with entry zone, stop-loss, targets, risk/reward and data date for each.")}`}><I.ai />AI trading assistant</Link><Link to="/portfolio"><I.portfolio />Portfolio</Link>
+            <Link to={`/analyst?q=${encodeURIComponent("Which NEPSE stocks have strong technical and fundamental setups right now? Separate short-term trades from long-term investments, with entry zone, stop-loss, targets, risk/reward and data date for each.")}`}><I.ai />AI trading assistant</Link><Link to="/portfolio"><I.portfolio />Portfolio</Link><Link to="/signals"><I.market />Technical signals</Link><Link to="/ipo"><I.opportunities />IPO & FPO</Link><Link to="/results"><I.reports />Quarterly results</Link>
           </div>
         </div>
         <div className="pillar">
           <h2>My Financial Life</h2><div className="small muted">{b.money?.saved ? <>Net worth <strong>{compact(b.money.netWorth)}</strong> · saving <strong className={tone(b.money.cashFlow)}>{compact(b.money.cashFlow)}</strong>/month{b.money.savingsRatePct != null ? ` (${num(b.money.savingsRatePct, 0)}%)` : ""}</> : "Money dashboard, savings, investment comparison, AI advisor and goals"}</div>
           <div className="pillar-links">
             <Link to="/money"><I.money />Money dashboard</Link><Link to="/money?tab=tracker"><I.planner />Income & expenses</Link><Link to="/invest"><I.invest />Investment planner</Link><Link to="/future"><I.planner />Invest for the future</Link>
-            <Link to={`/analyst?q=${encodeURIComponent("Look at my money, goals and current rates. Where should I put my savings in Nepal, and what is the most useful thing I can do this month?")}`}><I.ai />AI financial advisor</Link><Link to="/planner"><I.opportunities />Financial goals</Link>
+            <Link to={`/analyst?q=${encodeURIComponent("Look at my money, goals and current rates. Where should I put my savings in Nepal, and what is the most useful thing I can do this month?")}`}><I.ai />AI financial advisor</Link><Link to="/planner"><I.opportunities />Financial goals</Link><Link to="/start"><I.check />Start investing</Link>
           </div>
         </div>
       </div>

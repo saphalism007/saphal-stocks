@@ -239,3 +239,20 @@ describe("trading opportunities", () => {
     if (o.action === "BUY") { expect(o.stop!).toBeLessThan(o.entryLow!); expect(o.riskReward!).toBeLessThanOrEqual(8); }
   });
 });
+
+import { prosCons } from "../shared/proscons.ts";
+import { headlineProfit } from "../server/lib/insights.ts";
+describe("pros and cons, result headlines", () => {
+  it("writes bank pros and cons from ratios and NRB limits", () => {
+    const pc = prosCons("Commercial Bank", { roe: 16, npl: 6, car: 13.5, cd: 89.5, pb: 1.1 }, { profitYoY: 30, dividendYears5: 5, sectorPe: 18 });
+    const t = pc.map((x) => `${x.side}:${x.category}`);
+    expect(t).toContain("pro:Growth"); expect(t).toContain("con:Asset quality"); expect(t).toContain("pro:Capital strength"); expect(t).toContain("con:Liquidity");
+  });
+  it("flags heavy debt for non-financial companies", () => {
+    expect(prosCons("Hydropower", { de: 2.5, interestCover: 1.2 }, {}).filter((x) => x.side === "con").length).toBe(2);
+  });
+  it("reads profit from result headlines in Rs. '000", () => {
+    expect(headlineProfit("has posted a net profit of Rs 551.15 million and published")).toBeCloseTo(551150, 0);
+    expect(headlineProfit("has posted a net loss of Rs 2.5 crore")).toBe(-25000);
+  });
+});

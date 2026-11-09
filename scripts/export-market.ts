@@ -27,6 +27,8 @@ if (existsSync(tmp)) unlinkSync(tmp);
   const opp = T.computeOpportunities();
   write("opportunities", setupKeyPublic(), JSON.stringify(opp));
   write("track", setupKeyPublic(), JSON.stringify(T.computeTrack()));
+  const INS = await import("../server/lib/insights.ts");
+  write("signal_board", setupKeyPublic(), JSON.stringify(INS.computeSignalBoard()));
   // Forward log: today's BUY and SELL signals (one row per stock per day).
   const ins = db.prepare("INSERT OR REPLACE INTO signal_log (date, symbol, action, setup, entry_low, entry_high, stop, t1, t2, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   for (const o of opp.rows.filter((r) => r.action === "BUY" || r.action === "SELL")) ins.run(o.priceDate, o.symbol, o.action, o.setupType, o.entryLow, o.entryHigh, o.stop, o.targets[0]?.price ?? null, o.targets[1]?.price ?? null, o.price);
@@ -46,6 +48,7 @@ for (const t of PERSONAL) db.exec(`DROP TABLE IF EXISTS ${t}`);
 db.exec("DELETE FROM prices WHERE date < '2008-01-01'");
 db.exec("DELETE FROM announcements WHERE published_date < date('now', '-3 years')");
 db.exec("DELETE FROM ingest_runs WHERE id NOT IN (SELECT id FROM ingest_runs ORDER BY id DESC LIMIT 40)");
+db.exec("DELETE FROM floorsheet_broker WHERE date < (SELECT MIN(date) FROM (SELECT DISTINCT date FROM floorsheet_day ORDER BY date DESC LIMIT 10))");
 db.exec("UPDATE prices SET source = NULL");
 db.exec("UPDATE products SET user_edited = 0");
 db.exec("ANALYZE");

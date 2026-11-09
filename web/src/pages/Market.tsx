@@ -5,6 +5,7 @@ import { Card, Stat, Loading, ErrorBox, DataTable, Fresh, Seg, Badge, Notice } f
 import { LineChart } from "../components/PriceChart.tsx";
 import { num, pct, tone, compact, int } from "../lib/format.ts";
 import { useTheme } from "../App.tsx";
+import { MarketHome } from "../components/MarketHome.tsx";
 
 interface Summary {
   date: string;
@@ -51,6 +52,7 @@ export default function Market() {
           </button>
         ))}
       </div>
+      <MarketHome />
       <div className="grid g3">
         <Card title={m.indices.find((i) => i.index_id === indexId)?.name ?? "Index"} className="span2" actions={<Seg value={range} onChange={setRange} options={[{ key: "3m", label: "3M" }, { key: "1y", label: "1Y" }, { key: "5y", label: "5Y" }, { key: "max", label: "Max" }]} />}>
           {hist.loading && !hist.data ? <Loading /> : <LineChart data={(hist.data || []).map((d) => ({ date: d.date, value: d.close }))} height={300} theme={theme} />}

@@ -171,6 +171,12 @@ const MIGRATIONS: string[] = [
   `
   CREATE TABLE link_checks (url TEXT PRIMARY KEY, status INTEGER, ok INTEGER, final_url TEXT, checked_at TEXT);
   `,
+  // 13: floorsheet summaries (per stock per day, and per broker per stock per day)
+  `
+  CREATE TABLE floorsheet_day (date TEXT NOT NULL, symbol TEXT NOT NULL, trades INTEGER, qty REAL, amount REAL, wacc REAL, high REAL, low REAL, buyers INTEGER, sellers INTEGER, PRIMARY KEY (date, symbol)) WITHOUT ROWID;
+  CREATE TABLE floorsheet_broker (date TEXT NOT NULL, symbol TEXT NOT NULL, broker INTEGER NOT NULL, buy_qty REAL, sell_qty REAL, buy_amt REAL, sell_amt REAL, trades INTEGER, PRIMARY KEY (date, symbol, broker)) WITHOUT ROWID;
+  CREATE INDEX floorsheet_broker_broker ON floorsheet_broker(broker, date);
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

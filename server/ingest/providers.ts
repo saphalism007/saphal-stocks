@@ -464,3 +464,16 @@ export function fiscalYearOf(title: string): string | null {
   if (!m) return null;
   return `${m[1]}/${m[2].slice(-2)}`;
 }
+
+export interface FloorTrade { contract: string; buyer: number; seller: number; qty: number; rate: number; amount: number; date: string }
+/** All trades of one company on the latest session (ShareSansar floorsheet, 500 per page). */
+export async function ssFloorsheet(symbol: string): Promise<FloorTrade[]> {
+  const out: FloorTrade[] = [];
+  for (let start = 0; start < 20000; start += 500) {
+    const j = await fetchJson<{ recordsTotal: number; data: { contract_no: number | string; buyer: string; seller: string; quantity: string; rate: string; amount: string; date_: string }[] }>(
+      `${SS}/floorsheet?company=${encodeURIComponent(symbol)}&draw=1&start=${start}&length=500`, { browserLike: true, headers: { "X-Requested-With": "XMLHttpRequest" } });
+    for (const r of j.data || []) out.push({ contract: String(r.contract_no), buyer: Number(r.buyer), seller: Number(r.seller), qty: num(r.quantity) ?? 0, rate: num(r.rate) ?? 0, amount: num(r.amount) ?? 0, date: r.date_ });
+    if (!j.data?.length || out.length >= (j.recordsTotal ?? 0)) break;
+  }
+  return out;
+}

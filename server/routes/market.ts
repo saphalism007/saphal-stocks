@@ -9,6 +9,7 @@ import { syncCompanyDetail, syncHistory, marketStatus } from "../ingest/jobs.ts"
 import { buildStockReport } from "../ai/offline.ts";
 import * as MON from "../lib/money.ts";
 import * as TR from "../lib/trading.ts";
+import * as INS from "../lib/insights.ts";
 import { evaluate, longTermIdea } from "../../shared/opportunities.ts";
 import { debentureYield } from "../../shared/money.ts";
 
@@ -381,6 +382,18 @@ marketRouter.get("/economy/debentures", (_req, res) => {
   const rows = all<{ symbol: string; name: string; close: number | null; date: string | null; volume: number | null }>(
     "SELECT c.symbol, c.name, (SELECT close FROM prices p WHERE p.symbol = c.symbol ORDER BY date DESC LIMIT 1) close, (SELECT date FROM prices p WHERE p.symbol = c.symbol ORDER BY date DESC LIMIT 1) date, (SELECT SUM(volume) FROM prices p WHERE p.symbol = c.symbol AND date >= date('now','-90 days')) volume FROM companies c WHERE c.sector = 'Corporate Debentures' ORDER BY c.symbol");
   res.json({ asOf: today, rows: rows.map((r) => ({ ...r, ...debentureYield(r.name, r.close, today) })).sort((a, b) => ((b as { approxYtmPct?: number }).approxYtmPct ?? 0) - ((a as { approxYtmPct?: number }).approxYtmPct ?? 0)), note: "Coupon and maturity are read from the listed name; yields are approximate (face value Rs. 1,000, simple YTM). Thinly traded debentures may not be available at the last price." });
+});
+
+// ---------- market insights (home, signal board, results, floorsheet) ----------
+marketRouter.get("/market/home", (req, res) => res.json(INS.marketHome((["1D", "1W", "1M", "1Y"].includes(String(req.query.period)) ? req.query.period : "1D") as "1D")));
+marketRouter.get("/market/heatmap", (req, res) => res.json(INS.sectorHeatmap((["1D", "1W", "1M", "1Y"].includes(String(req.query.period)) ? req.query.period : "1D") as "1D")));
+marketRouter.get("/market/signals", (_req, res) => res.json(INS.signalBoard()));
+marketRouter.get("/market/results", (_req, res) => res.json(INS.resultsBoard()));
+marketRouter.get("/market/floorsheet", (req, res) => res.json(INS.floorsheet(typeof req.query.date === "string" ? req.query.date : undefined)));
+marketRouter.get("/stocks/:symbol/brokers", (req, res) => res.json(INS.brokerActivity(SYM.parse(req.params.symbol))));
+
+marketRouter.get("/guide/links", (_req, res) => {
+  try { res.json(all("SELECT url, ok, status, checked_at FROM link_checks")); } catch { res.json([]); }
 });
 
 // ---------- invest for the future (small, regular amounts) ----------

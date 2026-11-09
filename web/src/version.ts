@@ -5,15 +5,15 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.9.0";
+export const VERSION = "0.10.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "Trading Opportunities: every listed stock classified BUY, SELL, HOLD, WATCH or AVOID (or insufficient data), with buy range, stop-loss, three targets, reward/risk before and after all costs, holding period, reasons, indicators, invalidation, confidence and a review date.",
-  "Honest track record: the BUY rule replayed on the past year with fees and tax, plus a live log of each day's signals judged against later prices. Confidence is capped when a setup type has lost money.",
-  "Trade planner: shares to buy from your capital and risk per trade, exact charges, CGT, net profit or loss at each target and the stop; paper-trade a signal and set buy-range, target and stop alerts in one tap.",
-  "Invest for the Future: what Rs. 500–5,000 a month can grow to over 1–20 years (stated assumptions), every Nepal option with how to start and a checked official link, provider websites and long-term stock ideas.",
-  "Wealth Management: allocation chart, net worth history, this month vs your savings target, portfolio returns, goal progress and a debt payoff planner. Investment Planner compares conservative, balanced and growth portfolios.",
-  "New alerts: buying range reached, major support broken, mutual fund issues, rate changes, FD maturity, missed savings target and portfolio imbalance. The menu is organised into Trading, My Portfolio, Wealth and Market & Updates.",
+  "Start Investing: open the right accounts once (bank, Demat, Mero Share, C-ASBA, broker), then follow a path by amount, from Rs. 500 a month to Rs. 1 lakh+, with a direct official link for every step, checked daily.",
+  "NEPSE Market home: turnover vs the previous session, market leaders, dividend/bonus and AGM disclosures, a sector heatmap (1D/1W/1M/1Y) and movers including results.",
+  "Technical Signals: breadth against the 20/50/200-day averages and 22 signals (RSI, MACD, crosses, VWAP, breakouts, volume, circuit) with counts and every stock's signals.",
+  "Quarterly Results: every company's latest quarter against the same quarter last year, with ups, downs and the biggest movers.",
+  "IPO & FPO: open, upcoming and recent listings with gains, apply and allotment links, reminders and your saved BOIDs. Floorsheet: every trade by stock and by broker, plus a Brokers tab on each stock.",
+  "Chart Terminal with ranges, log scale, indicators and drawing tools (trendline, horizontal line, Fibonacci) saved per stock; plain-language pros and cons on each stock; company cards with sector chips.",
 ];
 
 declare const __BUILD__: string;

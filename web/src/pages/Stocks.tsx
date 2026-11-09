@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Loading, ErrorBox, DataTable, Score, Fresh, Badge, NumInput } from "../components/ui.tsx";
+import { Card, Loading, ErrorBox, DataTable, Score, Fresh, Badge, NumInput, Seg } from "../components/ui.tsx";
 import { num, pct, tone, compact } from "../lib/format.ts";
 
 export interface StockRow { symbol: string; name: string | null; sector: string | null; date: string | null; close: number | null; change_pct: number | null; turnover: number | null; marketCap: number | null; fundamentalScore: number | null; technicalScore: number | null; pe: number | null; pb: number | null; roe: number | null; cashYield: number | null; return3m: number | null; return1y: number | null; trend: string | null; rsi: number | null; reports: number; high52: number | null; low52: number | null; avgTurnover20: number | null }
@@ -22,6 +23,7 @@ export default function Stocks() {
   const [q, setQ] = useState("");
   const [sector, setSector] = useState(params.get("sector") ?? "");
   const [f, setF] = useState<Filters>(EMPTY);
+  const [view, setView] = useState<"cards" | "table">(() => (typeof window !== "undefined" && window.innerWidth < 760 ? "cards" : "table"));
   const saved = useApi<{ name: string; sector: string; q: string; filters: Partial<Filters> }[]>("/screens");
   useEffect(() => { const s2 = params.get("sector"); if (s2) setSector(s2); }, [params]);
   const apply = (p: { sector: string; q: string; filters: Partial<Filters> }) => { setSector(p.sector); setQ(p.q); setF({ ...EMPTY, ...p.filters }); };
@@ -73,8 +75,17 @@ export default function Stocks() {
           <label className="chk" style={{ alignSelf: "end", paddingBottom: 8 }}><input type="checkbox" checked={f.liquid} onChange={set("liquid")} /> Liquid only (≥ Rs. 50 L/day)</label>
         </div>
       </Card>
-      <Card title={`${rows.length} results`} flush>
-        <DataTable rows={rows} onRow={(r) => nav(`/stocks/${r.symbol}`)} maxHeight={720} initialSort={{ key: "turnover", dir: -1 }} rowKey={(r) => r.symbol} cols={[
+      <div className="chip-row">{["", ...[...new Set((data || []).map((r) => r.sector).filter(Boolean))].sort()].map((x) => <button key={x || "all"} className={`chip ${sector === x ? "on" : ""}`} onClick={() => setSector(x as string)}>{x || "All stocks"}</button>)}</div>
+      <Card title={`${rows.length} results`} flush actions={<Seg value={view} onChange={setView} options={[{ key: "cards", label: "Cards" }, { key: "table", label: "Table" }]} />}>
+        {view === "cards" ? (
+          <div className="co-grid">{[...rows].sort((a, b) => a.symbol.localeCompare(b.symbol)).map((r) => (
+            <Link key={r.symbol} to={`/stocks/${r.symbol}`} className="co-card">
+              <span className="co-badge">{r.symbol.slice(0, 2)}</span>
+              <span style={{ minWidth: 0, flex: 1 }}><strong className="sym">{r.symbol}</strong><span className="tiny faint" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.sector}</span><span className="small mono">Rs. {num(r.close)}</span></span>
+              <span className={`small ${tone(r.change_pct)}`}>{r.change_pct != null ? `${r.change_pct > 0 ? "▲" : r.change_pct < 0 ? "▼" : ""} ${num(Math.abs(r.change_pct))}%` : "—"}</span>
+            </Link>
+          ))}</div>
+        ) : <DataTable rows={rows} onRow={(r) => nav(`/stocks/${r.symbol}`)} maxHeight={720} initialSort={{ key: "turnover", dir: -1 }} rowKey={(r) => r.symbol} cols={[
           { key: "symbol", label: "Symbol", render: (r) => <span className="sym">{r.symbol}</span> },
           { key: "name", label: "Company", render: (r) => <span className="small">{r.name ?? "—"}<div className="tiny faint">{r.sector ?? "Sector unknown"}</div></span> },
           { key: "close", label: "LTP", num: true, render: (r) => num(r.close) },
@@ -89,7 +100,7 @@ export default function Stocks() {
           { key: "trend", label: "Trend", render: (r) => r.trend ? <Badge tone={r.trend === "uptrend" ? "up" : r.trend === "downtrend" ? "down" : ""}>{r.trend}</Badge> : "—" },
           { key: "fundamentalScore", label: "Fund.", num: true, render: (r) => <Score value={r.fundamentalScore} title={r.reports ? undefined : "No statements stored yet"} /> },
           { key: "technicalScore", label: "Tech.", num: true, render: (r) => <Score value={r.technicalScore} /> },
-        ]} />
+        ]} />}
       </Card>
     </div>
   );

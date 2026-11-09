@@ -4,6 +4,7 @@ import { db, all, get, run, tx, nowIso, getSetting, setSetting } from "../db.ts"
 import * as P from "./providers.ts";
 import { parsePeriod } from "../../shared/fundamentals.ts";
 import { fetchJson } from "../lib/fetcher.ts";
+import { GUIDE_URLS } from "../../shared/guide.ts";
 
 export type JobName = "listing" | "history" | "indices" | "details" | "news" | "forex" | "alerts";
 
@@ -401,6 +402,44 @@ export async function syncAuditDocs(s?: JobState, opts: { perCompany?: number } 
   return n;
 }
 
+// ---------- floorsheet ----------
+/** Summarises every trade of the latest session per stock and per broker; keeps the last 15 sessions. */
+export async function syncFloorsheet(s?: JobState): Promise<number> {
+  // The floorsheet always shows the latest session; store each stock under the date of its trades.
+  const pdate = get<{ d: string }>("SELECT MAX(date) d FROM prices")?.d;
+  if (!pdate) return 0;
+  const done = new Set(all<{ symbol: string }>("SELECT symbol FROM floorsheet_day WHERE date >= ?", pdate).map((r) => r.symbol));
+  const syms = all<{ symbol: string }>("SELECT symbol FROM prices WHERE date = ? AND volume > 0 ORDER BY amount DESC", pdate).map((r) => r.symbol).filter((x) => !done.has(x));
+  let date = pdate;
+  if (s) { s.total = syms.length; s.progress = 0; }
+  let n = 0;
+  for (const sym of syms) {
+    try {
+      const all0 = await P.ssFloorsheet(sym);
+      if (!all0.length) continue;
+      date = all0.reduce((m, t) => (t.date > m ? t.date : m), all0[0].date);
+      const trades = all0.filter((t) => t.date === date);
+      const by = new Map<number, { bq: number; sq: number; ba: number; sa: number; t: number }>();
+      for (const t of trades) {
+        const b = by.get(t.buyer) ?? { bq: 0, sq: 0, ba: 0, sa: 0, t: 0 }; b.bq += t.qty; b.ba += t.amount; b.t++; by.set(t.buyer, b);
+        const se = by.get(t.seller) ?? { bq: 0, sq: 0, ba: 0, sa: 0, t: 0 }; se.sq += t.qty; se.sa += t.amount; if (t.seller !== t.buyer) se.t++; by.set(t.seller, se);
+      }
+      const qty = trades.reduce((a, t) => a + t.qty, 0), amt = trades.reduce((a, t) => a + t.amount, 0);
+      tx(() => {
+        run("INSERT OR REPLACE INTO floorsheet_day (date, symbol, trades, qty, amount, wacc, high, low, buyers, sellers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", date, sym, trades.length, qty, amt, qty ? amt / qty : null, Math.max(...trades.map((t) => t.rate)), Math.min(...trades.map((t) => t.rate)), new Set(trades.map((t) => t.buyer)).size, new Set(trades.map((t) => t.seller)).size);
+        for (const [br, v] of by) run("INSERT OR REPLACE INTO floorsheet_broker (date, symbol, broker, buy_qty, sell_qty, buy_amt, sell_amt, trades) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", date, sym, br, v.bq, v.sq, v.ba, v.sa, v.t);
+      });
+      n++;
+    } catch (e) { console.warn(`[floorsheet] ${sym}: ${e instanceof Error ? e.message : e}`); }
+    if (s) { s.progress++; s.message = `${sym} (${s.progress}/${s.total})`; }
+  }
+  // Keep the last 15 sessions.
+  const keep = all<{ date: string }>("SELECT DISTINCT date FROM floorsheet_day ORDER BY date DESC LIMIT 15").map((r) => r.date);
+  if (keep.length === 15) { run("DELETE FROM floorsheet_day WHERE date < ?", keep[14]); run("DELETE FROM floorsheet_broker WHERE date < ?", keep[14]); }
+  fresh("floorsheet", P.SOURCES.sharesansar, date, get<{ n: number }>("SELECT COUNT(*) n FROM floorsheet_day WHERE date = ?", date)?.n ?? 0);
+  return n;
+}
+
 // ---------- link checks ----------
 /** Checks every product, resource and provider website link (GET, follows redirects), so the app can show which links work. */
 export async function syncLinkChecks(): Promise<number> {
@@ -408,6 +447,7 @@ export async function syncLinkChecks(): Promise<number> {
   for (const r of all<{ official_url: string | null; info_url: string | null }>("SELECT official_url, info_url FROM products")) { if (r.official_url) urls.add(r.official_url); if (r.info_url) urls.add(r.info_url); }
   for (const r of all<{ url: string | null; links: string | null }>("SELECT url, links FROM resources")) { if (r.url) urls.add(r.url); try { for (const l of JSON.parse(r.links || "[]") as { url: string }[]) if (l.url) urls.add(l.url); } catch { /* ignore */ } }
   for (const r of all<{ website: string }>("SELECT website FROM companies WHERE website IS NOT NULL AND website <> '' AND sector IN ('Commercial Bank','Development Bank','Finance','Mutual Fund','Life Insurance','Non-Life Insurance','Microfinance','Investment')")) urls.add(r.website);
+  for (const u of GUIDE_URLS) urls.add(u);
   const recent = new Set(all<{ url: string }>("SELECT url FROM link_checks WHERE ok = 1 AND checked_at >= datetime('now','-6 days')").map((r) => r.url));
   let n = 0;
   const list = [...urls].filter((u) => !recent.has(u));
