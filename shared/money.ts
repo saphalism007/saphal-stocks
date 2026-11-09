@@ -18,8 +18,10 @@ export interface MoneyData {
   risk: Risk;
   horizonYears: number;
   emergencyMonths: number;
+  savingsTarget?: number; // monthly
+  history?: { month: string; netWorth: number; assets: number; liabilities: number }[]; // one point per month, recorded on save
 }
-export const EMPTY_MONEY: MoneyData = { income: [], expenses: [], accounts: [], liabilities: [], risk: "medium", horizonYears: 5, emergencyMonths: 6 };
+export const EMPTY_MONEY: MoneyData = { income: [], expenses: [], accounts: [], liabilities: [], risk: "medium", horizonYears: 5, emergencyMonths: 6, savingsTarget: 0, history: [] };
 
 export interface MarketRates {
   fdPct: number | null; // a fixed-deposit rate you can actually get (best verified, else NRB average)
@@ -320,4 +322,69 @@ export function averageMonthly(entries: Entry[], months: string[]) {
     out.set(e.category, (out.get(e.category) ?? 0) + e.amount / months.length);
   }
   return [...out.entries()].map(([category, amount]) => ({ category, amount: r0(amount) }));
+}
+
+// ---------- debt payoff planner ----------
+/** Month-by-month payoff of all loans paying each EMI plus an extra amount, aimed at one loan at a time
+ *  ("avalanche": highest rate first, saves the most interest; "snowball": smallest balance first). */
+export function debtPlan(loans: Liability[], extraMonthly: number, method: "avalanche" | "snowball") {
+  const ls = loans.filter((l) => l.balance > 0).map((l) => ({ ...l, bal: l.balance, paidOff: null as number | null, interest: 0 }));
+  if (!ls.length) return null;
+  const order = [...ls].sort((a, b) => (method === "avalanche" ? b.ratePct - a.ratePct : a.bal - b.bal)).map((l) => l.id);
+  let month = 0, totalInterest = 0;
+  while (ls.some((l) => l.bal > 0.5) && month < 600) {
+    month++;
+    let extra = extraMonthly;
+    for (const l of ls) {
+      if (l.bal <= 0.5) { extra += l.emi; continue; } // freed EMI rolls into the next loan
+      const int = l.bal * l.ratePct / 100 / 12;
+      l.interest += int; totalInterest += int;
+      const pay = Math.min(l.bal + int, Math.max(l.emi, int + 1));
+      l.bal = l.bal + int - pay;
+    }
+    for (const id of order) {
+      const l = ls.find((x) => x.id === id)!;
+      if (l.bal <= 0.5 || extra <= 0) continue;
+      const p = Math.min(extra, l.bal); l.bal -= p; extra -= p;
+    }
+    for (const l of ls) if (l.bal <= 0.5 && l.paidOff == null) l.paidOff = month;
+  }
+  if (month >= 600) return { feasible: false as const, method };
+  return { feasible: true as const, method, months: month, totalInterest: r0(totalInterest), order: order.map((id) => { const l = ls.find((x) => x.id === id)!; return { id, name: l.name, ratePct: l.ratePct, balance: l.balance, paidOffMonth: l.paidOff, interest: r0(l.interest) }; }) };
+}
+
+/** Three portfolios for an amount, compared on return, risk, liquidity, protection and access. */
+export function compareProfiles(amount: number, rates: MarketRates) {
+  const tax = rates.interestTaxPct / 100;
+  const fd = rates.fdPct != null ? rates.fdPct * (1 - tax) : null;
+  const sav = rates.savingPct != null ? rates.savingPct * (1 - tax) : null;
+  const eq = rates.equityLongRunPct;
+  const mk = (name: string, why: string, parts: { option: string; pct: number; rate: number | null; protectedCapital: boolean; liquidity: string }[]) => {
+    const exp = parts.every((p) => p.rate != null) ? parts.reduce((s, p) => s + (p.pct / 100) * (p.rate as number), 0) : null;
+    return {
+      name, why, parts: parts.map((p) => ({ ...p, amount: r0(amount * p.pct / 100) })), expectedPct: exp != null ? Math.round(exp * 100) / 100 : null,
+      protectedPct: parts.filter((p) => p.protectedCapital).reduce((s, p) => s + p.pct, 0),
+      in5y: exp != null ? r0(amount * Math.pow(1 + exp / 100, 5)) : null,
+      worstYearPct: Math.round(parts.reduce((s, p) => s + (p.pct / 100) * (p.protectedCapital ? (p.rate ?? 0) : -35), 0) * 10) / 10,
+    };
+  };
+  return [
+    mk("Conservative", "Protect capital: most money in deposits; a little in funds for growth.", [
+      { option: "Savings / call deposit (emergency, instant access)", pct: 20, rate: sav, protectedCapital: true, liquidity: "Instant" },
+      { option: "Fixed deposits (1–2 years, best verified rate)", pct: 60, rate: fd, protectedCapital: true, liquidity: "At maturity (early break with penalty)" },
+      { option: "Mutual funds (diversified)", pct: 20, rate: eq, protectedCapital: false, liquidity: "Days (sell on NEPSE / redeem)" },
+    ]),
+    mk("Balanced", "Half safety, half growth: suits 3–7 year goals.", [
+      { option: "Savings / call deposit", pct: 10, rate: sav, protectedCapital: true, liquidity: "Instant" },
+      { option: "Fixed deposits / debentures", pct: 40, rate: fd, protectedCapital: true, liquidity: "At maturity" },
+      { option: "Mutual funds (SIP)", pct: 25, rate: eq, protectedCapital: false, liquidity: "Days" },
+      { option: "Strong NEPSE stocks (5+, across sectors)", pct: 25, rate: eq, protectedCapital: false, liquidity: "T+2 for liquid stocks" },
+    ]),
+    mk("Growth", "For 7+ years and strong nerves: more equity, never all of it.", [
+      { option: "Savings / call deposit", pct: 10, rate: sav, protectedCapital: true, liquidity: "Instant" },
+      { option: "Fixed deposits / debentures", pct: 20, rate: fd, protectedCapital: true, liquidity: "At maturity" },
+      { option: "Mutual funds (SIP)", pct: 30, rate: eq, protectedCapital: false, liquidity: "Days" },
+      { option: "Strong NEPSE stocks", pct: 40, rate: eq, protectedCapital: false, liquidity: "T+2 for liquid stocks" },
+    ]),
+  ];
 }

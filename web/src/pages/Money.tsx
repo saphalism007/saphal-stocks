@@ -9,7 +9,8 @@ import { compact, num, pct, tone, nptDate } from "../lib/format.ts";
 import { Tracker } from "./Tracker.tsx";
 import { CLASS, EXPENSE_CATEGORIES, ENTRY_CATEGORIES, EMPTY_MONEY, summarize, type MoneyData, type MoneySummary, type Advice, type AccountType, type LiabilityType, type MarketRates } from "../../../shared/money.ts";
 
-interface Overview { saved: boolean; data: MoneyData; summary: MoneySummary; advice: Advice[]; rates: MarketRates & { sources: Record<string, string> }; portfolioValue: number; goals: { name: string; amount: number; years: number }[] }
+interface Overview { saved: boolean; data: MoneyData; summary: MoneySummary; advice: Advice[]; rates: MarketRates & { sources: Record<string, string> }; portfolioValue: number; goals: { name: string; amount: number; years: number }[];
+  returns: { invested: number; value: number; gain: number; returnPct: number | null }; tracked: { month: string; income: number; spending: number; entries: number }; goalProgress: { name: string; target: number; saved: number; years: number | null; pct: number }[] }
 type Tab = "tracker" | "overview" | "cash" | "accounts" | "loans" | "prefs";
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LIAB: [LiabilityType, string][] = [["home", "Home loan"], ["car", "Car / vehicle loan"], ["personal", "Personal loan"], ["education", "Education loan"], ["credit_card", "Credit card"], ["business", "Business loan"], ["family", "Borrowed from family / friends"], ["other", "Other"]];
@@ -32,7 +33,7 @@ export default function Money() {
   return (
     <div className="page">
       <div className="page-head row between">
-        <div><h1>My Money</h1><p className="muted">Track daily income and spending, and see your whole financial picture. Saved on this device.</p></div>
+        <div><h1>Wealth Management</h1><p className="muted">Track daily income and spending, and see your whole financial picture. Saved on this device.</p></div>
         {tab !== "tracker" && <div className="row">
           {dirty && <span className="small warn">Unsaved changes</span>}
           <button className="btn primary" disabled={!dirty || saving} onClick={save}>{saving ? <span className="spinner" /> : "Save"}</button>
@@ -50,7 +51,7 @@ export default function Money() {
       {tab === "overview" && <OverviewTab s={s} o={o.data} advice={dirty ? null : o.data.advice} onEdit={setTab} />}
       {tab === "cash" && <CashTab d={d} set={set} s={s} />}
       {tab === "accounts" && <AccountsTab d={d} set={set} portfolioValue={o.data.portfolioValue} />}
-      {tab === "loans" && <LoansTab d={d} set={set} />}
+      {tab === "loans" && <><LoansTab d={d} set={set} /><DebtPlanner hasLoans={(o.data.data.liabilities ?? []).some((l) => l.balance > 0)} /></>}
       {tab === "prefs" && <PrefsTab d={d} set={set} goals={o.data.goals} />}
     </div>
   );
@@ -76,12 +77,13 @@ function OverviewTab({ s, o, advice, onEdit }: { s: MoneySummary; o: Overview; a
         <Stat label="Savings rate" value={s.savingsRatePct != null ? `${num(s.savingsRatePct, 1)}%` : "—"} sub={s.savingsRatePct == null ? "Add income" : s.savingsRatePct >= 30 ? <span className="up">Excellent</span> : s.savingsRatePct >= 20 ? <span className="up">Healthy</span> : <span className="warn">Aim for 20%+</span>} />
         <Stat label="Emergency fund" value={s.emergencyMonthsCovered != null ? `${num(s.emergencyMonthsCovered, 1)} months` : "—"} sub={s.emergencyTarget === 0 ? "Add your monthly spending" : s.emergencyGap > 0 ? <span className="warn">Short by {compact(s.emergencyGap)}</span> : <span className="up">Covered ({compact(s.emergencyTarget)} target)</span>} />
       </div>
+      <DashboardExtras s={s} o={o} />
       <div className="grid g3">
         <Card title="Where your money is" className="span2" sub="Guaranteed returns are contractual; market-linked returns are not guaranteed">
-          <div className="alloc-bar" style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", marginBottom: 12 }}>
-            {(["cash", "guaranteed", "market", "illiquid"] as const).filter((k) => s.byKind[k] > 0).map((k) => <div key={k} title={`${KIND_LABEL[k]} ${compact(s.byKind[k])}`} style={{ width: `${(s.byKind[k] / s.assets) * 100}%`, background: KIND_COLOR[k] }} />)}
+          <div className="row" style={{ gap: 18, alignItems: "center", marginBottom: 10 }}>
+            <Donut parts={(["cash", "guaranteed", "market", "illiquid"] as const).map((k) => ({ value: s.byKind[k], color: KIND_COLOR[k] }))} center={compact(s.assets)} />
+            <div className="col small" style={{ gap: 4 }}>{(["cash", "guaranteed", "market", "illiquid"] as const).map((k) => <span key={k} className="row" style={{ gap: 6 }}><span className="dot" style={{ background: KIND_COLOR[k] }} />{KIND_LABEL[k]} <strong>{s.assets ? `${num((s.byKind[k] / s.assets) * 100, 0)}%` : "0%"}</strong></span>)}</div>
           </div>
-          <div className="row small" style={{ gap: 14, marginBottom: 10 }}>{(["cash", "guaranteed", "market", "illiquid"] as const).map((k) => <span key={k} className="row" style={{ gap: 6 }}><span className="dot" style={{ background: KIND_COLOR[k] }} />{KIND_LABEL[k]} {s.assets ? `${num((s.byKind[k] / s.assets) * 100, 0)}%` : ""}</span>)}</div>
           <table className="t small"><tbody>{s.allocation.map((a) => <tr key={a.type}><td>{a.label}</td><td className="num">{compact(a.value)}</td><td className="num muted">{num(a.pct, 1)}%</td></tr>)}</tbody></table>
           {o.portfolioValue > 0 && <p className="tiny faint">Includes your Portfolio holdings at the latest prices ({compact(o.portfolioValue)}).</p>}
         </Card>
@@ -214,7 +216,7 @@ function LoansTab({ d, set }: { d: MoneyData; set: (d: MoneyData) => void }) {
           </div>
         );
       })}
-      <p className="tiny faint" style={{ marginTop: 8 }}>Use <Link to="/invest">Where to invest → Prepay or invest?</Link> to compare paying a loan early with investing the money.</p>
+      <p className="tiny faint" style={{ marginTop: 8 }}>Use <Link to="/invest">Where to invest → Prepay or invest?</Link> to compare paying a loan early with investing the money. Save, then plan your payoff below.</p>
     </Card>
   );
 }
@@ -226,6 +228,7 @@ function PrefsTab({ d, set, goals }: { d: MoneyData; set: (d: MoneyData) => void
         <div className="form-grid">
           <label className="field">Risk tolerance<select className="input" value={d.risk} onChange={(e) => set({ ...d, risk: e.target.value as MoneyData["risk"] })}><option value="low">Low: protect capital</option><option value="medium">Medium: balanced</option><option value="high">High: growth, accept big swings</option></select></label>
           <label className="field">Main investment horizon (years)<NumInput className="input" value={d.horizonYears} onChange={(e) => set({ ...d, horizonYears: Number(e.target.value) || 0 })} /></label>
+          <label className="field">Monthly savings target (Rs.)<NumInput value={d.savingsTarget ?? 0} min={0} onChange={(e) => set({ ...d, savingsTarget: Number(e.target.value) || 0 })} /></label>
           <label className="field">Emergency fund (months of essential costs)<NumInput className="input" min={1} max={24} value={d.emergencyMonths} onChange={(e) => set({ ...d, emergencyMonths: Math.max(1, Number(e.target.value) || 6) })} /></label>
         </div>
       </Card>
@@ -236,5 +239,82 @@ function PrefsTab({ d, set, goals }: { d: MoneyData; set: (d: MoneyData) => void
         <p className="tiny faint">Goals within 3 years are kept out of shares by the allocation advisor.</p>
       </Card>
     </div>
+  );
+}
+
+function Donut({ parts, center }: { parts: { value: number; color: string }[]; center: string }) {
+  const total = parts.reduce((a, p) => a + p.value, 0);
+  let acc = 0;
+  const stops = total ? parts.filter((p) => p.value > 0).map((p) => { const a = (acc / total) * 360; acc += p.value; return `${p.color} ${a}deg ${(acc / total) * 360}deg`; }).join(", ") : "var(--panel-2) 0deg 360deg";
+  return <div className="donut" style={{ background: `conic-gradient(${stops})` }}><span>{center}</span></div>;
+}
+
+function Spark({ points }: { points: { month: string; netWorth: number }[] }) {
+  if (points.length < 2) return <p className="small muted">Net worth is recorded each month when you save. The chart appears after two months.</p>;
+  const w = 320, h = 90, min = Math.min(...points.map((p) => p.netWorth)), max = Math.max(...points.map((p) => p.netWorth));
+  const xy = points.map((p, i) => [(i / (points.length - 1)) * w, h - ((p.netWorth - min) / Math.max(1, max - min)) * (h - 10) - 5]);
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} role="img" aria-label="Net worth history">
+      <polyline fill="none" stroke="var(--accent)" strokeWidth="2.5" points={xy.map(([x, y]) => `${x},${y}`).join(" ")} />
+      {xy.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3" fill="var(--accent)"><title>{points[i].month}: {compact(points[i].netWorth)}</title></circle>)}
+    </svg>
+  );
+}
+
+function DashboardExtras({ s, o }: { s: MoneySummary; o: Overview }) {
+  const target = o.data.savingsTarget ?? 0;
+  const savedThisMonth = o.tracked.income - o.tracked.spending;
+  const hist = o.data.history ?? [];
+  return (
+    <div className="grid g3">
+      <Card title="This month" sub={o.tracked.entries ? `${o.tracked.entries} ${o.tracked.entries === 1 ? "entry" : "entries"} tracked` : "From the daily tracker"}>
+        {o.tracked.entries === 0 ? <p className="small muted">Add income and expenses in the Daily tracker to see this month here.</p> : (
+          <div className="col" style={{ gap: 6 }}>
+            <div className="row between small"><span>Income</span><strong className="mono">{compact(o.tracked.income)}</strong></div>
+            <div className="row between small"><span>Spending</span><strong className="mono">{compact(o.tracked.spending)}</strong></div>
+            <div className="row between small"><span>Saved</span><strong className={`mono ${tone(savedThisMonth)}`}>{compact(savedThisMonth)}</strong></div>
+            {target > 0 && <><div className="bar"><div style={{ width: `${Math.max(0, Math.min(100, (savedThisMonth / target) * 100))}%`, background: savedThisMonth >= target ? "var(--up)" : "var(--warn)" }} /></div><div className="tiny faint">{savedThisMonth >= target ? "Savings target reached" : `${compact(Math.max(0, target - savedThisMonth))} to go for your ${compact(target)} target`}</div></>}
+          </div>
+        )}
+      </Card>
+      <Card title="Net worth history">
+        <div className="row between small" style={{ marginBottom: 4 }}><span className="muted">Now</span><strong className="mono">{compact(s.netWorth)}</strong></div>
+        <Spark points={hist} />
+        {hist.length >= 2 && <div className="tiny faint">{hist[0].month} → {hist[hist.length - 1].month}: {compact(hist[hist.length - 1].netWorth - hist[0].netWorth)}</div>}
+      </Card>
+      <Card title="Investments" sub="Real portfolios at latest prices">
+        {o.returns.invested === 0 ? <p className="small muted">Add your share purchases under <Link to="/portfolio">Portfolio</Link> to track returns.</p> : (
+          <div className="col" style={{ gap: 6 }}>
+            <div className="row between small"><span>Invested</span><strong className="mono">{compact(o.returns.invested)}</strong></div>
+            <div className="row between small"><span>Value now</span><strong className="mono">{compact(o.returns.value)}</strong></div>
+            <div className="row between small"><span>Total gain (incl. dividends, realised)</span><strong className={`mono ${tone(o.returns.gain)}`}>{compact(o.returns.gain)}{o.returns.returnPct != null ? ` (${num(o.returns.returnPct, 1)}%)` : ""}</strong></div>
+          </div>
+        )}
+        {o.goalProgress.length > 0 && <div style={{ marginTop: 10 }}><div className="small muted">Goals</div>{o.goalProgress.slice(0, 4).map((g) => <div key={g.name} style={{ marginTop: 6 }}><div className="row between small" style={{ flexWrap: "nowrap" }}><span>{g.name}</span><span className="mono">{g.pct}%</span></div><div className="bar"><div style={{ width: `${g.pct}%` }} /></div></div>)}</div>}
+      </Card>
+    </div>
+  );
+}
+
+function DebtPlanner({ hasLoans }: { hasLoans: boolean }) {
+  const [extra, setExtra] = useState(5000);
+  const [r, setR] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (!hasLoans) return null;
+  const run = async () => setR(await api("/money/debt-plan", { body: { extra } }));
+  const months = (m: number) => `${Math.floor(m / 12)} yr ${m % 12} mo`;
+  return (
+    <Card title="Debt payoff planner" sub="Uses your saved loans; pay every EMI plus an extra amount aimed at one loan at a time">
+      <div className="row"><label className="field">Extra payment per month (Rs.)<NumInput value={extra} min={0} onChange={(e) => setExtra(Number(e.target.value) || 0)} /></label><button className="btn primary" onClick={run}>Plan</button></div>
+      {r && r.base?.feasible && (
+        <div className="grid g3" style={{ marginTop: 10 }}>
+          <Stat label="EMIs only" value={months(r.base.months)} sub={`Interest ${compact(r.base.totalInterest)}`} />
+          {r.avalanche?.feasible && <Stat label="Avalanche (highest rate first)" value={months(r.avalanche.months)} sub={<span className="up">Saves {compact(r.base.totalInterest - r.avalanche.totalInterest)} interest</span>} />}
+          {r.snowball?.feasible && <Stat label="Snowball (smallest first)" value={months(r.snowball.months)} sub={`Saves ${compact(r.base.totalInterest - r.snowball.totalInterest)}`} />}
+        </div>
+      )}
+      {r?.avalanche?.feasible && <table className="t small" style={{ marginTop: 8 }}><thead><tr><th>Order (avalanche)</th><th className="num">Rate</th><th className="num">Paid off in</th><th className="num">Interest</th></tr></thead><tbody>{r.avalanche.order.map((l: any) => <tr key={l.id}><td>{l.name}</td><td className="num">{l.ratePct}%</td><td className="num">{l.paidOffMonth ? months(l.paidOffMonth) : "—"}</td><td className="num">{compact(l.interest)}</td></tr>)}</tbody></table>} {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
+      {r && r.base && !r.base.feasible && <p className="small warn">With these EMIs the loans would not be repaid in 50 years. Check the EMI amounts.</p>}
+      <p className="tiny faint">Avalanche saves the most interest; snowball clears loans sooner one by one, which some find motivating. Check prepayment fees with your bank.</p>
+    </Card>
   );
 }

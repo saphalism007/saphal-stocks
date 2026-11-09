@@ -63,9 +63,28 @@ const moneyBody = z.object({
   accounts: z.array(z.object({ id: z.string().max(40), name: z.string().max(120), type: z.enum(Object.keys(MO.CLASS) as [MO.AccountType, ...MO.AccountType[]]), institution: z.string().max(120).optional(), balance: n.min(0).max(1e11), ratePct: n.min(0).max(50).nullable().optional(), maturity: z.string().max(20).nullable().optional() })).max(100),
   liabilities: z.array(z.object({ id: z.string().max(40), name: z.string().max(120), type: z.enum(["home", "car", "personal", "education", "credit_card", "business", "family", "other"]), balance: n.min(0).max(1e11), ratePct: n.min(0).max(60), emi: n.min(0).max(1e9), monthsLeft: n.int().min(0).max(600).nullable().optional() })).max(50),
   risk: z.enum(["low", "medium", "high"]), horizonYears: n.min(0).max(60), emergencyMonths: n.int().min(1).max(24),
+  savingsTarget: n.min(0).max(1e9).optional(),
+  history: z.array(z.object({ month: z.string().max(7), netWorth: n, assets: n, liabilities: n })).max(600).optional(),
 });
 wealthRouter.get("/money", (req, res) => res.json(MON.moneyOverview(req.userId!)));
-wealthRouter.put("/money", (req, res) => { MON.saveMoney(req.userId!, moneyBody.parse(req.body)); res.json(MON.moneyOverview(req.userId!)); });
+wealthRouter.put("/money", (req, res) => {
+  const d = moneyBody.parse(req.body) as MO.MoneyData;
+  // Record this month's net worth (one point per month, updated on each save).
+  const s2 = MO.summarize(d, { portfolioValue: MON.portfolioValue(req.userId!) });
+  const month = new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 7);
+  d.history = [...(d.history ?? []).filter((h) => h.month !== month), { month, netWorth: s2.netWorth, assets: s2.assets, liabilities: s2.liabilities }].sort((a, b) => (a.month < b.month ? -1 : 1)).slice(-240);
+  MON.saveMoney(req.userId!, d);
+  res.json(MON.moneyOverview(req.userId!));
+});
+wealthRouter.post("/money/debt-plan", (req, res) => {
+  const p = z.object({ extra: n.min(0).max(1e9) }).parse(req.body);
+  const d = MON.moneyData(req.userId!).data;
+  res.json({ avalanche: MO.debtPlan(d.liabilities, p.extra, "avalanche"), snowball: MO.debtPlan(d.liabilities, p.extra, "snowball"), base: MO.debtPlan(d.liabilities, 0, "avalanche") });
+});
+wealthRouter.post("/money/compare-profiles", (req, res) => {
+  const p = z.object({ amount: n.positive().max(1e11) }).parse(req.body);
+  res.json({ amount: p.amount, profiles: MO.compareProfiles(p.amount, MON.marketRates()), rates: MON.marketRates() });
+});
 wealthRouter.post("/money/allocate", (req, res) => {
   const p = z.object({ amount: n.positive().max(1e11), monthly: n.min(0).max(1e9).optional(), risk: z.enum(["low", "medium", "high"]).optional(), horizonYears: n.min(0).max(60).optional(), keepEmergency: z.boolean().optional() }).parse(req.body);
   res.json(MON.allocate(req.userId!, p));

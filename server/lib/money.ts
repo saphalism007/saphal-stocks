@@ -116,13 +116,40 @@ export function goalsSoon(userId: number) {
     .map((g) => ({ name: g.name || "Goal", amount: Math.max(0, (g.costToday || 0) - (g.currentSaved || 0)), years: Number(g.years) }));
 }
 
+/** Portfolio total return (real portfolios), for the wealth dashboard. */
+export function portfolioReturns(userId: number) {
+  let invested = 0, value = 0, realized = 0, dividends = 0;
+  for (const p of all<{ id: number }>("SELECT id FROM portfolios WHERE user_id = ? AND kind = 'real'", userId)) {
+    const txs = txsFor(p.id);
+    if (!txs.length) continue;
+    const s = computeHoldings(txs, latestPrices([...new Set(txs.map((t) => t.symbol))]), M.fees());
+    invested += s.invested || 0; value += s.marketValue || 0; realized += s.realizedPnl || 0; dividends += s.dividends || 0;
+  }
+  const gain = value - invested + realized + dividends;
+  return { invested: Math.round(invested), value: Math.round(value), gain: Math.round(gain), returnPct: invested ? Math.round((gain / invested) * 1000) / 10 : null };
+}
+
+/** This month's tracked income and spending (from the daily tracker). */
+export function trackedMonth() {
+  const month = new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 7);
+  try {
+    const r = get<{ inc: number | null; exp: number | null; n: number }>("SELECT SUM(CASE WHEN type='income' THEN amount END) inc, SUM(CASE WHEN type='expense' AND category <> 'invest' THEN amount END) exp, COUNT(*) n FROM money_entries WHERE substr(date,1,7) = ?", month);
+    return { month, income: r?.inc ?? 0, spending: r?.exp ?? 0, entries: r?.n ?? 0 };
+  } catch { return { month, income: 0, spending: 0, entries: 0 }; }
+}
+
+export function goalProgress(userId: number) {
+  return readVault<{ name?: string; costToday?: number; years?: number; currentSaved?: number }>(userId, "goal").map((g) => g.data).filter((g) => g.costToday)
+    .map((g) => ({ name: g.name || "Goal", target: g.costToday as number, saved: g.currentSaved ?? 0, years: g.years ?? null, pct: Math.min(100, Math.round(((g.currentSaved ?? 0) / (g.costToday as number)) * 100)) }));
+}
+
 export function moneyOverview(userId: number) {
   const { data, id } = moneyData(userId);
   const pv = portfolioValue(userId);
   const summary = MO.summarize(data, { portfolioValue: pv });
   const rates = marketRates();
   const advice = MO.savingsAdvice(data, summary, rates);
-  return { saved: id != null, data, summary, advice, rates, portfolioValue: pv, goals: goalsSoon(userId) };
+  return { saved: id != null, data, summary, advice, rates, portfolioValue: pv, goals: goalsSoon(userId), returns: portfolioReturns(userId), tracked: trackedMonth(), goalProgress: goalProgress(userId) };
 }
 
 export function allocate(userId: number, p: { amount: number; monthly?: number; risk?: MO.Risk; horizonYears?: number; keepEmergency?: boolean }) {

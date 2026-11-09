@@ -16,8 +16,8 @@ export default function Invest() {
   const tab = (sp.get("tab") as Tab) || "advisor";
   return (
     <div className="page">
-      <div className="page-head"><div><h1>Where to Invest</h1><p className="muted">Compare real options in Nepal and get a split that fits your risk, goals and the latest official rates. Guaranteed (contractual) and market-linked returns are always shown separately.</p></div></div>
-      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "advisor", label: "Allocation advisor" }, { key: "deposits", label: "Deposit rates" }, { key: "rates", label: "Rates & inflation" }, { key: "funds", label: "Funds, debentures, bonds" }, { key: "loan", label: "Prepay or invest?" }]} />
+      <div className="page-head"><div><h1>Investment Planner</h1><p className="muted">Compare real options in Nepal and get a split that fits your risk, goals and the latest official rates. Guaranteed (contractual) and market-linked returns are always shown separately.</p></div></div>
+      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "advisor", label: "Where should I invest?" }, { key: "deposits", label: "Deposit rates" }, { key: "rates", label: "Rates & inflation" }, { key: "funds", label: "Funds, debentures, bonds" }, { key: "loan", label: "Prepay or invest?" }]} />
       {tab === "advisor" && <Advisor />}
       {tab === "deposits" && <Deposits />}
       {tab === "rates" && <Rates />}
@@ -37,7 +37,8 @@ function Advisor() {
   const [r, setR] = useState<Any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const run = async () => { setBusy(true); setErr(null); try { setR(await api("/money/allocate", { body: { amount, monthly: monthly || undefined, risk: risk || undefined, horizonYears: horizon === "" ? undefined : horizon } })); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
+  const [cmp, setCmp] = useState<Any>(null);
+  const run = async () => { setBusy(true); setErr(null); try { const [a, c] = await Promise.all([api("/money/allocate", { body: { amount, monthly: monthly || undefined, risk: risk || undefined, horizonYears: horizon === "" ? undefined : horizon } }), api("/money/compare-profiles", { body: { amount } })]); setR(a); setCmp(c); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
   const KCOL: Record<string, string> = { debt: "var(--down)", safety: "var(--blue)", guaranteed: "var(--up)", market: "var(--violet)" };
   return (
     <div className="col">
@@ -84,6 +85,7 @@ function Advisor() {
               <Link className="btn sm" to={`/analyst?q=${encodeURIComponent(`I have Rs. ${amount}${monthly ? ` and can add Rs. ${monthly} every month` : ""}. Using my money data, goals and current rates, where should I put it in Nepal? Compare realistic options with expected outcomes.`)}`}><I.ai /> Discuss with AI</Link>
             </div>
           </Card>
+          {cmp && <ProfileCompare c={cmp} />}
           <Card title="Rates behind this plan">
             <dl className="kv small">{Object.entries(r.rates.sources as Record<string, string>).map(([k, v]) => <Fragment key={k}><dt>{({ fd: "Fixed deposit", saving: "Savings", tbill: "T-bill", inflation: "Inflation", equity: "NEPSE long run" } as Record<string, string>)[k] ?? k}</dt><dd>{v}</dd></Fragment>)}</dl>
             <p className="tiny faint">Projections: guaranteed parts compound at their contractual after-tax rate; market-linked parts show a range (not a forecast).</p>
@@ -287,5 +289,41 @@ function LoanVsInvest() {
         )}
       </Card>
     </div>
+  );
+}
+
+function ProfileCompare({ c }: { c: Any }) {
+  const r = c.rates;
+  const fdNet = r.fdPct != null ? r.fdPct * (1 - r.interestTaxPct / 100) : null;
+  const opts = [
+    { o: "Savings / call account", ret: r.savingPct != null ? `${num(r.savingPct * (1 - r.interestTaxPct / 100), 2)}% after tax` : "—", risk: "Very low", liq: "Instant", dur: "Any", tax: "6% TDS on interest", min: "Bank minimum (often Rs. 0–1,000)", prot: "Yes (deposit insurance up to the limit)", acc: "Any bank branch / app", link: "/invest?tab=deposits" },
+    { o: "Fixed deposit", ret: fdNet != null ? `${num(fdNet, 2)}% after tax (contractual)` : "—", risk: "Low", liq: "At maturity; early break with penalty", dur: "3 months – 5 years", tax: "6% TDS on interest", min: "Often Rs. 1,000–10,000", prot: "Yes (deposit insurance up to the limit)", acc: "Any bank / finance company", link: "/invest?tab=deposits" },
+    { o: "Treasury bills", ret: r.tbillPct != null ? `${num(r.tbillPct, 2)}% (364-day auction)` : "—", risk: "Very low (government)", liq: "To maturity", dur: "28–364 days", tax: "Interest tax applies", min: "Large lots; mainly via banks", prot: "Yes (government)", acc: "Limited for individuals", link: "/invest?tab=funds" },
+    { o: "Listed debentures", ret: "Coupon 6–11%; yield depends on price (see table)", risk: "Low–medium (issuer)", liq: "Thinly traded", dur: "Up to maturity (years)", tax: "Interest tax on coupon; CGT on gains", min: "1 unit (≈ Rs. 1,000)", prot: "Issuer must stay sound", acc: "Broker (TMS) / IPO", link: "/invest?tab=funds" },
+    { o: "Mutual funds (SIP)", ret: r.equityLongRunPct != null ? `≈ ${num(r.equityLongRunPct, 1)}%/yr NEPSE 10-yr (not guaranteed)` : "Variable", risk: "Medium–high", liq: "Days", dur: "3+ years", tax: "CGT on gains; fund fees", min: "Often Rs. 1,000/month (SIP)", prot: "No", acc: "Fund manager / Mero Share", link: "/future" },
+    { o: "NEPSE stocks", ret: r.equityLongRunPct != null ? `≈ ${num(r.equityLongRunPct, 1)}%/yr 10-yr incl. dividends (not guaranteed)` : "Variable", risk: "High", liq: "T+2 (liquid stocks)", dur: "5+ years", tax: "CGT 7.5% / 5%; 5% dividend tax; broker fees", min: "1 share", prot: "No", acc: "Demat + Mero Share + broker TMS", link: "/trading?tab=longterm" },
+    { o: "CIT / EPF / SSF", ret: "Published by each fund (see provider)", risk: "Low", liq: "Long lock-in", dur: "Until retirement / scheme term", tax: "Tax benefits within limits", min: "Scheme-specific", prot: "Generally yes (scheme rules)", acc: "Employer or provider", link: "/future" },
+  ];
+  return (
+    <>
+      <Card title={`Three ways to invest ${rs(c.amount, 0)}`} sub="Expected returns use current official rates and NEPSE's 10-year record; worst year assumes a 35% equity fall">
+        <div className="grid g3">{c.profiles.map((p: Any) => (
+          <div key={p.name} className="opt">
+            <div className="row between"><strong>{p.name}</strong><Badge tone={p.name === "Conservative" ? "up" : p.name === "Growth" ? "warn" : "blue"}>{p.protectedPct}% protected</Badge></div>
+            <div className="small muted">{p.why}</div>
+            {p.parts.map((x: Any) => <div key={x.option} className="row between small" style={{ flexWrap: "nowrap", gap: 8 }}><span>{x.pct}% {x.option}</span><span className="mono">{compact(x.amount)}</span></div>)}
+            <div className="sep" />
+            <div className="row between small"><span>Expected a year</span><strong>{p.expectedPct != null ? `${num(p.expectedPct, 2)}%` : "—"}</strong></div>
+            <div className="row between small"><span>In 5 years (expected)</span><strong>{p.in5y != null ? compact(p.in5y) : "—"}</strong></div>
+            <div className="row between small"><span>A bad year</span><strong className={tone(p.worstYearPct)}>{num(p.worstYearPct, 1)}%</strong></div>
+          </div>
+        ))}</div>
+        <p className="tiny faint">The plan above adjusts for your emergency fund, loans and goals; these three are simpler reference mixes. None puts everything in NEPSE.</p>
+      </Card>
+      <Card title="Options compared">
+        <div className="table-scroll"><table className="t small"><thead><tr><th>Option</th><th>Return</th><th>Risk</th><th>Liquidity</th><th>Duration</th><th>Tax & fees</th><th>Minimum</th><th>Capital protected</th><th>How to access</th></tr></thead>
+          <tbody>{opts.map((x) => <tr key={x.o}><td><Link to={x.link}>{x.o}</Link></td><td>{x.ret}</td><td>{x.risk}</td><td>{x.liq}</td><td>{x.dur}</td><td>{x.tax}</td><td>{x.min}</td><td>{x.prot}</td><td>{x.acc}</td></tr>)}</tbody></table></div>
+      </Card>
+    </>
   );
 }

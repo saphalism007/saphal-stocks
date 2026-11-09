@@ -26,6 +26,7 @@ export interface Opportunity {
   invalidation: string[]; confidence: number; confidenceLabel: "High" | "Medium" | "Low" | "—";
   reviewBy: string | null; avgTurnover: number | null; fundamentalScore: number | null;
   netAtT1Pct: number | null;
+  netRiskReward: number | null; // reward/risk after broker, SEBON, DP charges and CGT
 }
 
 export interface LongTermIdea { symbol: string; name: string; sector: string; price: number | null; priceDate: string | null; fundamentalScore: number; valuationScore: number | null; pe: number | null; pb: number | null; roe: number | null; cashYield: number | null; yearsPaid5: number | null; strengths: string[]; cautions: string[]; trend: string | null; entryNote: string; period: string | null }
@@ -45,8 +46,17 @@ export const RULES = {
   minBars: 120, // about six months of trading
   maxStaleDays: 7, // last price older than this (calendar days) vs the market's latest date -> insufficient
   minTurnover: 1_000_000, // Rs. per day (20-day average); below this, avoid for liquidity
-  buyMinQuality: 60, buyMinRR: 1.8, sellMinQuality: 55,
+  buyMinQuality: 60, buyMinRR: 1.8, buyMinNetRR: 1.5, sellMinQuality: 55, minStopPct: 1.5,
 };
+
+/** Reward/risk after all costs for a 100-share trade: net profit at target 1 vs net loss at the stop. */
+export function netRR(entry: number, stop: number, t1: number, days: number, fees: FeeConfig = DEFAULT_FEES) {
+  try {
+    const win = roundTrip(100, entry, t1, days, fees), loss = roundTrip(100, entry, stop, days, fees);
+    const rr = loss.netProfit < 0 ? win.netProfit / -loss.netProfit : null;
+    return { rr: rr != null ? r2(rr) : null, netT1Pct: r2(win.netReturnPct) };
+  } catch { return { rr: null, netT1Pct: null }; }
+}
 
 /** Fills targets up to three: the setup's own targets, then the next resistances above, then marked R-multiples. */
 function threeTargets(s: Setup, resistances: number[]): { price: number; basis: string }[] {
@@ -71,7 +81,7 @@ export function evaluate(inp: OpportunityInput): Opportunity {
     entryLow: null, entryHigh: null, entry: null, stop: null, targets: [], riskReward: null, riskPct: null, buyNow: null, waitFor: null,
     techReasons: [], fundReasons: [], supports: [], resistances: [],
     indicators: { rsi: null, macd: null, trend: null, adx: null, sma20: null, sma50: null, sma200: null, maPosition: null, volumeRatio: null, volumeConfirmed: null, obv: null },
-    invalidation: [], confidence: 0, confidenceLabel: "—", reviewBy: null, avgTurnover: inp.avgTurnover20, fundamentalScore: fa?.score ?? null, netAtT1Pct: null,
+    invalidation: [], confidence: 0, confidenceLabel: "—", reviewBy: null, avgTurnover: inp.avgTurnover20, fundamentalScore: fa?.score ?? null, netAtT1Pct: null, netRiskReward: null,
   };
   if (!last || bars.length < RULES.minBars) return { ...base, headline: `Insufficient data: ${bars.length} trading days of history (needs ${RULES.minBars}).` };
   const stale = (Date.parse(inp.latestMarketDate) - Date.parse(last.date)) / 86_400_000;
@@ -124,18 +134,22 @@ export function evaluate(inp: OpportunityInput): Opportunity {
     const inZone = snap.close <= b.entryHigh * 1.01 && snap.close >= b.entryLow * 0.98;
     let conf = b.quality + (b.volume.confirmed ? 5 : -5) + (snap.trend === "uptrend" ? 5 : snap.trend === "downtrend" ? -10 : 0) + (fa?.score != null ? (fa.score >= 60 ? 5 : fa.score < 40 ? -10 : 0) : -3) - Math.min(10, (fa?.redFlags.length ?? 0) * 5);
     conf = Math.max(5, Math.min(95, Math.round(conf)));
-    const qualifies = b.quality >= RULES.buyMinQuality && rr >= RULES.buyMinRR && oversoldOk;
-    let net: number | null = null;
-    try { net = r2(roundTrip(100, entry, targets[0]?.price ?? entry, b.horizon.startsWith("swing") ? 20 : 90, inp.fees ?? DEFAULT_FEES).netReturnPct); } catch { /* ignore */ }
+    // Levels must make sense: the stop below the whole buy range and far enough to survive normal noise.
+    const levelsOk = b.stopLoss < b.entryLow * 0.997 && (entry - b.stopLoss) / entry >= RULES.minStopPct / 100 && rr <= 8;
+    const qualifiesBeforeCosts = b.quality >= RULES.buyMinQuality && rr >= RULES.buyMinRR && oversoldOk && levelsOk;
+    const nrr = netRR(entry, b.stopLoss, targets[0]?.price ?? entry, b.horizon.startsWith("swing") ? 20 : 90, inp.fees);
+    const net = nrr.netT1Pct;
+    const costsOk = nrr.rr != null && nrr.rr >= RULES.buyMinNetRR;
     const plan = {
       ...common, setupType: b.type, horizon: b.horizon, holdingPeriod: b.horizon.startsWith("swing") ? "1–4 weeks" : "1–6 months",
       entryLow: r2(b.entryLow), entryHigh: r2(b.entryHigh), entry, stop: r2(b.stopLoss), targets, riskReward: r2(rr), riskPct: r2(b.riskPct),
       techReasons: b.reasoning, invalidation: b.invalidation, indicators: { ...indicators, volumeConfirmed: b.volume.confirmed },
-      confidence: conf, confidenceLabel: (conf >= 75 ? "High" : conf >= 55 ? "Medium" : "Low") as Opportunity["confidenceLabel"], netAtT1Pct: net,
+      confidence: conf, confidenceLabel: (conf >= 75 ? "High" : conf >= 55 ? "Medium" : "Low") as Opportunity["confidenceLabel"], netAtT1Pct: net, netRiskReward: nrr.rr,
     };
+    const qualifies = qualifiesBeforeCosts && costsOk;
     if (qualifies && inZone) return { ...plan, action: "BUY", bucket: "buy", buyNow: b.volume.confirmed ? "now" : "wait", waitFor: b.volume.confirmed ? null : "a close inside the entry zone on above-average volume", headline: `${b.type}: price is in the entry zone (Rs. ${r2(b.entryLow)}–${r2(b.entryHigh)}), stop Rs. ${r2(b.stopLoss)}, R:R ${r2(rr)}.` };
     if (qualifies) return { ...plan, action: "WATCH", bucket: "watch", buyNow: "wait", waitFor: snap.close > b.entryHigh ? `a pullback into Rs. ${r2(b.entryLow)}–${r2(b.entryHigh)} (price is ${r2(((snap.close - b.entryHigh) / b.entryHigh) * 100)}% above the zone)` : `price to recover into the entry zone`, headline: `${b.type} setup, but price is outside the entry zone: wait for a better entry.` };
-    const why = !oversoldOk ? "it has fallen but has not yet shown a confirmed reversal" : rr < RULES.buyMinRR ? `reward/risk is only ${r2(rr)} (needs ${RULES.buyMinRR})` : `setup quality ${b.quality}/100 is below ${RULES.buyMinQuality}`;
+    const why = qualifiesBeforeCosts && !costsOk ? `after broker, SEBON, DP charges and tax the reward/risk is only ${nrr.rr != null ? r2(nrr.rr) : "—"} (needs ${RULES.buyMinNetRR}); the move is too small for the costs` : !levelsOk ? `the stop (Rs. ${r2(b.stopLoss)}) is too close to or inside the buy range, so risk can't be controlled` : !oversoldOk ? "it has fallen but has not yet shown a confirmed reversal" : rr < RULES.buyMinRR ? `reward/risk is only ${r2(rr)} (needs ${RULES.buyMinRR})` : `setup quality ${b.quality}/100 is below ${RULES.buyMinQuality}`;
     return { ...plan, action: "WATCH", bucket: "watch", buyNow: "wait", waitFor: !oversoldOk ? "a reversal: MACD bullish cross or a close above the 20-day EMA, on volume" : "a stronger setup (better reward/risk or confirmation)", headline: `${b.type} forming, not a buy yet: ${why}.` };
   }
 
@@ -179,7 +193,11 @@ export function trackRecord(symbol: string, bars: Bar[], fa: FundamentalInput | 
     const sig = generateSetups(hist, { symbol, fees: opts.fees, fundamentalScore: fa?.score ?? null });
     const b = sig.setups.filter((s) => s.side === "buy").sort((x, y) => y.quality - x.quality)[0];
     const snap = sig.snapshot;
-    if (!b || !snap || b.quality < RULES.buyMinQuality || b.riskReward < RULES.buyMinRR) continue;
+    if (!b || !snap || b.quality < RULES.buyMinQuality || b.riskReward < RULES.buyMinRR || b.riskReward > 8) continue;
+    const mid0 = (b.entryLow + b.entryHigh) / 2;
+    if (!(b.stopLoss < b.entryLow * 0.997 && (mid0 - b.stopLoss) / mid0 >= RULES.minStopPct / 100)) continue;
+    const nr = netRR(mid0, b.stopLoss, b.targets[0], b.horizon.startsWith("swing") ? 20 : 90, opts.fees);
+    if (nr.rr == null || nr.rr < RULES.buyMinNetRR) continue;
     const reversal = snap.macd.cross === "bullish" || (snap.ema[20] != null && snap.close > (snap.ema[20] as number));
     if (b.type === "Oversold bounce" && !(reversal && b.volume.confirmed && b.quality >= 70)) continue;
     const nx = bars[t + 1];

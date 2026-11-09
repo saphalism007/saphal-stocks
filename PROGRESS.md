@@ -89,6 +89,16 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 - ✅ Versions and updates: version and code in the app, update check with Update now, `npm run deploy` publishes and prints a TALLY line that matches the app (0.6.1, 9 November 2026)
 - ⬜ Background alerts on iOS (web apps cannot run in the background; alerts are checked when the app opens)
 
+## v0.9: trading opportunities and professional wealth management
+- ✅ Trading Opportunities (shared/opportunities.ts, tested): BUY/SELL/HOLD/WATCH/AVOID/INSUFFICIENT per stock from stored data; rules: ≥120 sessions, fresh prices, liquidity ≥ Rs. 10 lakh/day, setup quality ≥ 60, R:R ≥ 1.8 before and ≥ 1.5 after costs, stop below the buy range and ≥ 1.5% away, oversold bounces need a confirmed reversal; three targets (setup, next resistance, then marked R-projections); review date
+- ✅ Track record: walk-forward replay of the BUY rule (no look-ahead, next-open fills, fees and CGT) and a daily forward signal log judged against later prices; confidence tempered by each setup type's results
+- ✅ Trade planner (capital, risk per trade, max position) with exact charges, CGT, net P/L at targets/stop, breakeven, net reward/risk; paper trading and alerts from a signal
+- ✅ Invest for the Future, provider websites with automatic daily link checks, long-term ideas judged on fundamentals
+- ✅ Wealth dashboard extras, debt payoff planner (avalanche/snowball), savings target, net worth history; portfolio comparison in the Investment Planner
+- ✅ Alerts: buying range, support broken, fund issues, rate changes, FD maturity, savings target missed, portfolio imbalance
+- ✅ Audited financial statements per company (official notice images) with a viewer
+- Finding: over the past year the BUY rule lost money on average after costs (about −2.5% per trade, 30% profitable); shown in the app rather than hidden
+
 ## v0.8: everyday use on iPhone
 - ✅ Income & expense tracker: dated entries with categories and payment method, grouped by day, monthly totals by category, 6-month trend, edit/delete, CSV export, budget from 3-month averages; AI tool get_income_expenses
 - ✅ Backup to iCloud Drive / Google Drive through the share sheet (Mac: download), restore from a file, weekly reminder

@@ -5,9 +5,11 @@ import * as M from "../lib/market.ts";
 import { RANK_STRATEGIES, rankStocks } from "../../shared/ranking.ts";
 import { runBacktest, runPortfolioBacktest, STRATEGIES, type StrategyId } from "../../shared/backtest.ts";
 import { patternTrackRecord } from "../../shared/patterns.ts";
-import { syncCompanyDetail, syncHistory } from "../ingest/jobs.ts";
+import { syncCompanyDetail, syncHistory, marketStatus } from "../ingest/jobs.ts";
 import { buildStockReport } from "../ai/offline.ts";
 import * as MON from "../lib/money.ts";
+import * as TR from "../lib/trading.ts";
+import { evaluate, longTermIdea } from "../../shared/opportunities.ts";
 import { debentureYield } from "../../shared/money.ts";
 
 export const marketRouter = Router();
@@ -379,6 +381,55 @@ marketRouter.get("/economy/debentures", (_req, res) => {
   const rows = all<{ symbol: string; name: string; close: number | null; date: string | null; volume: number | null }>(
     "SELECT c.symbol, c.name, (SELECT close FROM prices p WHERE p.symbol = c.symbol ORDER BY date DESC LIMIT 1) close, (SELECT date FROM prices p WHERE p.symbol = c.symbol ORDER BY date DESC LIMIT 1) date, (SELECT SUM(volume) FROM prices p WHERE p.symbol = c.symbol AND date >= date('now','-90 days')) volume FROM companies c WHERE c.sector = 'Corporate Debentures' ORDER BY c.symbol");
   res.json({ asOf: today, rows: rows.map((r) => ({ ...r, ...debentureYield(r.name, r.close, today) })).sort((a, b) => ((b as { approxYtmPct?: number }).approxYtmPct ?? 0) - ((a as { approxYtmPct?: number }).approxYtmPct ?? 0)), note: "Coupon and maturity are read from the listed name; yields are approximate (face value Rs. 1,000, simple YTM). Thinly traded debentures may not be available at the last price." });
+});
+
+// ---------- invest for the future (small, regular amounts) ----------
+const SUITS: Record<string, string> = {
+  savings: "Everyone: emergency money and day-to-day savings", rd: "Beginners saving a fixed amount every month for a goal 1–5 years away", fd: "Money you won't need for a fixed period; near-term goals",
+  "nepse-shares": "Long horizons (5+ years) and people who accept large swings", ipo: "Small amounts as a lottery-like extra, not a plan", fpo: "Investors who have studied the company",
+  "right-share": "Existing shareholders", debenture: "Steady interest income; check issuer quality", "dev-bond": "Very safe, fixed coupon savings when issued", tbill: "Institutions and large short-term cash (via banks)",
+  "life-insurance": "Protection first: term cover for anyone with dependents", "health-nonlife": "Everyone: protection, not investment", pms: "Large portfolios wanting professional management",
+  "mf-open": "Beginners investing small amounts monthly (SIP) with diversification", "mf-closed": "Diversified NEPSE exposure bought on the market, often below NAV",
+  "cit-scheme": "Long-term, tax-advantaged retirement saving", epf: "Employees (mandatory for many employers): retirement", ssf: "Contributors under the Social Security Act: retirement and benefits",
+};
+marketRouter.get("/future", (_req, res) => {
+  const checks = new Map<string, { ok: number; status: number; checked_at: string }>();
+  try { for (const r of all<{ url: string; ok: number; status: number; checked_at: string }>("SELECT url, ok, status, checked_at FROM link_checks")) checks.set(r.url, r); } catch { /* older snapshot */ }
+  const chk = (u: string | null) => (u ? checks.get(u) ?? null : null);
+  const products = all<Record<string, string | null>>("SELECT * FROM products ORDER BY category, name").map((p) => ({ ...p, suitableFor: SUITS[p.seed_key ?? ""] ?? null, officialCheck: chk(p.official_url), infoCheck: chk(p.info_url) }));
+  const providers = all<{ symbol: string; name: string; sector: string; website: string }>("SELECT symbol, name, sector, website FROM companies WHERE website IS NOT NULL AND website <> '' AND status = 'active' AND sector IN ('Commercial Bank','Development Bank','Finance','Mutual Fund') ORDER BY sector, name")
+    .map((p) => ({ ...p, check: chk(p.website) }));
+  let notices: { symbol: string | null; published: string; url: string; image_url: string | null }[] = [];
+  try { notices = all("SELECT symbol, published, url, image_url FROM rate_notices r WHERE published = (SELECT MAX(published) FROM rate_notices x WHERE x.symbol = r.symbol)"); } catch { /* older snapshot */ }
+  const noticeBy = new Map(notices.filter((n) => n.symbol).map((n) => [n.symbol as string, n]));
+  const funds = all<Record<string, unknown>>("SELECT symbol, name, kind, weekly_nav, ltp, premium_pct, maturity_date FROM fund_navs ORDER BY symbol");
+  res.json({ rates: MON.marketRates(), nepse: MON.nepseLongRun(), products, providers: providers.map((p) => ({ ...p, rateNotice: noticeBy.get(p.symbol) ?? null })), funds, longTerm: TR.opportunities().longTerm.slice(0, 12),
+    linkNote: "Links are checked automatically each day. Some Nepal government sites block requests from outside Nepal, so a failed check does not always mean the link is broken." });
+});
+
+// ---------- trading opportunities ----------
+function priceInfo() {
+  const f = TR.priceKind();
+  const today = new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 10);
+  const status = marketStatus() as { session?: string } | undefined;
+  const live = f?.as_of === today && status?.session === "open";
+  return { asOf: f?.as_of ?? null, fetchedAt: f?.last_success_at ?? null, kind: live ? "delayed" : "end-of-day", note: live ? "Delayed intraday prices (refreshed about every 15 minutes); today's candle is provisional until the close." : `End-of-day prices from ${f?.as_of ?? "the latest session"}.` };
+}
+marketRouter.get("/trading/opportunities", (_req, res) => {
+  const o = TR.opportunities();
+  const t = TR.track();
+  res.json({ asOf: o.asOf, price: priceInfo(), rows: TR.withTrack(o.rows), longTerm: o.longTerm, track: t.summary, trackMethod: t.method,
+    disclaimer: "Educational, rule-based analysis from stored NEPSE data. Not a guarantee or licensed investment advice; past results of these rules are shown so you can judge them." });
+});
+marketRouter.get("/trading/track", (_req, res) => res.json({ ...TR.track(), log: TR.signalLog(200) }));
+marketRouter.get("/trading/stock/:symbol", (req, res) => {
+  const sym = SYM.parse(req.params.symbol);
+  const c = M.company(sym);
+  if (!c) return res.status(404).json({ error: "Unknown symbol" });
+  const f = M.allFactors().find((x) => x.symbol === sym);
+  const fa = TR.fundamentalInput(sym);
+  const o = evaluate({ symbol: sym, name: (c as { name?: string }).name || sym, sector: (c as { sector?: string }).sector || "", bars: M.bars(sym, { limit: 420 }).bars, fundamentals: fa, avgTurnover20: f?.avgTurnover20 ?? null, latestMarketDate: M.latestTradingDate() ?? "", fees: M.fees() });
+  res.json({ ...TR.withTrack([o])[0], longTerm: longTermIdea(o, fa), priceInfo: priceInfo(), fees: M.fees() });
 });
 
 // ---------- reports, audited results and official filings ----------

@@ -31,6 +31,8 @@ const Settings = lazy(() => import("./pages/Settings.tsx"));
 const Money = lazy(() => import("./pages/Money.tsx"));
 const Invest = lazy(() => import("./pages/Invest.tsx"));
 const Monitor = lazy(() => import("./pages/Monitor.tsx"));
+const Trading = lazy(() => import("./pages/Trading.tsx"));
+const Future = lazy(() => import("./pages/Future.tsx"));
 
 interface User { id: number; username: string }
 const ThemeCtx = createContext<{ theme: string; toggle: () => void }>({ theme: "dark", toggle: () => {} });
@@ -40,26 +42,28 @@ export const usePrefs = () => useContext(PrefsCtx);
 export { NAV };
 
 const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }[] = [
-  { to: "/", label: "Overview", icon: "overview" },
-  { section: "NEPSE Intelligence", to: "/market", label: "NEPSE Market", icon: "market" },
-  { to: "/stocks", label: "Stocks", icon: "stocks" },
-  { to: "/technical", label: "Charts & Technicals", icon: "technical" },
-  { to: "/fundamental", label: "Fundamental Analysis", icon: "fundamental" },
+  { to: "/", label: "Dashboard", icon: "overview" },
+  { section: "Trading", to: "/trading", label: "Trading Opportunities", icon: "technical" },
+  { to: "/stocks", label: "Stock Analysis", icon: "stocks" },
+  { to: "/technical", label: "Charts & Technicals", icon: "market" },
+  { to: "/fundamental", label: "Fundamentals", icon: "fundamental" },
   { to: "/compare", label: "Compare", icon: "fundamental" },
   { to: "/analyst", label: "AI Analyst", icon: "ai" },
   { to: "/strategy-lab", label: "Strategy Lab", icon: "refresh" },
-  { to: "/portfolio", label: "Portfolio", icon: "portfolio" },
+  { section: "My Portfolio", to: "/portfolio", label: "Portfolio", icon: "portfolio" },
   { to: "/watchlist", label: "Watchlist", icon: "watch" },
   { to: "/journal", label: "Journal & Theses", icon: "reports" },
-  { section: "My Financial Life", to: "/money", label: "My Money", icon: "money" },
-  { to: "/invest", label: "Where to Invest", icon: "invest" },
-  { to: "/planner", label: "Goals & Planner", icon: "planner" },
+  { section: "Wealth", to: "/money", label: "Wealth Management", icon: "money" },
+  { to: "/invest", label: "Investment Planner", icon: "invest" },
+  { to: "/future", label: "Long-Term Investing", icon: "planner" },
+  { to: "/planner", label: "Goals & Calculators", icon: "planner" },
   { to: "/opportunities", label: "Investment Directory", icon: "opportunities" },
-  { section: "Stay informed", to: "/monitor", label: "Market Monitor", icon: "monitor" },
+  { section: "Market & Updates", to: "/monitor", label: "Market Monitor", icon: "monitor" },
+  { to: "/market", label: "NEPSE Market", icon: "market" },
   { to: "/news", label: "Financial News", icon: "news" },
+  { to: "/reports", label: "Audit Reports", icon: "reports" },
   { to: "/alerts", label: "Alerts", icon: "alerts" },
   { to: "/learn", label: "Learning Center", icon: "learn" },
-  { to: "/reports", label: "Audit Reports", icon: "reports" },
   { to: "/settings", label: "Settings", icon: "settings" },
 ];
 
@@ -207,6 +211,8 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
               <Route path="/money" element={<Money />} />
               <Route path="/invest" element={<Invest />} />
               <Route path="/monitor" element={<Monitor />} />
+              <Route path="/trading" element={<Trading />} />
+              <Route path="/future" element={<Future />} />
               <Route path="/stocks" element={<Stocks />} />
               <Route path="/stocks/:symbol" element={<StockDetail />} />
               <Route path="/compare" element={<Compare />} />

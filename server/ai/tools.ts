@@ -43,6 +43,7 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: "get_exchange_rates", description: "Official NRB exchange rates (NPR per unit) for major and remittance currencies, with 1-month and 1-year changes.", input_schema: obj({}) },
   { name: "get_wealth_profile", description: "The user's saved financial profile and goals (income, expenses, savings, risk tolerance, goals with target dates). Use for personal financial planning questions.", input_schema: obj({}) },
   { name: "get_my_money", description: "The user's personal money: monthly income and expenses by category, bank balances, fixed deposits, investments, PF/CIT/SSF, property, loans with rates and EMIs, risk tolerance, horizon, goals; computed net worth, cash flow, savings rate, emergency-fund cover, allocation (guaranteed vs market-linked), and rule-based savings advice with rupee impact. Call this first for any personal money, budgeting, savings or 'where should I put my money' question.", input_schema: obj({}) },
+  { name: "get_trading_opportunities", description: "Today's rule-based classification of NEPSE stocks: BUY / SELL / HOLD / WATCH / AVOID / INSUFFICIENT with buy range, entry, stop-loss, three targets, reward/risk before and after costs, holding period, technical and fundamental reasons, indicators, invalidation, confidence and review date; long-term ideas judged separately; and the rules' real past track record after fees. Use for 'what to buy/sell', 'near support', 'breakouts', 'what to avoid'.", input_schema: obj({ bucket: { type: "string", enum: ["buy", "sell", "watch", "hold", "avoid", "insufficient", "longterm", "all"] }, limit: { type: "integer", maximum: 40 } }) },
   { name: "get_income_expenses", description: "The user's tracked income and expense entries for a month (YYYY-MM, default this month): totals, spending by category, daily totals, the previous month and a 6-month trend. Use for questions about spending habits, budgets and where money goes.", input_schema: obj({ month: { type: "string" } }) },
   { name: "get_rates_and_inflation", description: "Official Nepal Rastra Bank rates (policy corridor, T-bill yields, interbank, average deposit / fixed-deposit / savings / lending / base rates) with dates and previous values, the latest NRB macro report (CPI inflation and headline points), NEPSE long-run index growth, and the rates the advisor uses with their sources.", input_schema: obj({}) },
   { name: "advise_money_allocation", description: "Deterministic allocation of an amount (and optional monthly saving) using the user's money data: repays expensive debt, fills the emergency fund, keeps goals within 3 years in fixed income, splits the rest between fixed income and market-linked growth by risk and horizon (never all in shares). Returns buckets with amounts, guaranteed vs not, expected returns from official rates, projections, and the sources.", input_schema: obj({ amount: { type: "number" }, monthly: { type: "number" }, risk: { type: "string", enum: ["low", "medium", "high"] }, horizon_years: { type: "number" } }, ["amount"]) },
@@ -234,6 +235,14 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
       return { date: latest, source: "Nepal Rastra Bank", rates: all("SELECT currency, unit, buy, sell FROM forex WHERE date = ? AND currency IN ('USD','EUR','GBP','INR','CNY','JPY','AUD','SAR','QAR','AED','MYR','KRW')", latest) };
     }
     case "get_my_money": { const o = MON.moneyOverview(userId); return { saved: o.saved, data: o.data, summary: o.summary, advice: o.advice, portfolioValue: o.portfolioValue, goals: o.goals, rates: o.rates }; }
+    case "get_trading_opportunities": {
+      const T = await import("../lib/trading.ts");
+      const o = T.opportunities();
+      const lim = Math.min(Number(input.limit) || 15, 40);
+      const b = (input.bucket as string) || "buy";
+      const t = T.track();
+      return { asOf: o.asOf, trackRecord: t.summary, trackMethod: t.method, ...(b === "longterm" ? { longTerm: o.longTerm.slice(0, lim) } : { rows: T.withTrack(o.rows.filter((r) => b === "all" || r.bucket === b)).slice(0, lim) }), note: "Rule-based and educational; quote the track record when recommending." };
+    }
     case "get_income_expenses": {
       const month = typeof input.month === "string" && /^\d{4}-\d{2}$/.test(input.month) ? input.month : new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 7);
       const { summarizeEntries } = await import("../../shared/money.ts");

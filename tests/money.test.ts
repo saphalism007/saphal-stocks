@@ -183,3 +183,59 @@ describe("income & expense tracker", () => {
     expect(classifyFiling("Annual Audit Report [TPC]")).toBe("Audited / annual report");
   });
 });
+
+import { debtPlan, compareProfiles } from "../shared/money.ts";
+describe("debt planner and portfolio comparison", () => {
+  const loans = [
+    { id: "a", name: "Card", type: "credit_card" as const, balance: 100000, ratePct: 18, emi: 5000 },
+    { id: "b", name: "Car", type: "car" as const, balance: 500000, ratePct: 11, emi: 12000 },
+  ];
+  it("pays highest rate first with avalanche and saves interest vs no extra", () => {
+    const base = debtPlan(loans, 0, "avalanche")!;
+    const fast = debtPlan(loans, 10000, "avalanche")!;
+    expect(fast.feasible && base.feasible).toBe(true);
+    if (fast.feasible && base.feasible) {
+      expect(fast.order[0].name).toBe("Card");
+      expect(fast.months).toBeLessThan(base.months);
+      expect(fast.totalInterest).toBeLessThan(base.totalInterest);
+    }
+  });
+  it("orders smallest balance first with snowball", () => {
+    const s = debtPlan(loans, 10000, "snowball")!;
+    if (s.feasible) expect(s.order[0].name).toBe("Card");
+  });
+  it("builds three portfolios that add up and keep equity below 100%", () => {
+    const p = compareProfiles(500000, rates);
+    for (const x of p) {
+      expect(x.parts.reduce((s, y) => s + y.pct, 0)).toBe(100);
+      expect(x.protectedPct).toBeGreaterThanOrEqual(30);
+    }
+    expect(p[0].protectedPct).toBeGreaterThan(p[2].protectedPct);
+  });
+});
+
+import { evaluate } from "../shared/opportunities.ts";
+describe("trading opportunities", () => {
+  const day = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 86_400_000).toISOString().slice(0, 10);
+  it("refuses to signal on too little history", () => {
+    const bars = Array.from({ length: 50 }, (_, i) => ({ date: day(i), open: 100, high: 101, low: 99, close: 100, volume: 1000 }));
+    const o = evaluate({ symbol: "X", name: "X", sector: "S", bars, fundamentals: null, avgTurnover20: 5e6, latestMarketDate: day(49) });
+    expect(o.action).toBe("INSUFFICIENT");
+  });
+  it("refuses stale prices", () => {
+    const bars = Array.from({ length: 200 }, (_, i) => ({ date: day(i), open: 100, high: 101, low: 99, close: 100, volume: 1000 }));
+    const o = evaluate({ symbol: "X", name: "X", sector: "S", bars, fundamentals: null, avgTurnover20: 5e6, latestMarketDate: day(230) });
+    expect(o.action).toBe("INSUFFICIENT");
+    expect(o.headline).toMatch(/stale/);
+  });
+  it("marks illiquid stocks as avoid instead of signalling", () => {
+    const bars = Array.from({ length: 200 }, (_, i) => ({ date: day(i), open: 100 + i * 0.2, high: 101 + i * 0.2, low: 99 + i * 0.2, close: 100 + i * 0.2, volume: 1000 }));
+    const o = evaluate({ symbol: "X", name: "X", sector: "S", bars, fundamentals: null, avgTurnover20: 200_000, latestMarketDate: day(199) });
+    expect(o.action).toBe("AVOID");
+  });
+  it("never issues a BUY whose stop sits inside the buy range", () => {
+    const bars = Array.from({ length: 260 }, (_, i) => { const c = 100 + i * 0.4 + (i % 7) - 3; return { date: day(i), open: c - 0.5, high: c + 1.5, low: c - 1.5, close: c, volume: 5000 + (i % 5) * 1000 }; });
+    const o = evaluate({ symbol: "X", name: "X", sector: "S", bars, fundamentals: null, avgTurnover20: 5e6, latestMarketDate: day(259) });
+    if (o.action === "BUY") { expect(o.stop!).toBeLessThan(o.entryLow!); expect(o.riskReward!).toBeLessThanOrEqual(8); }
+  });
+});

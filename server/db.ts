@@ -167,6 +167,10 @@ const MIGRATIONS: string[] = [
   `
   CREATE TABLE signal_log (date TEXT NOT NULL, symbol TEXT NOT NULL, action TEXT NOT NULL, setup TEXT, entry_low REAL, entry_high REAL, stop REAL, t1 REAL, t2 REAL, price REAL, PRIMARY KEY (date, symbol));
   `,
+  // 12: link checks for every investment provider / product link
+  `
+  CREATE TABLE link_checks (url TEXT PRIMARY KEY, status INTEGER, ok INTEGER, final_url TEXT, checked_at TEXT);
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

@@ -313,7 +313,8 @@ export function analyzeFundamentals(input: FundamentalInput): FundamentalAnalysi
   if (v.pb != null && v.pb < 1.2 && v.pb > 0) strengths.push(`Trading near book value (P/B ${v.pb}x).`);
   if (yearsPaid >= 4) strengths.push(`Paid dividends in ${yearsPaid} of the last 5 years.`);
   if (growthVal != null && growthVal > 20) strengths.push(`Net profit up ${growthVal}% year-over-year.`);
-  if (v.graham != null && price != null && price < v.graham) strengths.push(`Price is below the Graham number (Rs. ${v.graham}).`);
+  // Only when plausible (statement units sometimes differ): within 5x the price.
+  if (v.graham != null && price != null && price < v.graham && v.graham < price * 5) strengths.push(`Price is below the Graham number (Rs. ${v.graham}).`);
 
   return {
     symbol: input.symbol, sector: input.sector, sectorGroup: group,

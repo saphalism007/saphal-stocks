@@ -401,6 +401,29 @@ export async function syncAuditDocs(s?: JobState, opts: { perCompany?: number } 
   return n;
 }
 
+// ---------- link checks ----------
+/** Checks every product, resource and provider website link (GET, follows redirects), so the app can show which links work. */
+export async function syncLinkChecks(): Promise<number> {
+  const urls = new Set<string>();
+  for (const r of all<{ official_url: string | null; info_url: string | null }>("SELECT official_url, info_url FROM products")) { if (r.official_url) urls.add(r.official_url); if (r.info_url) urls.add(r.info_url); }
+  for (const r of all<{ url: string | null; links: string | null }>("SELECT url, links FROM resources")) { if (r.url) urls.add(r.url); try { for (const l of JSON.parse(r.links || "[]") as { url: string }[]) if (l.url) urls.add(l.url); } catch { /* ignore */ } }
+  for (const r of all<{ website: string }>("SELECT website FROM companies WHERE website IS NOT NULL AND website <> '' AND sector IN ('Commercial Bank','Development Bank','Finance','Mutual Fund','Life Insurance','Non-Life Insurance','Microfinance','Investment')")) urls.add(r.website);
+  const recent = new Set(all<{ url: string }>("SELECT url FROM link_checks WHERE ok = 1 AND checked_at >= datetime('now','-6 days')").map((r) => r.url));
+  let n = 0;
+  const list = [...urls].filter((u) => !recent.has(u));
+  // A few at a time: these are many different hosts.
+  for (let i = 0; i < list.length; i += 6) {
+    await Promise.all(list.slice(i, i + 6).map(async (u) => {
+      let status = 0, final = u;
+      try { const res = await fetch(u, { redirect: "follow", signal: AbortSignal.timeout(20_000), headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) SaphalStocks link check" } }); status = res.status; final = res.url; try { await res.body?.cancel(); } catch { /* ignore */ } } catch { status = 0; }
+      run("INSERT OR REPLACE INTO link_checks (url, status, ok, final_url, checked_at) VALUES (?, ?, ?, ?, ?)", u, status, status >= 200 && status < 400 ? 1 : 0, final, nowIso());
+      n++;
+    }));
+  }
+  fresh("link_checks", { name: "Saphal Stocks link checker", url: "" }, new Date().toISOString().slice(0, 10), n);
+  return n;
+}
+
 // ---------- orchestration ----------
 export function queueDailyRefresh() {
   enqueue("listing", (s) => syncListing(s));

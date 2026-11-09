@@ -22,7 +22,7 @@ export interface Prefs {
 
 export const DEFAULT_PREFS: Prefs = {
   theme: "auto", accent: "emerald", scale: 1, density: "comfortable", numbers: "nepali", landing: "/",
-  hiddenNav: [], bottomBar: ["/", "/market", "/money", "/analyst"], sidebar: "full",
+  hiddenNav: [], bottomBar: ["/", "/trading", "/money", "/analyst"], sidebar: "full",
   chartOverlays: ["sma50", "sma200"], chartLower: "rsi", chartKind: "candles", reduceMotion: false, name: "Saphal",
 };
 

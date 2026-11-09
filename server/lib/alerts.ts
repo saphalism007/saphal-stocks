@@ -15,6 +15,8 @@ import * as MON from "./money.ts";
 export const ALERT_TYPES = [
   { type: "price_above", label: "Price rises above", needsSymbol: true, params: ["price"] },
   { type: "price_below", label: "Price falls below (stop-loss)", needsSymbol: true, params: ["price"] },
+  { type: "price_in_range", label: "Price reaches my buying range", needsSymbol: true, params: ["low", "high"] },
+  { type: "support_broken", label: "Major support broken (close below)", needsSymbol: true, params: [] },
   { type: "near_support", label: "Approaching major support", needsSymbol: true, params: ["withinPct"] },
   { type: "near_resistance", label: "Approaching major resistance", needsSymbol: true, params: ["withinPct"] },
   { type: "breakout", label: "Breakout confirmed (20-day high on volume)", needsSymbol: true, params: [] },
@@ -31,6 +33,11 @@ export const ALERT_TYPES = [
   { type: "ipo", label: "New IPO / FPO announcement (market-wide)", needsSymbol: false, params: [] },
   { type: "fundamental_drop", label: "Fundamental score falls below", needsSymbol: true, params: ["score"] },
   { type: "portfolio_risk", label: "Portfolio health score falls below", needsSymbol: false, params: ["score", "portfolioId"] },
+  { type: "fund_issue", label: "New mutual fund issue opens", needsSymbol: false, params: [] },
+  { type: "rate_change", label: "NRB deposit / policy rate changes, or new bank rate notices", needsSymbol: false, params: [] },
+  { type: "fd_maturity", label: "A fixed deposit matures soon (from My Money)", needsSymbol: false, params: ["days"] },
+  { type: "savings_target", label: "Monthly savings target missed (from the tracker)", needsSymbol: false, params: [] },
+  { type: "portfolio_imbalance", label: "Portfolio imbalance (one stock or sector too large)", needsSymbol: false, params: ["maxStockPct", "maxSectorPct"] },
 ] as const;
 
 interface AlertRow { id: number; user_id: number; symbol: string | null; type: string; params: string | null; note: string | null; repeat: number; last_triggered_at: string | null; last_checked_at: string | null }
@@ -55,7 +62,7 @@ export function evaluateAlerts(): number {
     const since = a.last_checked_at || a.last_triggered_at || "1970-01-01";
     let hit: { title: string; body: string; date: string | null } | null = null;
     try {
-      if (sym && ["price_above", "price_below", "near_support", "near_resistance", "breakout", "breakdown", "rsi_overbought", "rsi_oversold", "macd_cross", "unusual_volume"].includes(a.type)) {
+      if (sym && ["price_above", "price_below", "price_in_range", "support_broken", "near_support", "near_resistance", "breakout", "breakdown", "rsi_overbought", "rsi_oversold", "macd_cross", "unusual_volume"].includes(a.type)) {
         const b = barsOf(sym);
         if (b.length < 30) continue;
         const last = b[b.length - 1];
@@ -63,6 +70,13 @@ export function evaluateAlerts(): number {
         switch (a.type) {
           case "price_above": if (last.close >= p.price) hit = { title: `${sym} closed above Rs. ${p.price}`, body: `Close Rs. ${last.close} on ${last.date}.`, date: last.date }; break;
           case "price_below": if (last.close <= p.price) hit = { title: `${sym} closed below Rs. ${p.price}`, body: `Close Rs. ${last.close} on ${last.date}. Review your stop-loss plan.`, date: last.date }; break;
+          case "price_in_range": if (last.low <= p.high && last.high >= p.low) hit = { title: `${sym} is in your buying range Rs. ${p.low}–${p.high}`, body: `Traded Rs. ${last.low}–${last.high} on ${last.date} (close Rs. ${last.close}). Check the setup is still valid before buying.`, date: last.date }; break;
+          case "support_broken": {
+            const lv = analyzeLevels(b);
+            const sup = lv?.supports.filter((x) => x.strength === "major").map((x) => x.low).find((x) => b.length > 1 && b[b.length - 2].close >= x && last.close < x);
+            if (sup) hit = { title: `${sym} closed below major support Rs. ${sup.toFixed(2)}`, body: `Close Rs. ${last.close} on ${last.date}. Support breaks often lead to further weakness; review your position.`, date: last.date };
+            break;
+          }
           case "near_support":
           case "near_resistance": {
             const lv = analyzeLevels(b);
@@ -99,6 +113,42 @@ export function evaluateAlerts(): number {
       } else if (a.type === "ipo") {
         const r = get<{ title: string; url: string; published_date: string }>("SELECT title, url, published_date FROM announcements WHERE (category = 'IPO / FPO' OR title LIKE '%IPO%' OR title LIKE '%FPO%') AND fetched_at > ? ORDER BY published_date DESC LIMIT 1", since);
         if (r) hit = { title: `IPO/FPO: ${r.title.slice(0, 120)}`, body: `${r.published_date} · ${r.url}`, date: r.published_date };
+      } else if (a.type === "fund_issue") {
+        const r = get<{ company: string; opening_date: string; closing_date: string | null }>("SELECT company, opening_date, closing_date FROM issues WHERE issue_type = 'Mutual fund' AND fetched_at > ? AND opening_date >= date('now','-3 days') ORDER BY opening_date DESC LIMIT 1", since);
+        if (r) hit = { title: `Mutual fund issue: ${r.company}`, body: `Opens ${r.opening_date}${r.closing_date ? `, closes ${r.closing_date}` : ""}. Apply through Mero Share if it fits your plan.`, date: r.opening_date };
+      } else if (a.type === "rate_change") {
+        try {
+          const r = get<{ label: string; value: number; prev_value: number; as_of: string }>("SELECT label, value, prev_value, as_of FROM rates WHERE grp IN ('policy','deposit','lending') AND prev_value IS NOT NULL AND prev_value <> value AND fetched_at > ? AND as_of >= date('now','-30 days') ORDER BY as_of DESC LIMIT 1", since);
+          if (r) hit = { title: `${r.label}: ${r.prev_value}% → ${r.value}%`, body: `Nepal Rastra Bank, ${r.as_of}. Re-check your deposits and loans (Where to Invest → Rates).`, date: r.as_of };
+          else {
+            const n = get<{ n: number; d: string }>("SELECT COUNT(*) n, MAX(published) d FROM rate_notices WHERE fetched_at > ?", since);
+            if (n && n.n >= 3) hit = { title: `${n.n} new bank / finance rate notices`, body: "Compare deposit rates under Where to Invest → Deposit rates.", date: n.d };
+          }
+        } catch { /* older snapshot */ }
+      } else if (a.type === "fd_maturity") {
+        const days = p.days ?? 7;
+        const soon = MON.moneyData(a.user_id).data.accounts.filter((x) => x.maturity && Date.parse(x.maturity) - Date.now() <= days * 86_400_000 && Date.parse(x.maturity) >= Date.now() - 86_400_000);
+        if (soon.length) hit = { title: `${soon.map((x) => x.name).join(", ")} matures ${soon[0].maturity}`, body: `Decide where to put Rs. ${soon.reduce((t, x) => t + x.balance, 0).toLocaleString("en-IN")} (Where to Invest compares current rates).`, date: soon[0].maturity ?? null };
+      } else if (a.type === "savings_target") {
+        const target = MON.moneyData(a.user_id).data.savingsTarget ?? 0;
+        const prev = new Date(Date.now() + 345 * 60_000); prev.setUTCDate(1); prev.setUTCMonth(prev.getUTCMonth() - 1);
+        const m = prev.toISOString().slice(0, 7);
+        const r = get<{ inc: number | null; exp: number | null; n: number }>("SELECT SUM(CASE WHEN type='income' THEN amount END) inc, SUM(CASE WHEN type='expense' AND category <> 'invest' THEN amount END) exp, COUNT(*) n FROM money_entries WHERE substr(date,1,7) = ?", m);
+        const saved = (r?.inc ?? 0) - (r?.exp ?? 0);
+        if (target > 0 && (r?.n ?? 0) > 0 && saved < target) hit = { title: `Savings target missed in ${m}`, body: `Saved Rs. ${Math.round(saved).toLocaleString("en-IN")} of your Rs. ${target.toLocaleString("en-IN")} target. See spending by category in the Daily tracker.`, date: m };
+      } else if (a.type === "portfolio_imbalance") {
+        for (const pf of all<{ id: number; name: string }>("SELECT id, name FROM portfolios WHERE user_id = ? AND kind = 'real'", a.user_id)) {
+          const d = portfolioSummary(pf.id);
+          const total = d.summary.marketValue || 0;
+          if (!total) continue;
+          const by = new Map<string, number>();
+          let top: { s: string; v: number } | null = null;
+          for (const h of d.summary.holdings.filter((x) => x.quantity > 0)) { const v = h.marketValue ?? 0; by.set(d.sectors[h.symbol] ?? "Unknown", (by.get(d.sectors[h.symbol] ?? "Unknown") ?? 0) + v); if (!top || v > top.v) top = { s: h.symbol, v }; }
+          const sec = [...by.entries()].sort((x, y) => y[1] - x[1])[0];
+          const maxS = p.maxStockPct ?? 25, maxSec = p.maxSectorPct ?? 40;
+          if (top && (top.v / total) * 100 > maxS) { hit = { title: `${pf.name}: ${top.s} is ${Math.round((top.v / total) * 100)}% of the portfolio`, body: `Above your ${maxS}% limit for one stock. Consider rebalancing (Portfolio → Rebalance).`, date: d.priceDate }; break; }
+          if (sec && (sec[1] / total) * 100 > maxSec) { hit = { title: `${pf.name}: ${sec[0]} is ${Math.round((sec[1] / total) * 100)}% of the portfolio`, body: `Above your ${maxSec}% sector limit.`, date: d.priceDate }; break; }
+        }
       } else if (sym && a.type === "fundamental_drop") {
         const fa = M.fundamentalsFor(sym);
         if (fa?.score.overall != null && fa.score.overall < (p.score ?? 40)) hit = { title: `${sym}: fundamental score ${fa.score.overall} (below ${p.score ?? 40})`, body: fa.redFlags.join(" ") || "See the Fundamentals tab.", date: fa.latestPeriod };

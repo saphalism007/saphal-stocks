@@ -82,7 +82,9 @@ export function withTrack(rows: Opportunity[]) {
     if (!h || !h.trades || (o.action !== "BUY" && o.action !== "WATCH")) return { ...o, history: h ?? null };
     // Blend: setups whose type lost money historically lose confidence.
     const adj = h.trades >= 10 ? Math.round(((h.winRatePct ?? 50) - 50) / 2) + (h.avgNetPct != null && h.avgNetPct < 0 ? -5 : 5) : 0;
-    const confidence = Math.max(5, Math.min(95, o.confidence + adj));
+    let confidence = Math.max(5, Math.min(95, o.confidence + adj));
+    // Evidence first: a setup type that lost money on average can't be "High" confidence.
+    if (h.trades >= 10 && h.avgNetPct != null && h.avgNetPct < 0) confidence = Math.min(confidence, 70);
     return { ...o, history: h, confidence, confidenceLabel: (confidence >= 75 ? "High" : confidence >= 55 ? "Medium" : "Low") as Opportunity["confidenceLabel"] };
   });
 }
