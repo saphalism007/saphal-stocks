@@ -59,7 +59,7 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/news", label: "Financial News", icon: "news" },
   { to: "/alerts", label: "Alerts", icon: "alerts" },
   { to: "/learn", label: "Learning Center", icon: "learn" },
-  { to: "/reports", label: "Reports", icon: "reports" },
+  { to: "/reports", label: "Audit Reports", icon: "reports" },
   { to: "/settings", label: "Settings", icon: "settings" },
 ];
 

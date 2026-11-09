@@ -406,18 +406,31 @@ marketRouter.get("/stocks/:symbol/filings", (req, res) => {
   });
 });
 
+// Audited financial statements of one company: the official notice images / PDFs, newest first.
+marketRouter.get("/stocks/:symbol/audit", (req, res) => {
+  const sym = SYM.parse(req.params.symbol);
+  const c = get<{ name: string; website: string | null; sector: string | null }>("SELECT name, website, sector FROM companies WHERE symbol = ?", sym);
+  if (!c) return res.status(404).json({ error: "Unknown symbol" });
+  let docs: { url: string; fiscal_year: string | null; title: string; published: string; images: string; pdfs: string }[] = [];
+  try { docs = all("SELECT url, fiscal_year, title, published, images, pdfs FROM audit_docs WHERE symbol = ? ORDER BY published DESC", sym); } catch { /* older snapshot */ }
+  const parsed = docs.map((d) => ({ ...d, images: JSON.parse(d.images || "[]") as string[], pdfs: JSON.parse(d.pdfs || "[]") as string[] })).filter((d) => d.images.length || d.pdfs.length);
+  res.json({ symbol: sym, name: c.name, sector: c.sector, website: c.website, docs: parsed, source: `https://www.sharesansar.com/company/${sym.toLowerCase()}` });
+});
+
 marketRouter.get("/reports/audited", (_req, res) => {
-  // Latest audited / annual-report announcement per company in the last 18 months, plus coverage.
-  const rows = all<{ symbol: string; name: string; sector: string; title: string; url: string; published_date: string }>(`
-    SELECT a.symbol, c.name, c.sector, a.title, a.url, a.published_date FROM announcements a JOIN companies c ON c.symbol = a.symbol
-    WHERE a.published_date >= date('now','-540 days') AND ${AUDIT_RE.replace(/title/g, "a.title")}
-      AND a.published_date = (SELECT MAX(published_date) FROM announcements x WHERE x.symbol = a.symbol AND ${AUDIT_RE.replace(/title/g, "x.title")})
-    GROUP BY a.symbol ORDER BY a.published_date DESC`);
-  let agm: { symbol: string; title: string; url: string; published_date: string }[] = [];
-  try { agm = all(`SELECT e.symbol, e.title, e.url, e.published_date FROM company_events e WHERE e.kind IN ('AGM / SGM','AGM minutes') AND e.published_date >= date('now','-200 days') AND e.published_date = (SELECT MAX(published_date) FROM company_events x WHERE x.symbol = e.symbol AND x.kind IN ('AGM / SGM','AGM minutes')) GROUP BY e.symbol ORDER BY e.published_date DESC`); } catch { /* older snapshot */ }
-  const total = get<{ n: number }>("SELECT COUNT(*) n FROM companies WHERE status = 'active' AND sector NOT IN ('Promoter Share','Corporate Debentures')")?.n ?? 0;
-  const websites = all<{ symbol: string; website: string }>("SELECT symbol, website FROM companies WHERE website IS NOT NULL AND website <> ''");
-  res.json({ rows, agm, total, websites: Object.fromEntries(websites.map((w) => [w.symbol, w.website])), note: "Nepali companies publish audited annual results before their AGM, usually within six months after the fiscal year ends (mid-July). The full annual report, with the auditor's report, is on each company's website and filed with NEPSE." });
+  // One row per company: its latest audited statement with a viewable image or PDF.
+  try {
+    const rows = all<{ symbol: string; name: string; sector: string; fiscal_year: string | null; published: string; title: string; images: string; pdfs: string; n: number }>(`
+      SELECT d.symbol, c.name, c.sector, d.fiscal_year, d.published, d.title, d.images, d.pdfs, (SELECT COUNT(*) FROM audit_docs x WHERE x.symbol = d.symbol AND (x.images <> '[]' OR x.pdfs <> '[]')) n
+      FROM audit_docs d JOIN companies c ON c.symbol = d.symbol
+      WHERE (d.images <> '[]' OR d.pdfs <> '[]') AND d.published = (SELECT MAX(published) FROM audit_docs y WHERE y.symbol = d.symbol AND (y.images <> '[]' OR y.pdfs <> '[]'))
+      GROUP BY d.symbol ORDER BY d.published DESC`);
+    const total = get<{ n: number }>("SELECT COUNT(*) n FROM companies WHERE status = 'active' AND sector NOT IN ('Promoter Share','Corporate Debentures')")?.n ?? 0;
+    const have = new Set(rows.map((r) => r.symbol));
+    const missing = all<{ symbol: string; name: string; sector: string; website: string | null }>("SELECT symbol, name, sector, website FROM companies WHERE status = 'active' AND sector NOT IN ('Promoter Share','Corporate Debentures') ORDER BY symbol").filter((r) => !have.has(r.symbol));
+    return res.json({ rows: rows.map((r) => ({ ...r, images: JSON.parse(r.images).length, pdfs: JSON.parse(r.pdfs).length })), missing, total,
+      note: "Audited statements are published before each company's AGM, usually within six months after the fiscal year ends in mid-July, so the newest fiscal year appears company by company from about October to January." });
+  } catch { return res.json({ rows: [], missing: [], total: 0, note: "Update the market data to see audited statements." }); }
 });
 
 // ---------- Nepal financial market monitor: everything important in one feed, with what it means ----------

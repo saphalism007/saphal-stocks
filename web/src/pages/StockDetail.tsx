@@ -6,6 +6,7 @@ import { BROWSER_BACKEND } from "../lib/backend.ts";
 import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score, ScoreBar, Tabs, DataTable, Disclaimer, Modal, Seg, NumInput } from "../components/ui.tsx";
 import { PriceChart, LineChart, type Overlay, type Lower, type ChartLevel, type ChartSegment, type ChartZone } from "../components/PriceChart.tsx";
 import { resample, trendlines, type Timeframe } from "../../../shared/timeframe.ts";
+import { AuditViewer } from "../components/AuditViewer.tsx";
 import { num, pct, tone, compact, int, nptDate, isNum } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 import { useTheme, usePrefs } from "../App.tsx";
@@ -53,6 +54,7 @@ export default function StockDetail() {
             <div className="mono" style={{ fontSize: 26, fontWeight: 600 }}>{num(lastClose)}</div>
             <div className={`mono small ${tone(q?.change_pct)}`}>{num(q?.change)} ({pct(q?.change_pct)})</div>
           </div>
+          <button className="btn primary" onClick={() => { setTab("audit"); setTimeout(() => document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}><I.reports /> Audit report</button>
           <button className="btn" onClick={() => setShowWatch(true)}><I.star /> Watch</button>
           <button className="btn" onClick={() => setShowAlert(true)}><I.alerts /> Alert</button>
           <button className="btn" onClick={() => nav(`/compare?s=${sym}`)}>Compare</button>
@@ -615,6 +617,7 @@ function AuditTab({ sym }: { sym: string }) {
   const keyEvents = d.events.filter((e: Any) => e.kind !== "Other");
   return (
     <div className="col">
+      <Card title="Audited financial statements" sub="As published by the company"><AuditViewer symbol={sym} /></Card>
       <Card title="Full annual report and auditor's report" sub={`FY ${d.lastCompletedFiscalYear} is the latest completed fiscal year`}>
         <div className="col" style={{ gap: 8 }}>
           {d.where.map((w: Any) => <a key={w.url} className="btn link-btn" href={w.url} target="_blank" rel="noopener noreferrer"><span style={{ textAlign: "left" }}>{w.label}</span><I.external /></a>)}

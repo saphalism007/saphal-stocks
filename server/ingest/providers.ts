@@ -447,3 +447,20 @@ export async function ssAnnouncementImage(url: string): Promise<string | null> {
   const html = await fetchText(url, { browserLike: true });
   return html.match(/https:\/\/content\.sharesansar\.com\/photos\/shares\/announcement\/[^"'\s)]+\.(?:jpe?g|png|webp)/i)?.[0] ?? null;
 }
+
+/** Images and PDFs attached to a ShareSansar announcement or event page (audited statements are published as images). */
+export async function ssAttachments(url: string): Promise<{ images: string[]; pdfs: string[] }> {
+  const html = await fetchText(url, { browserLike: true });
+  const body = html.replace(/<footer[\s\S]*$/i, "");
+  const enc = (u: string) => encodeURI(decodeURI(u.trim()));
+  const images = [...new Set([...body.matchAll(/https:\/\/content\.sharesansar\.com\/photos\/shares\/(?:announcement|events?)\/[^"'<>]+?\.(?:jpe?g|png|webp)/gi)].map((m) => enc(m[0])))];
+  const pdfs = [...new Set([...body.matchAll(/https?:\/\/(?:www\.)?nepalstock\.com\.np\/api\/nots\/security\/fetchFiles\?fileLocation=[^"'<>\s]+|https?:\/\/[^"'<>\s]+\.pdf/gi)].map((m) => m[0].replace(/&amp;/g, "&")))].filter((u) => !/Help\.pdf/i.test(u));
+  return { images, pdfs };
+}
+
+/** "fiscal year 2081/82" or "208182" in a title -> "2081/82". */
+export function fiscalYearOf(title: string): string | null {
+  const m = title.match(/(20\d{2})\s*[/-]\s*(\d{2,4})/) ?? title.match(/(20\d{2})(\d{2})(?!\d)/);
+  if (!m) return null;
+  return `${m[1]}/${m[2].slice(-2)}`;
+}

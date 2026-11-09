@@ -245,6 +245,11 @@ function computeSetups() {
   return out.sort((a, b) => b.quality - a.quality);
 }
 
+export const setupKeyPublic = () => setupKey();
+export const persistedPublic = <T>(name: string, key: string) => persisted<T>(name, key);
+/** Latest stored result regardless of data stamp (for historical results such as the signal track record). */
+export function persistedAny<T>(name: string): T | null { try { const r = get<{ json: string }>("SELECT json FROM computed WHERE name = ?", name); return r ? (JSON.parse(r.json) as T) : null; } catch { return null; } }
+
 /** Export step: compute factors and setups once and store them for the snapshot. */
 export function persistComputed(write: (name: string, stamp: string, json: string) => void) {
   write("factors", factorKey(), JSON.stringify(allFactors()));

@@ -407,3 +407,6 @@ body { min-height: 100%; }
 .form-grid.tight { grid-template-columns: 1fr 1fr; gap: 10px; }
 .form-grid .field { min-width: 0; }
 .btn.link-btn { justify-content: space-between; white-space: normal; text-align: left; height: auto; min-height: 40px; padding-top: 8px; padding-bottom: 8px; line-height: 1.35; }
+.audit-img { display: block; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: #fff; }
+.audit-img img { display: block; width: 100%; height: auto; }
+@media (max-width: 760px) { .modal .audit-img { margin: 0 -4px; } }

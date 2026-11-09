@@ -374,6 +374,33 @@ export async function syncRateNotices(): Promise<number> {
   return n;
 }
 
+// ---------- audited financial statements ----------
+/** For every company: the latest audited / annual-financial announcements (and NEPSE audit-report events), with their statement images or PDFs. */
+export async function syncAuditDocs(s?: JobState, opts: { perCompany?: number } = {}): Promise<number> {
+  const per = opts.perCompany ?? 2;
+  const AUD = "(lower(title) LIKE '%audited%' OR lower(title) LIKE '%annual financial%' OR lower(title) LIKE '%annual report%' OR lower(title) LIKE '%audit report%' OR lower(title) LIKE '%financial statement of the fiscal year%')";
+  const cands = all<{ symbol: string; title: string; url: string; published_date: string }>(`
+    SELECT symbol, title, url, published_date FROM (
+      SELECT symbol, title, url, published_date, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY published_date DESC) rn FROM (
+        SELECT symbol, title, url, published_date FROM announcements WHERE symbol IS NOT NULL AND ${AUD} AND lower(title) NOT LIKE '%unaudited%'
+        UNION SELECT symbol, title, url, published_date FROM company_events WHERE kind = 'Audited / annual report'))
+    WHERE rn <= ${per} ORDER BY published_date DESC`);
+  const have = new Set(all<{ url: string }>("SELECT url FROM audit_docs").map((r) => r.url));
+  const todo = cands.filter((c) => !have.has(c.url));
+  if (s) { s.total = todo.length; s.progress = 0; }
+  let n = 0;
+  for (const c of todo) {
+    try {
+      const a = await P.ssAttachments(c.url);
+      run("INSERT OR REPLACE INTO audit_docs (url, symbol, fiscal_year, title, published, images, pdfs, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", c.url, c.symbol, P.fiscalYearOf(c.title), c.title, c.published_date, JSON.stringify(a.images), JSON.stringify(a.pdfs), nowIso());
+      n++;
+    } catch (e) { console.warn(`[audit] ${c.symbol}: ${e instanceof Error ? e.message : e}`); }
+    if (s) { s.progress++; s.message = `${c.symbol} (${s.progress}/${s.total})`; }
+  }
+  fresh("audit_docs", P.SOURCES.sharesansar, get<{ d: string }>("SELECT MAX(published) d FROM audit_docs")?.d ?? null, get<{ n: number }>("SELECT COUNT(DISTINCT symbol) n FROM audit_docs")?.n ?? 0);
+  return n;
+}
+
 // ---------- orchestration ----------
 export function queueDailyRefresh() {
   enqueue("listing", (s) => syncListing(s));
@@ -384,6 +411,7 @@ export function queueDailyRefresh() {
   enqueue("issues", () => syncIssues());
   enqueue("funds", () => syncFunds());
   enqueue("rates", () => syncRates());
+  enqueue("audit", (st) => syncAuditDocs(st));
   enqueue("details", (s) => syncAllDetails(s, { maxAgeDays: 7 }));
 }
 

@@ -158,6 +158,15 @@ const MIGRATIONS: string[] = [
   `
   CREATE TABLE computed (name TEXT PRIMARY KEY, stamp TEXT, json TEXT, created_at TEXT);
   `,
+  // 10: audited financial statements per company (official notice images / NEPSE PDFs)
+  `
+  CREATE TABLE audit_docs (url TEXT PRIMARY KEY, symbol TEXT NOT NULL, fiscal_year TEXT, title TEXT, published TEXT, images TEXT, pdfs TEXT, fetched_at TEXT);
+  CREATE INDEX audit_docs_symbol ON audit_docs(symbol, published);
+  `,
+  // 11: forward log of each day's BUY/SELL signals (judged later against real prices)
+  `
+  CREATE TABLE signal_log (date TEXT NOT NULL, symbol TEXT NOT NULL, action TEXT NOT NULL, setup TEXT, entry_low REAL, entry_high REAL, stop REAL, t1 REAL, t2 REAL, price REAL, PRIMARY KEY (date, symbol));
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

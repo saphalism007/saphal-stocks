@@ -20,7 +20,16 @@ if (existsSync(tmp)) unlinkSync(tmp);
   const { db } = await import("../server/db.ts");
   const { persistComputed } = await import("../server/lib/market.ts");
   const t0 = Date.now();
-  persistComputed((name, stamp, json) => db.prepare("INSERT OR REPLACE INTO computed (name, stamp, json, created_at) VALUES (?, ?, ?, ?)").run(name, stamp, json, new Date().toISOString()));
+  const write = (name: string, stamp: string, json: string) => db.prepare("INSERT OR REPLACE INTO computed (name, stamp, json, created_at) VALUES (?, ?, ?, ?)").run(name, stamp, json, new Date().toISOString());
+  persistComputed(write);
+  const T = await import("../server/lib/trading.ts");
+  const { setupKeyPublic } = await import("../server/lib/market.ts");
+  const opp = T.computeOpportunities();
+  write("opportunities", setupKeyPublic(), JSON.stringify(opp));
+  write("track", setupKeyPublic(), JSON.stringify(T.computeTrack()));
+  // Forward log: today's BUY and SELL signals (one row per stock per day).
+  const ins = db.prepare("INSERT OR REPLACE INTO signal_log (date, symbol, action, setup, entry_low, entry_high, stop, t1, t2, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  for (const o of opp.rows.filter((r) => r.action === "BUY" || r.action === "SELL")) ins.run(o.priceDate, o.symbol, o.action, o.setupType, o.entryLow, o.entryHigh, o.stop, o.targets[0]?.price ?? null, o.targets[1]?.price ?? null, o.price);
   console.log(`precomputed factors and setups in ${Date.now() - t0} ms`);
 }
 
