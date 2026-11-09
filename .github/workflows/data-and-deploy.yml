@@ -1,0 +1,109 @@
+# Collects NEPSE market data, builds Saphal Stocks and publishes it to GitHub Pages.
+# Personal data never touches this pipeline: it stays on your devices (optionally in your
+# encrypted sync Gist). The market database is carried between runs in the Actions cache.
+name: Data and deploy
+
+on:
+  schedule:
+    - cron: "15 10 * * 1-5"        # daily, 16:00 Nepal time (after the 15:45 close data settles)
+    - cron: "*/15 5-9 * * 1-5"     # intraday, ~every 15 min, 10:45-15:45 Nepal time (Mon-Fri)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "daily = refresh data, intraday = latest prices only, build = rebuild app with current data"
+        required: true
+        default: daily
+        type: choice
+        options: [daily, intraday, build]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: data-and-deploy
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      TZ: Asia/Kathmandu
+      NO_SCHEDULER: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Decide what to do
+        id: mode
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          if [ -z "$MODE" ]; then
+            if [ "${{ github.event_name }}" = "push" ]; then MODE=build;
+            elif [ "${{ github.event.schedule }}" = "*/15 5-9 * * 1-5" ]; then MODE=intraday;
+            else MODE=daily; fi
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Mode: $MODE"
+
+      - name: Restore market database
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            data/saphal-stocks.db
+            web/public/data
+          key: market-${{ github.run_id }}
+          restore-keys: market-
+
+      - name: Refresh market data (daily)
+        if: steps.mode.outputs.mode == 'daily' || (steps.mode.outputs.mode != 'daily' && hashFiles('data/saphal-stocks.db') == '')
+        run: npm run ingest -- all
+
+      - name: Refresh latest prices (intraday)
+        if: steps.mode.outputs.mode == 'intraday' && hashFiles('data/saphal-stocks.db') != ''
+        run: npm run ingest -- listing
+
+      - name: Export market snapshot
+        if: steps.mode.outputs.mode == 'daily' || hashFiles('web/public/data/market.db.bin') == ''
+        run: npx tsx scripts/export-market.ts
+
+      - name: Export live prices
+        run: npx tsx scripts/export-live.ts
+
+      - name: Save market database
+        if: steps.mode.outputs.mode != 'build' || steps.restore.outputs.cache-matched-key == ''
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            data/saphal-stocks.db
+            web/public/data
+          key: market-${{ github.run_id }}
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
