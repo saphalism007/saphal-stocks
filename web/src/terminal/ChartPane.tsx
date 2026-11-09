@@ -20,6 +20,7 @@ export interface PaneProps {
   tool: ToolId; onToolDone: () => void; magnet: boolean; keepDrawing: boolean; hideDrawings: boolean;
   analysis: ChartAnalysis | null; showAi: boolean; showPatterns: boolean; showVolume: boolean; grid: boolean;
   onScaleMode: (m: 0 | 1 | 2) => void; active: boolean; onFocus: () => void; register: (api: PaneApi | null) => void; themeKey: string;
+  full?: boolean; onFull?: () => void;
 }
 
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -51,6 +52,12 @@ export default function ChartPane(p: PaneProps) {
   const setDraft = (d: Drawing | null) => { draftRef.current = d; setDraftS(d); };
   const fixed = useRef(0);
   const downAt = useRef<{ x: number; y: number } | null>(null);
+  // While a drawing is dragged it lives here (only this chart re-renders); it is saved once, on release.
+  const [dragging, setDragging] = useState<Drawing | null>(null);
+  // One update per screen frame, however fast the pointer events arrive.
+  const frame = useRef(0), pending = useRef<(() => void) | null>(null);
+  const perFrame = (fn: () => void) => { pending.current = fn; if (!frame.current) frame.current = requestAnimationFrame(() => { frame.current = 0; const f = pending.current; pending.current = null; f?.(); }); };
+  const coarse = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
 
   const data = useMemo(() => {
     let b = p.bars ?? [];
@@ -269,7 +276,7 @@ export default function ChartPane(p: PaneProps) {
     if (def.points === 0) { // freehand
       const d: Drawing = { id: uid(), tool: p.tool, pts: [pt], color: p.tool === "highlighter" ? "#facc15" : "#2962ff", width: 2, dash: false };
       setDraft(d);
-      const move = (ev: PointerEvent) => { const q = rel(ev); const pp = toPt(q.x, q.y, false); if (pp) { d.pts.push(pp); setDraft({ ...d }); } };
+      const move = (ev: PointerEvent) => { const q = rel(ev); const pp = toPt(q.x, q.y, false); if (pp) { d.pts.push(pp); perFrame(() => setDraft({ ...d })); } };
       const upH = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", upH); if (d.pts.length > 1) finish(d); else setDraft(null); };
       window.addEventListener("pointermove", move); window.addEventListener("pointerup", upH);
       return;
@@ -297,7 +304,11 @@ export default function ChartPane(p: PaneProps) {
       if (fixed.current >= def.points) finish({ ...cur, pts }); else setDraft({ ...cur, pts: [...pts, pt] });
     }
   };
-  const svgMove = (e: RPE<SVGSVGElement>) => { const cur = draftRef.current; if (!cur || TOOLS.get(cur.tool)?.points === 0) return; const { x, y } = rel(e); const pt = toPt(x, y); if (!pt) return; const pts = [...cur.pts]; pts[pts.length - 1] = pt; setDraft({ ...cur, pts }); };
+  const svgMove = (e: RPE<SVGSVGElement>) => {
+    const cur = draftRef.current; if (!cur || TOOLS.get(cur.tool)?.points === 0) return;
+    const { x, y } = rel(e);
+    perFrame(() => { const c2 = draftRef.current; if (!c2) return; const pt = toPt(x, y); if (!pt) return; const pts = [...c2.pts]; pts[pts.length - 1] = pt; setDraft({ ...c2, pts }); });
+  };
   const svgUp = () => { /* handled by the window listener */ };
   useEffect(() => { if (p.tool === "cursor") { setDraft(null); fixed.current = 0; } }, [p.tool]);
 
@@ -309,6 +320,7 @@ export default function ChartPane(p: PaneProps) {
     if (l0 == null || p0 == null) return;
     const orig = d; let last = d;
     const move = (ev: PointerEvent) => {
+      ev.preventDefault();
       const q = rel(ev); const l = chart.timeScale().coordinateToLogical(q.x), pr = main.coordinateToPrice(q.y);
       if (l == null || pr == null) return;
       let next: Drawing;
@@ -317,10 +329,15 @@ export default function ChartPane(p: PaneProps) {
         if (handle < pts.length) pts[handle] = pt; else if (handle === 10) { pts[0] = { ...pts[0], t: pt.t }; pts[1] = { ...pts[1], p: pt.p }; } else if (handle === 11) { pts[1] = { ...pts[1], t: pt.t }; pts[0] = { ...pts[0], p: pt.p }; }
         next = { ...orig, pts, target: handle === 20 ? pt.p : orig.target }; }
       last = next;
-      p.onDrawings(p.drawings.map((x) => (x.id === d.id ? next : x)), false);
+      perFrame(() => setDragging(next));
     };
-    const upH = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", upH); p.onDrawings(p.drawings.map((x) => (x.id === d.id ? last : x)), true); };
-    window.addEventListener("pointermove", move); window.addEventListener("pointerup", upH);
+    const upH = () => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", upH); window.removeEventListener("pointercancel", upH);
+      if (frame.current) { cancelAnimationFrame(frame.current); frame.current = 0; }
+      setDragging(null);
+      if (last !== orig) p.onDrawings(p.drawings.map((x) => (x.id === d.id ? last : x)), true);
+    };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", upH); window.addEventListener("pointercancel", upH);
   };
 
   const renderOne = (d: Drawing, isDraft = false) => {
@@ -337,8 +354,8 @@ export default function ChartPane(p: PaneProps) {
             <text x={l.x + (l.bg && l.anchor !== "middle" && l.anchor !== "end" ? 2 : 0)} y={l.y} fontSize={l.size ?? 11} textAnchor={l.anchor ?? "start"} fill={l.bg && l.bg !== "panel" ? "#fff" : l.color ?? d.color} fontWeight={l.bg ? 600 : 500} style={{ paintOrder: "stroke", stroke: l.bg ? "none" : "var(--bg)", strokeWidth: 3 }}>{l.text}</text>
           </g>
         ))}
-        {!isDraft && <path d={hitD} fill="none" stroke="transparent" strokeWidth={14} style={{ pointerEvents: p.tool === "cursor" ? "all" : "none", cursor: d.locked ? "pointer" : "move" }} onPointerDown={(e) => startDrag(e, d, null)} />}
-        {sel && !d.locked && g.handles.map((hd) => <circle key={`h${hd.i}`} cx={hd.x} cy={hd.y} r={6} fill="var(--panel)" stroke={d.color} strokeWidth={2} style={{ pointerEvents: "all", cursor: "grab" }} onPointerDown={(e) => startDrag(e, d, hd.i)} />)}
+        {!isDraft && <path d={hitD} fill="none" stroke="transparent" strokeWidth={coarse ? 26 : 14} style={{ pointerEvents: p.tool === "cursor" ? "all" : "none", cursor: d.locked ? "pointer" : "move", touchAction: "none" }} onPointerDown={(e) => startDrag(e, d, null)} />}
+        {sel && !d.locked && g.handles.map((hd) => <circle key={`h${hd.i}`} cx={hd.x} cy={hd.y} r={coarse ? 10 : 6} fill="var(--panel)" stroke={d.color} strokeWidth={2} style={{ pointerEvents: "all", cursor: "grab", touchAction: "none" }} onPointerDown={(e) => startDrag(e, d, hd.i)} />)}
       </g>
     );
   };
@@ -370,7 +387,7 @@ export default function ChartPane(p: PaneProps) {
         <svg className="draw-layer" width={w} height={h} style={{ position: "absolute", left: 0, top: 0, zIndex: 5, pointerEvents: p.tool === "cursor" ? "none" : "all", touchAction: p.tool === "cursor" ? "auto" : "none", cursor: p.tool === "cursor" ? "default" : "crosshair", overflow: "hidden" }}
           onPointerDown={svgDown} onPointerMove={svgMove} onPointerUp={svgUp} onClick={(e) => { if (p.tool === "cursor" && e.target === e.currentTarget) p.onSelect(null); }}>
           {aiLayer()}
-          {!p.hideDrawings && p.drawings.filter((d) => !d.hidden).map((d) => renderOne(d))}
+          {!p.hideDrawings && p.drawings.filter((d) => !d.hidden).map((d) => renderOne(dragging && dragging.id === d.id ? dragging : d))}
           {draft && renderOne(draft, true)}
         </svg>
       )}
@@ -393,6 +410,7 @@ export default function ChartPane(p: PaneProps) {
         <div key={inst.uid} className="term-legend sub" style={{ top: pn.top + 2 }}><div className="leg-row"><span>{def.short}{def.params.length ? ` (${def.params.map((x) => inst.params[x.key] ?? x.def).join(", ")})` : ""}</span>{def.outputs.map((o) => <span key={o.key} style={{ color: inst.colors[o.key] || o.color }}>{val(vals[o.key] ?? [])}</span>)}<LegBtns inst={inst} p={p} /></div></div>
       ); })}
       {comp.filter((c) => !c.def.overlay && c.inst.hidden).length > 0 && <div className="term-legend sub" style={{ bottom: 30, top: "auto" }}>{comp.filter((c) => !c.def.overlay && c.inst.hidden).map(({ inst, def }) => <div key={inst.uid} className="leg-row"><span style={{ opacity: 0.5 }}>{def.short} (hidden)</span><LegBtns inst={inst} p={p} /></div>)}</div>}
+      {p.onFull && <button className="term-full-btn" onClick={(e) => { e.stopPropagation(); p.onFull!(); }} title={p.full ? "Exit full screen" : "Full screen"} aria-label={p.full ? "Exit full screen" : "Full screen"}>{p.full ? "✕" : "⛶"}</button>}
       <div className="term-scale">
         <button className={p.scaleMode === 2 ? "on" : ""} onClick={() => p.onScaleMode(p.scaleMode === 2 ? 0 : 2)} title="Percentage scale">%</button>
         <button className={p.scaleMode === 1 ? "on" : ""} onClick={() => p.onScaleMode(p.scaleMode === 1 ? 0 : 1)} title="Logarithmic scale">log</button>

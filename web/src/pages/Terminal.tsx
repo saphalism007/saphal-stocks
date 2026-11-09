@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
+import { onBackendEvent } from "../lib/backend.ts";
 import { num, pct, tone } from "../lib/format.ts";
 import ChartPane, { type ChartType, type IndInst, type PaneApi } from "../terminal/ChartPane.tsx";
 import AiPanel, { type PanelTab } from "../terminal/AiPanel.tsx";
@@ -17,27 +18,45 @@ import type { Bar } from "../../../shared/types.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 interface PaneState { symbol: string; tf: Timeframe; type: ChartType; scale: 0 | 1 | 2; indicators: IndInst[] }
-interface TermState { layout: "1" | "2h" | "2v" | "4"; panes: PaneState[]; active: number; range: string; from: string | null; to: string | null; panel: boolean; panelTab: PanelTab; ai: boolean; patterns: boolean; volume: boolean; grid: boolean; magnet: boolean; keep: boolean; hide: boolean }
+interface TermState { layout: "1" | "2h" | "2v" | "4"; panes: PaneState[]; active: number; range: string; from: string | null; to: string | null; panel: boolean; panelTab: PanelTab; ai: boolean; patterns: boolean; volume: boolean; grid: boolean; magnet: boolean; keep: boolean; hide: boolean; clean: boolean; v?: number }
 const RANGES: [string, number][] = [["1M", 22], ["3M", 66], ["6M", 130], ["YTD", 0], ["1Y", 250], ["3Y", 750], ["5Y", 1250], ["All", 100000]];
 const SKEY = "ss-term-v2";
-const defPane = (symbol: string): PaneState => ({ symbol, tf: "D", type: "candles", scale: 0, indicators: [instFrom("ema", { length: 20 }), instFrom("macross"), instFrom("rsi")] });
+// A new chart is clean: candles and volume only. Indicators, AI levels and markers appear when you turn them on.
+const defPane = (symbol: string): PaneState => ({ symbol, tf: "D", type: "candles", scale: 0, indicators: [] });
 const loadState = (sym: string): TermState => {
-  const d: TermState = { layout: "1", panes: [defPane(sym)], active: 0, range: "1Y", from: null, to: null, panel: typeof window !== "undefined" && window.innerWidth >= 900, panelTab: "ai", ai: true, patterns: false, volume: true, grid: true, magnet: false, keep: false, hide: false };
-  try { const s = JSON.parse(localStorage.getItem(SKEY) || "null"); if (s?.panes?.length) return { ...d, ...s }; } catch { /* ignore */ }
+  const d: TermState = { layout: "1", panes: [defPane(sym)], active: 0, range: "1Y", from: null, to: null, panel: typeof window !== "undefined" && window.innerWidth >= 900, panelTab: "ai", ai: false, patterns: false, volume: true, grid: true, magnet: false, keep: false, hide: false, clean: false, v: 3 };
+  try {
+    const s = JSON.parse(localStorage.getItem(SKEY) || "null");
+    if (s?.panes?.length) {
+      // Earlier versions opened with three indicators and the AI levels on; start from a clean chart once.
+      if ((s.v ?? 0) < 3) return { ...d, ...s, ai: false, patterns: false, clean: false, v: 3, panes: s.panes.map((x: PaneState) => ({ ...x, indicators: [] })) };
+      return { ...d, ...s };
+    }
+  } catch { /* ignore */ }
   return d;
 };
 
 // ---------- bars cache shared by panes and the panel ----------
 const barCache = new Map<string, Promise<Bar[]>>();
+// New prices (intraday or the next day's data) clear the cache so every open chart redraws in place.
+let dataVer = 0;
+const verListeners = new Set<(v: number) => void>();
+onBackendEvent((e) => { if (e.type === "data-updated") { barCache.clear(); dataVer++; for (const f of verListeners) f(dataVer); } });
+function useDataVersion() {
+  const [v, setV] = useState(dataVer);
+  useEffect(() => { verListeners.add(setV); return () => { verListeners.delete(setV); }; }, []);
+  return v;
+}
 function useBars(symbol: string) {
+  const ver = useDataVersion();
   const [state, setState] = useState<{ sym: string; bars: Bar[] | null; error: string | null }>({ sym: symbol, bars: null, error: null });
   useEffect(() => {
     let live = true;
     if (!barCache.has(symbol)) barCache.set(symbol, api<{ bars: Bar[] }>(`/stocks/${symbol}/bars`).then((r) => r.bars).catch((e) => { barCache.delete(symbol); throw e; }));
-    setState({ sym: symbol, bars: null, error: null });
+    setState((s0) => (s0.sym === symbol && s0.bars ? s0 : { sym: symbol, bars: null, error: null })); // keep the old candles on screen while new ones load
     barCache.get(symbol)!.then((b) => live && setState({ sym: symbol, bars: b, error: null })).catch((e) => live && setState({ sym: symbol, bars: [], error: String(e?.message ?? e) }));
     return () => { live = false; };
-  }, [symbol]);
+  }, [symbol, ver]);
   return state.sym === symbol ? state : { sym: symbol, bars: null, error: null };
 }
 
@@ -103,7 +122,8 @@ export default function Terminal() {
   const setPane = (i: number, patch: Partial<PaneState>) => setSt((s) => { const p = [...panes]; p[i] = { ...p[i], ...patch }; return { ...s, panes: p }; });
   const setSymbol = (s: string) => { setPane(active, { symbol: s.toUpperCase() }); setSelected(null); if (active === 0) nav(`/terminal/${s.toUpperCase()}`, { replace: true }); };
 
-  const analysis = useApi<ChartAnalysis & { priceInfo: Any }>(`/chart/${sym}/analysis`, [sym]);
+  const dver = useDataVersion();
+  const analysis = useApi<ChartAnalysis & { priceInfo: Any }>(`/chart/${sym}/analysis`, [sym, dver]);
   const bars = useBars(sym);
   const wl = useApi<Any[]>("/watchlists");
   const drawings = draw.get(sym);
@@ -129,11 +149,21 @@ export default function Terminal() {
     return () => window.removeEventListener("keydown", h);
   }, [sym, selected, drawings, draw]);
 
-  useEffect(() => { const h = () => setFull(!!document.fullscreenElement); document.addEventListener("fullscreenchange", h); return () => document.removeEventListener("fullscreenchange", h); }, []);
+  // Full screen: the browser's own full screen where it exists (Mac, iPad, Android), otherwise the chart
+  // fills the whole window and the app's bars are hidden (iPhone Safari only allows full screen for videos).
+  const wasNative = useRef(false);
+  useEffect(() => { const h = () => { const on = !!document.fullscreenElement || !!(document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement; if (on) { wasNative.current = true; setFull(true); } else if (wasNative.current) { wasNative.current = false; setFull(false); } }; document.addEventListener("fullscreenchange", h); document.addEventListener("webkitfullscreenchange", h); return () => { document.removeEventListener("fullscreenchange", h); document.removeEventListener("webkitfullscreenchange", h); }; }, []);
+  useEffect(() => { document.documentElement.classList.toggle("term-full", full); const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 60); return () => { clearTimeout(t); document.documentElement.classList.remove("term-full"); }; }, [full]);
+  useEffect(() => { if (!full) return; const h = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.fullscreenElement) setFull(false); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [full]);
   const toggleFull = async () => {
-    if (document.fullscreenElement) { await document.exitFullscreen().catch(() => {}); return; }
-    if (root.current?.requestFullscreen) { try { await root.current.requestFullscreen(); return; } catch { /* fall back */ } }
-    setFull((f) => !f);
+    type FsDoc = Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> };
+    type FsEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+    const d = document as FsDoc, el = root.current as FsEl | null;
+    if (d.fullscreenElement || d.webkitFullscreenElement) { await (d.exitFullscreen?.() ?? d.webkitExitFullscreen?.())?.catch?.(() => {}); setFull(false); return; }
+    if (full) { setFull(false); return; }
+    const req = el?.requestFullscreen?.bind(el) ?? el?.webkitRequestFullscreen?.bind(el);
+    setFull(true); // fill the window at once; the browser's own full screen (where allowed) is layered on top
+    if (req) { try { await req(); } catch { /* not allowed here: the window fill stays */ } }
   };
   const shot = async () => {
     const cv = await apis.current[active]?.screenshot(); if (!cv) return;
@@ -173,14 +203,15 @@ export default function Terminal() {
         <select className="input sm" value={ap.type} onChange={(e) => setPane(active, { type: e.target.value as ChartType })} title="Chart type">
           {([["candles", "Candles"], ["hollow", "Hollow candles"], ["heikin", "Heikin Ashi"], ["bars", "Bars (OHLC)"], ["line", "Line"], ["step", "Step line"], ["area", "Area"], ["baseline", "Baseline"]] as [ChartType, string][]).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
-        <button className="t-btn strong" onClick={() => setPicker({ edit: null })} title="Indicators (I)">ƒx Indicators{ap.indicators.length ? ` (${ap.indicators.length})` : ""}</button>
+        <button className="t-btn strong" onClick={() => { setPicker({ edit: null }); if (st.clean) setSt({ ...st, clean: false }); }} title="Indicators (I)">ƒx Indicators{ap.indicators.length ? ` (${ap.indicators.length})` : ""}</button>
         <select className="input sm" value={st.layout} onChange={(e) => setSt({ ...st, layout: e.target.value as TermState["layout"] })} title="Layout">
           <option value="1">1 chart</option><option value="2h">2 side by side</option><option value="2v">2 stacked</option><option value="4">4 charts</option>
         </select>
         <div className="t-group">
-          <button className={`t-btn ${st.ai ? "on" : ""}`} onClick={() => setSt({ ...st, ai: !st.ai })} title="Draw the AI levels, zones and patterns on the chart">AI levels</button>
-          <button className={`t-btn ${st.patterns ? "on" : ""}`} onClick={() => setSt({ ...st, patterns: !st.patterns })} title="Mark candlestick patterns">Candles</button>
-          <button className={`t-btn ${st.volume ? "on" : ""}`} onClick={() => setSt({ ...st, volume: !st.volume })}>Vol</button>
+          <button className={`t-btn ${st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, clean: !st.clean })} title="Clean chart: hide indicators, AI levels, markers, volume and drawings (nothing is deleted)">✧ Clean</button>
+          <button className={`t-btn ${st.ai && !st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, ai: st.clean ? true : !st.ai, clean: false })} title="Draw buy zone, stop, targets, support/resistance and buy/sell arrows">AI levels</button>
+          <button className={`t-btn ${st.patterns && !st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, patterns: st.clean ? true : !st.patterns, clean: false })} title="Mark candlestick patterns">Candles</button>
+          <button className={`t-btn ${st.volume && !st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, volume: st.clean ? true : !st.volume, clean: false })}>Vol</button>
           <button className={`t-btn ${st.grid ? "on" : ""}`} onClick={() => setSt({ ...st, grid: !st.grid })}>Grid</button>
         </div>
         <div className="t-group">
@@ -193,6 +224,7 @@ export default function Terminal() {
         <button className={`t-btn strong ai ${st.panel ? "on" : ""}`} onClick={() => setSt({ ...st, panel: !st.panel })}>✦ AI Analyst</button>
       </div>
 
+      {full && <button className="t-exit-full" onClick={toggleFull} aria-label="Exit full screen">✕ Exit full screen</button>}
       <div className="t-main">
         {/* left drawing toolbar */}
         <div className="t-tools">
@@ -221,7 +253,7 @@ export default function Terminal() {
               analysis={i === active || pn.symbol === sym ? a ?? null : null} onToolDone={() => setTool("cursor")}
               onFocus={() => { if (i !== active) { setSt((s) => ({ ...s, active: i })); setSelected(null); } }}
               setPane={(patch) => setPane(i, patch)} onEdit={(uid) => { setSt((s) => ({ ...s, active: i })); setPicker({ edit: uid }); }}
-              register={(x) => { apis.current[i] = x; }} rangeDays={st.range === "YTD" ? 250 : range[1]} />
+              register={(x) => { apis.current[i] = x; }} rangeDays={st.range === "YTD" ? 250 : range[1]} full={full} onFull={toggleFull} />
           ))}
           {selD && (
             <div className="sel-bar">
@@ -254,9 +286,9 @@ export default function Terminal() {
   );
 }
 
-function PaneHost({ pn, st, active, tool, drawings, onDrawings, selected, onSelect, analysis, onToolDone, onFocus, setPane, onEdit, register, rangeDays, themeKey }: {
+function PaneHost({ pn, st, active, tool, drawings, onDrawings, selected, onSelect, analysis, onToolDone, onFocus, setPane, onEdit, register, rangeDays, themeKey, full, onFull }: {
   i: number; pn: PaneState; st: TermState; active: boolean; tool: ToolId; drawings: Drawing[]; onDrawings: (d: Drawing[], c: boolean) => void; selected: string | null; onSelect: (id: string | null) => void;
-  analysis: ChartAnalysis | null; onToolDone: () => void; onFocus: () => void; setPane: (p: Partial<PaneState>) => void; onEdit: (uid: string) => void; register: (a: PaneApi | null) => void; rangeDays: number; themeKey: string;
+  analysis: ChartAnalysis | null; onToolDone: () => void; onFocus: () => void; setPane: (p: Partial<PaneState>) => void; onEdit: (uid: string) => void; register: (a: PaneApi | null) => void; rangeDays: number; themeKey: string; full: boolean; onFull: () => void;
 }) {
   const b = useBars(pn.symbol);
   const reg = useCallback((x: PaneApi | null) => register(x), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -265,10 +297,10 @@ function PaneHost({ pn, st, active, tool, drawings, onDrawings, selected, onSele
       {st.layout !== "1" && <PaneSymbol value={pn.symbol} onPick={(s) => setPane({ symbol: s })} active={active} />}
       {b.error && <div className="term-msg">Couldn't load prices: {b.error}</div>}
       <ChartPane bars={b.bars} symbol={pn.symbol} tf={pn.tf} chartType={pn.type} scaleMode={pn.scale} range={rangeDays} from={st.from} to={st.to}
-        indicators={pn.indicators} onEditIndicator={onEdit} onRemoveIndicator={(u) => setPane({ indicators: pn.indicators.filter((x) => x.uid !== u) })} onToggleIndicator={(u) => setPane({ indicators: pn.indicators.map((x) => (x.uid === u ? { ...x, hidden: !x.hidden } : x)) })}
-        drawings={drawings} onDrawings={onDrawings} selected={selected} onSelect={onSelect} tool={tool} onToolDone={onToolDone} magnet={st.magnet} keepDrawing={st.keep} hideDrawings={st.hide}
-        analysis={analysis && analysis.symbol === pn.symbol ? analysis : null} showAi={st.ai} showPatterns={st.patterns} showVolume={st.volume} grid={st.grid}
-        onScaleMode={(m) => setPane({ scale: m })} active={active} onFocus={onFocus} register={reg} themeKey={themeKey} />
+        indicators={st.clean ? [] : pn.indicators} onEditIndicator={onEdit} onRemoveIndicator={(u) => setPane({ indicators: pn.indicators.filter((x) => x.uid !== u) })} onToggleIndicator={(u) => setPane({ indicators: pn.indicators.map((x) => (x.uid === u ? { ...x, hidden: !x.hidden } : x)) })}
+        drawings={drawings} onDrawings={onDrawings} selected={selected} onSelect={onSelect} tool={tool} onToolDone={onToolDone} magnet={st.magnet} keepDrawing={st.keep} hideDrawings={st.hide || st.clean}
+        analysis={analysis && analysis.symbol === pn.symbol ? analysis : null} showAi={st.ai && !st.clean} showPatterns={st.patterns && !st.clean} showVolume={st.volume && !st.clean} grid={st.grid}
+        onScaleMode={(m) => setPane({ scale: m })} active={active} onFocus={onFocus} register={reg} themeKey={themeKey} full={full} onFull={onFull} />
     </div>
   );
 }

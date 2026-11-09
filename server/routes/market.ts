@@ -8,6 +8,7 @@ import { patternTrackRecord } from "../../shared/patterns.ts";
 import { syncCompanyDetail, syncHistory, marketStatus } from "../ingest/jobs.ts";
 import { buildStockReport } from "../ai/offline.ts";
 import * as MON from "../lib/money.ts";
+import { searchStocks, searchSectors, splitIntent } from "../../shared/search.ts";
 import * as TR from "../lib/trading.ts";
 import * as INS from "../lib/insights.ts";
 import * as CH from "../lib/chart.ts";
@@ -144,6 +145,21 @@ marketRouter.get("/search", (req, res) => {
   const q = String(req.query.q || "").trim().toUpperCase();
   if (!q) return res.json([]);
   res.json(all("SELECT symbol, name, sector FROM companies WHERE UPPER(symbol) LIKE ? OR UPPER(name) LIKE ? ORDER BY (UPPER(symbol) = ?) DESC, (UPPER(symbol) LIKE ?) DESC, symbol LIMIT 12", `%${q}%`, `%${q}%`, q, `${q}%`));
+});
+
+// Smart search across stocks (with today's price), sectors and news headlines.
+marketRouter.get("/search/all", (req, res) => {
+  const raw = String(req.query.q || "").slice(0, 80);
+  const { rest, intent } = splitIntent(raw);
+  const q = rest || raw;
+  if (!q.trim()) return res.json({ stocks: [], sectors: [], news: [], intent: null });
+  const cos = all<{ symbol: string; name: string; sector: string | null; status: string | null }>("SELECT symbol, name, sector, status FROM companies");
+  const hits = searchStocks(q, cos, 8);
+  const qt = new Map(all<{ symbol: string; ltp: number | null; close: number | null; change_pct: number | null }>(`SELECT symbol, ltp, close, change_pct FROM quotes WHERE symbol IN (${hits.map(() => "?").join(",") || "''"})`, ...hits.map((h) => h.symbol)).map((r) => [r.symbol, r]));
+  const sectors = searchSectors(q, all<{ sector: string }>("SELECT DISTINCT sector FROM companies WHERE sector IS NOT NULL AND status = 'active'").map((r) => r.sector))
+    .map((s) => ({ sector: s, n: (get<{ n: number }>("SELECT COUNT(*) n FROM companies WHERE sector = ? AND status = 'active'", s)?.n ?? 0) }));
+  const news = q.trim().length >= 3 ? all<{ id: number; title: string; url: string; symbol: string | null; published_date: string }>("SELECT id, title, url, symbol, published_date FROM announcements WHERE title LIKE ? ORDER BY published_date DESC LIMIT 4", `%${q.trim()}%`) : [];
+  res.json({ stocks: hits.map((h) => ({ ...h, price: qt.get(h.symbol)?.ltp ?? qt.get(h.symbol)?.close ?? null, changePct: qt.get(h.symbol)?.change_pct ?? null })), sectors, news, intent: intent ? { label: intent.label, sample: intent.path("SYM") } : null });
 });
 
 marketRouter.get("/news", (req, res) => {

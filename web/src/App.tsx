@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useRef, useState, lazy, Suspense, type FormEvent } from "react";
+import { createContext, useContext, useEffect, useRef, useState, lazy, Suspense, Fragment, type FormEvent } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, useApi } from "./lib/api.ts";
-import { nptDate } from "./lib/format.ts";
+import { nptDate, num } from "./lib/format.ts";
+import { searchFeatures } from "../../shared/search.ts";
 import { I } from "./components/icons.tsx";
 import { Loading, Notice } from "./components/ui.tsx";
 import { BROWSER_BACKEND, backendState, onBackendEvent } from "./lib/backend.ts";
@@ -277,14 +278,16 @@ const ACTIONS: { label: string; hint: string; run: (nav: (p: string) => void, to
 
 function GlobalSearch() {
   const [q, setQ] = useState("");
-  const [res, setRes] = useState<{ symbol: string; name: string; sector: string }[]>([]);
+  type Res = { stocks: { symbol: string; name: string; sector: string | null; price: number | null; changePct: number | null; why: string }[]; sectors: { sector: string; n: number }[]; news: { id: number; title: string; url: string; symbol: string | null; published_date: string }[]; intent: { label: string; sample: string } | null };
+  const [res, setRes] = useState<Res | null>(null);
   const [sel, setSel] = useState(0);
+  const [open, setOpen] = useState(false);
   const nav = useNavigate();
   const { toggle } = useTheme();
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!q.trim()) { setRes([]); return; }
-    const id = setTimeout(() => api<typeof res>(`/search?q=${encodeURIComponent(q.replace(/^>/, ""))}`).then((r) => { setRes(r.slice(0, 8)); setSel(0); }).catch(() => {}), 120);
+    if (!q.trim()) { setRes(null); return; }
+    const id = setTimeout(() => api<Res>(`/search/all?q=${encodeURIComponent(q.replace(/^>/, ""))}`).then((r) => { setRes(r); setSel(0); }).catch(() => {}), 90);
     return () => clearTimeout(id);
   }, [q]);
   useEffect(() => {
@@ -292,30 +295,50 @@ function GlobalSearch() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, []);
-  const term = q.trim().replace(/^>/, "").toLowerCase();
-  const pages = term ? NAV.filter((n) => n.label.toLowerCase().includes(term)).slice(0, 5) : [];
-  const actions = term ? ACTIONS.filter((a) => a.label.toLowerCase().includes(term)).slice(0, 4) : [];
-  type Item = { key: string; label: string; sub: string; tag: string; go: () => void };
-  const items: Item[] = [
-    ...res.map((r) => ({ key: "s" + r.symbol, label: r.symbol, sub: r.name, tag: r.sector, go: () => nav(`/stocks/${r.symbol}`) })),
-    ...pages.map((p) => ({ key: "p" + p.to, label: p.label, sub: "Go to page", tag: "page", go: () => nav(p.to) })),
-    ...actions.map((a) => ({ key: "a" + a.label, label: a.label, sub: "", tag: "action", go: () => a.run(nav, toggle) })),
-  ];
-  const go = (it: Item) => { setQ(""); setRes([]); it.go(); (document.activeElement as HTMLElement | null)?.blur(); };
+  useEffect(() => { const h = (e: PointerEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); }; document.addEventListener("pointerdown", h); return () => document.removeEventListener("pointerdown", h); }, []);
+  const term = q.trim().replace(/^>/, "");
+  const features = term ? searchFeatures(term, 4) : [];
+  const actions = term.length >= 2 ? ACTIONS.filter((a) => a.label.toLowerCase().includes(term.toLowerCase())).slice(0, 3) : [];
+  type Item = { key: string; group: string; label: string; sub: string; tag: string; go: () => void; extra?: { label: string; go: () => void }; tone?: number | null };
+  const items: Item[] = [];
+  if (res) {
+    for (const sc of res.sectors) items.push({ key: "c" + sc.sector, group: "Sectors", label: sc.sector, sub: `All ${sc.n} listed companies`, tag: "sector", go: () => nav(`/stocks?sector=${encodeURIComponent(sc.sector)}`) });
+    for (const r of res.stocks) {
+      const to = res.intent ? res.intent.sample.replace("SYM", r.symbol) : `/stocks/${r.symbol}`;
+      items.push({ key: "s" + r.symbol, group: res.intent ? `Stocks · ${res.intent.label}` : "Stocks", label: r.symbol, sub: r.name, tag: r.price != null ? `${num(r.price)}${r.changePct != null ? ` ${r.changePct >= 0 ? "+" : ""}${num(r.changePct)}%` : ""}` : r.sector ?? "", tone: r.changePct, go: () => nav(to), extra: res.intent ? undefined : { label: "Chart", go: () => nav(`/terminal/${r.symbol}`) } });
+    }
+  }
+  for (const f of features) items.push({ key: "f" + f.to, group: "Pages & tools", label: f.label, sub: "", tag: "open", go: () => nav(f.to) });
+  for (const a of actions) items.push({ key: "a" + a.label, group: "Pages & tools", label: a.label, sub: "", tag: "action", go: () => a.run(nav, toggle) });
+  for (const n of res?.news ?? []) items.push({ key: "n" + n.id, group: "News", label: n.title, sub: `${n.symbol ? n.symbol + " · " : ""}${n.published_date}`, tag: "news", go: () => (n.symbol ? nav(`/stocks/${n.symbol}?tab=notices`) : window.open(n.url, "_blank", "noopener")) });
+  if (term.length >= 2) items.push({ key: "ai", group: "Ask", label: `Ask AI: “${term}”`, sub: "Get an answer using the app's data", tag: "AI", go: () => nav(`/analyst?q=${encodeURIComponent(term)}`) });
+  const go = (it: Item) => { setQ(""); setRes(null); setOpen(false); it.go(); (document.activeElement as HTMLElement | null)?.blur(); };
+  let lastGroup = "";
   return (
     <div className="search" ref={box}>
       <I.search />
-      <input className="input" placeholder={typeof window !== "undefined" && window.innerWidth < 600 ? "Search" : "Search stocks, pages or actions (⌘ K)"} value={q} onChange={(e) => setQ(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); } if (e.key === "Enter" && items[sel]) go(items[sel]); if (e.key === "Escape") setQ(""); }} />
-      {items.length > 0 && (
-        <div className="search-results">
-          {items.map((it, i) => (
-            <button key={it.key} className={i === sel ? "on" : ""} onMouseDown={() => go(it)}>
-              <span className={it.tag === "page" || it.tag === "action" ? "" : "mono"} style={{ fontWeight: 600, minWidth: 64 }}>{it.label}</span>
-              <span className="muted" style={{ flex: 1 }}>{it.sub}</span>
-              <span className="tiny faint">{it.tag}</span>
-            </button>
-          ))}
+      <input className="input" type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
+        placeholder={typeof window !== "undefined" && window.innerWidth < 600 ? "Search stocks, tools…" : "Search stocks, sectors, tools, news (⌘ K)"} value={q}
+        onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); } if (e.key === "Enter" && items[sel]) go(items[sel]); if (e.key === "Escape") { setQ(""); setOpen(false); } }} />
+      {open && items.length > 0 && (
+        <div className="search-results" role="listbox">
+          {items.map((it, i) => {
+            const head = it.group !== lastGroup ? <div className="sr-head" key={`h${it.group}`}>{it.group}</div> : null; lastGroup = it.group;
+            return (
+              <Fragment key={it.key}>
+                {head}
+                <div className={`sr-row ${i === sel ? "on" : ""}`}>
+                  <button className="sr-main" onPointerDown={(e) => e.preventDefault()} onClick={() => go(it)} onMouseEnter={() => setSel(i)}>
+                    <span className={`sr-label ${it.group.startsWith("Stocks") ? "mono" : ""}`}>{it.label}</span>
+                    {it.sub && <span className="sr-sub">{it.sub}</span>}
+                  </button>
+                  <span className={`sr-tag ${it.tone == null ? "" : it.tone >= 0 ? "up" : "down"}`}>{it.tag}</span>
+                  {it.extra && <button className="btn sm ghost sr-extra" onPointerDown={(e) => e.preventDefault()} onClick={() => { setQ(""); setRes(null); setOpen(false); it.extra!.go(); }}>{it.extra.label}</button>}
+                </div>
+              </Fragment>
+            );
+          })}
         </div>
       )}
     </div>
@@ -397,8 +420,10 @@ function AppUpdateBanner() {
 
 function DataUpdateBanner() {
   const [msg, setMsg] = useState<string | null>(null);
+  const loc = useLocation();
   useEffect(() => onBackendEvent((e) => { if (e.type === "data-updated") setMsg(e.message ?? "New market data loaded."); }), []);
-  if (!msg) return null;
+  useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(null), 20_000); return () => clearTimeout(t); }, [msg]);
+  if (!msg || loc.pathname.startsWith("/terminal")) return null; // the chart terminal updates itself
   return (
     <div style={{ position: "sticky", top: 0, zIndex: 40, padding: "8px 16px", background: "var(--accent-soft)", borderBottom: "1px solid var(--border)" }} className="row between small">
       <span>{msg}</span>
