@@ -8,7 +8,12 @@ import { annualisedVolatility, type StockFactors } from "../../shared/ranking.ts
 import { DEFAULT_FEES, type FeeConfig } from "../../shared/costs.ts";
 import { sma } from "../../shared/indicators.ts";
 
-export const fees = (): FeeConfig => ({ ...DEFAULT_FEES, ...getSetting<Partial<FeeConfig>>("fees", {}) });
+export const fees = (): FeeConfig => {
+  const saved = { ...getSetting<Partial<FeeConfig>>("fees", {}) };
+  // Saved settings from before FY 2083/84 still carry the old CGT (7.5% / 5%): use the current law instead.
+  if (saved.cgtShortTerm === 0.075 && saved.cgtLongTerm === 0.05) { delete saved.cgtShortTerm; delete saved.cgtLongTerm; }
+  return { ...DEFAULT_FEES, ...saved };
+};
 
 export function rawBars(symbol: string, limit?: number): Bar[] {
   const rows = all<Bar>(

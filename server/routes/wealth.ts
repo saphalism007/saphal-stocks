@@ -89,6 +89,7 @@ wealthRouter.post("/money/allocate", (req, res) => {
   const p = z.object({ amount: n.positive().max(1e11), monthly: n.min(0).max(1e9).optional(), risk: z.enum(["low", "medium", "high"]).optional(), horizonYears: n.min(0).max(60).optional(), keepEmergency: z.boolean().optional() }).parse(req.body);
   res.json(MON.allocate(req.userId!, p));
 });
+wealthRouter.get("/money/rates-summary", (_req, res) => { res.json(MON.ratesSummary()); });
 wealthRouter.get("/metals", (_req, res) => { res.json(MON.metalsLongRun()); });
 wealthRouter.post("/money/plan", (req, res) => {
   const p = z.object({ lumpSum: n.min(0).max(1e11).default(0), monthly: z.array(n.min(0).max(1e9)).max(12).default([]), stepUpPct: n.min(0).max(50).optional(), risk: z.enum(["low", "medium", "high"]).optional(), horizonYears: n.min(1).max(40).optional(), keepEmergency: z.boolean().optional() }).parse(req.body);

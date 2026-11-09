@@ -101,11 +101,13 @@ describe("Nepal costs", () => {
     expect(s.commission).toBeCloseTo(198, 6);
     expect(s.dpCharge).toBe(25);
     expect(s.net).toBeCloseTo(60000 - 198 - 9 - 25, 6);
-    expect(cgtRate(100)).toBe(0.075);
-    expect(cgtRate(400)).toBe(0.05);
+    expect(cgtRate(100)).toBe(0.1); // Finance Act 2083
+    expect(cgtRate(400)).toBe(0.075);
+    expect(cgtRate(100, "individual", undefined, "2026-03-01")).toBe(0.075); // sold before FY 2083/84
+    expect(cgtRate(400, "individual", undefined, "2026-03-01")).toBe(0.05);
     const rt = roundTrip(100, 500, 600, 100);
     expect(rt.grossGain).toBeCloseTo(s.net - b.net, 6);
-    expect(rt.cgt).toBeCloseTo(rt.grossGain * 0.075, 6);
+    expect(rt.cgt).toBeCloseTo(rt.grossGain * 0.1, 6);
     expect(rt.breakevenPrice).toBeGreaterThan(500);
     expect(rt.breakevenPrice).toBeLessThan(505);
   });
@@ -131,7 +133,7 @@ describe("portfolio WACC", () => {
     expect(h.costBasis).toBeCloseTo(wacc * 60, 4);
     const proceeds = 35000 - (35000 * 0.0036 + 35000 * 0.00015 + 25); // Rs. 35,000 is in the 0.36% slab
     const gain = proceeds - wacc * 50;
-    expect(h.realizedPnl).toBeCloseTo(gain - gain * 0.05, 4); // held > 365 days -> 5%
+    expect(h.realizedPnl).toBeCloseTo(gain - gain * 0.05, 4); // sold Mar 2026, held > 365 days -> 5% (rate before FY 2083/84)
     expect(h.dividendsReceived).toBeCloseTo(950, 6);
     expect(h.marketValue).toBe(39000);
   });

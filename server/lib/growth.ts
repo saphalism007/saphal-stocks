@@ -5,7 +5,8 @@ import * as M from "./market.ts";
 import { portfolioSummary } from "./portfolioService.ts";
 import { analysisFor } from "./chart.ts";
 import { readVault } from "./vault.ts";
-import { habitReport, preTrade, holdingAction, type JournalTrade } from "../../shared/coach.ts";
+import { habitReport, preTrade, holdingAction, wealthRoadmap, type JournalTrade } from "../../shared/coach.ts";
+import { moneyOverview } from "./money.ts";
 
 const todayNpt = () => new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 10);
 const daysTo = (d: string, from = todayNpt()) => Math.round((Date.parse(d) - Date.parse(from)) / 86_400_000);
@@ -121,4 +122,12 @@ export function preTradeFor(userId: number, symbol: string, capital: number, ris
   const open = readVault<JournalTrade>(userId, "journal").filter((r) => !(r.data.exit != null && r.data.exit > 0)).length;
   const res = preTrade({ price: a.price, entryHigh: a.plan.entryHigh ?? a.plan.bestZone?.high ?? null, stop, target, verdict: a.verdict, capital, riskPct, avgTurnover: f?.avgTurnover20 ?? null, sectorWeightAfterPct: realTotal > 0 ? ((sectorNow + tmp.cost) / after) * 100 : null, daysToBookClose: book ? daysTo(book.bookclose_date) : null, openPositions: open });
   return { symbol, name: a.name, sector, price: a.price, verdict: a.verdict, stop, target, entryLow: a.plan.entryLow ?? a.plan.bestZone?.low ?? null, entryHigh: a.plan.entryHigh ?? a.plan.bestZone?.high ?? null, setup: a.headline, ...res };
+}
+
+export function roadmap(userId: number) {
+  const o = moneyOverview(userId);
+  const plan = holdingsPlan(userId);
+  const holdings = plan.rows.filter((r) => !r.paper).length;
+  const steps = wealthRoadmap(o.summary, { accounts: o.data.accounts, liabilities: o.data.liabilities, emergencyMonths: o.data.emergencyMonths, saved: o.saved }, { holdings, sectorTopPct: plan.sectors[0]?.pct ?? null, journalTrades: readVault(userId, "journal").length });
+  return { steps, netWorth: o.summary.netWorth, savingsRatePct: o.summary.savingsRatePct, saved: o.saved };
 }

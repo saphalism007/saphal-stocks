@@ -7,7 +7,7 @@ import { Card, Stat, Tabs, Badge, Empty, Loading, ErrorBox, NumInput, Notice } f
 import { compact, num, nptDate, rs, tone, todayNpt } from "../lib/format.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
-type Tab = "today" | "holdings" | "coach" | "calendar";
+type Tab = "today" | "roadmap" | "holdings" | "coach" | "calendar";
 
 export default function Growth() {
   const [sp, setSp] = useSearchParams();
@@ -15,8 +15,9 @@ export default function Growth() {
   return (
     <div className="page">
       <div className="page-head"><div><h1>My Growth</h1><p className="muted">What needs you today, a plan for every share you own, habits from your own trades, and the dates that matter.</p></div></div>
-      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "today", label: "Today" }, { key: "holdings", label: "Holdings plan" }, { key: "coach", label: "Discipline coach" }, { key: "calendar", label: "Dividends & events" }]} />
+      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "today", label: "Today" }, { key: "roadmap", label: "Wealth roadmap" }, { key: "holdings", label: "Holdings plan" }, { key: "coach", label: "Discipline coach" }, { key: "calendar", label: "Dividends & events" }]} />
       {tab === "today" && <Today />}
+      {tab === "roadmap" && <Roadmap />}
       {tab === "holdings" && <Holdings />}
       {tab === "coach" && <Coach />}
       {tab === "calendar" && <Calendar />}
@@ -45,6 +46,29 @@ function Today() {
         ))}</div>
       )}
       <p className="tiny faint">Checked against the chart signals, your journal, thesis review dates, book closures and open issues. Market summary and news are on the <Link to="/">Dashboard</Link>.</p>
+    </div>
+  );
+}
+
+function Roadmap() {
+  const d = useApi<Any>("/growth/roadmap");
+  if (d.error) return <ErrorBox error={d.error} onRetry={d.reload} />;
+  if (!d.data) return <Loading label="Checking your money" />;
+  const st = d.data.steps, done = st.filter((x: Any) => x.status === "done").length;
+  const ICON: Record<string, string> = { done: "✓", doing: "◐", todo: "○", unknown: "?" };
+  return (
+    <div className="col">
+      <Card title="Your wealth roadmap" sub="Do the steps in order: each one protects the next. They tick themselves from My Money, Portfolio and your journal.">
+        <div className="rm-prog"><i style={{ width: `${(done / st.length) * 100}%` }} /></div>
+        <p className="small" style={{ margin: "6px 0 0" }}><b>{done} of {st.length}</b> steps done{d.data.saved ? <> · net worth {compact(d.data.netWorth)}{d.data.savingsRatePct != null ? ` · saving ${d.data.savingsRatePct}% of income` : ""}</> : ""}.</p>
+      </Card>
+      <ol className="rm">{st.map((x: Any) => (
+        <li key={x.n} className={`rm-${x.status}`}>
+          <span className="rm-ic">{ICON[x.status]}</span>
+          <div className="rm-body"><b>{x.n}. {x.title}</b><span>{x.detail}</span></div>
+          {x.status !== "done" && <Link className="btn sm" to={x.to}>{x.cta}</Link>}
+        </li>
+      ))}</ol>
     </div>
   );
 }
@@ -80,7 +104,7 @@ function Holdings() {
             <span>Stop <b className="down">{r.stop != null ? num(r.stop) : "—"}</b></span><span>Target <b className="up">{r.t1 != null ? num(r.t1) : "—"}</b></span>
             <span>Support <b>{r.support != null ? num(r.support) : "—"}</b></span><span>Resistance <b>{r.resistance != null ? num(r.resistance) : "—"}</b></span>
           </div>
-          <div className="tiny faint">If sold today: fees {r.sellCharges != null ? rs(r.sellCharges, 0) : "—"}, capital gains tax {r.cgt != null ? rs(r.cgt, 0) : "—"} ({r.held != null && r.held > 365 ? "held over a year: 5%" : "held under a year: 7.5%"}) → you receive {r.netIfSold != null ? rs(r.netIfSold, 0) : "—"}.{r.expDividend ? ` Expected dividend ${rs(r.expDividend, 0)} (based on ${r.divYear}).` : ""}</div>
+          <div className="tiny faint">If sold today: fees {r.sellCharges != null ? rs(r.sellCharges, 0) : "—"}, capital gains tax {r.cgt != null ? rs(r.cgt, 0) : "—"} ({r.held != null && r.held > 365 ? "held over a year: 7.5%" : "held a year or less: 10%"}) → you receive {r.netIfSold != null ? rs(r.netIfSold, 0) : "—"}.{r.expDividend ? ` Expected dividend ${rs(r.expDividend, 0)} (based on ${r.divYear}).` : ""}</div>
         </div>
       ))}</div>
       <p className="tiny faint">Stops, targets and verdicts come from the same chart analysis as the ⚡ Buy/Sell signal. Tax rates are Nepal's individual CGT on listed shares as set in Settings → Fees.</p>

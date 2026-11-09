@@ -18,6 +18,7 @@ const Compare = lazy(() => import("./pages/Compare.tsx"));
 const StrategyLab = lazy(() => import("./pages/StrategyLab.tsx"));
 const Journal = lazy(() => import("./pages/Journal.tsx"));
 const Growth = lazy(() => import("./pages/Growth.tsx"));
+const Calculators = lazy(() => import("./pages/Calculators.tsx"));
 const Fundamental = lazy(() => import("./pages/Fundamental.tsx"));
 const Technical = lazy(() => import("./pages/Technical.tsx"));
 const Analyst = lazy(() => import("./pages/Analyst.tsx"));
@@ -68,7 +69,8 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/money", label: "Wealth Management", icon: "money" },
   { to: "/invest", label: "Investment Planner", icon: "invest" },
   { to: "/future", label: "Long-Term Investing", icon: "planner" },
-  { to: "/planner", label: "Goals & Calculators", icon: "planner" },
+  { to: "/calculators", label: "Money Calculators", icon: "planner" },
+  { to: "/planner", label: "Goals & Planning", icon: "planner" },
   { to: "/opportunities", label: "Investment Directory", icon: "opportunities" },
   { section: "Market & Updates", to: "/monitor", label: "Market Monitor", icon: "monitor" },
   { to: "/market", label: "NEPSE Market", icon: "market" },
@@ -240,6 +242,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
               <Route path="/strategy-lab" element={<StrategyLab />} />
               <Route path="/journal" element={<Journal />} />
               <Route path="/growth" element={<Growth />} />
+              <Route path="/calculators" element={<Calculators />} />
               <Route path="/fundamental" element={<Fundamental />} />
               <Route path="/technical" element={<Technical />} />
               <Route path="/analyst" element={<Analyst />} />

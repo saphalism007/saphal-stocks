@@ -34,8 +34,8 @@ export const DEFAULT_FEES: FeeConfig = {
   sebonFeeRate: 0.00015,
   dpChargePerScrip: 25,
   nameTransferFee: 5,
-  cgtShortTerm: 0.075,
-  cgtLongTerm: 0.05,
+  cgtShortTerm: 0.1, // Finance Act 2083 (FY 2083/84): 10% if held 365 days or less
+  cgtLongTerm: 0.075, // 7.5% if held longer (was 7.5% / 5% until FY 2082/83)
   cgtInstitution: 0.1,
   dividendTax: 0.05,
   holdingDaysForLongTerm: 365,
@@ -43,7 +43,7 @@ export const DEFAULT_FEES: FeeConfig = {
     "Broker commission is charged on the whole transaction value at the slab rate for that value, with a Rs. 10 minimum.",
     "SEBON regulatory fee: 0.015% of transaction value, on both buy and sell.",
     "DP charge: Rs. 25 per scrip per day on the selling side (CDSC/DP).",
-    "Capital gains tax for individuals on listed shares: 7.5% if held 365 days or less, 5% if held longer (deducted by the broker at sale).",
+    "Capital gains tax for individuals on listed shares (Finance Act 2083, from FY 2083/84): 10% if held 365 days or less, 7.5% if held longer, deducted at sale. Until FY 2082/83 it was 7.5% / 5%.",
     "Dividend tax: 5% final withholding on cash dividend and on bonus shares (on face value).",
     "Rates change with SEBON directives and the annual budget. Verify on sebon.gov.np, nepalstock.com and ird.gov.np.",
   ],
@@ -81,8 +81,12 @@ export function sellCost(qty: number, price: number, cfg: FeeConfig = DEFAULT_FE
   return { amount, commission, sebonFee, dpCharge, total, net: amount - total };
 }
 
-export function cgtRate(holdingDays: number, investor: "individual" | "institution" = "individual", cfg: FeeConfig = DEFAULT_FEES) {
+/** FY 2083/84 began on 1 Shrawan 2083 (17 July 2026); sales before that were taxed at the old 7.5% / 5%. */
+export const CGT_CHANGE_DATE = "2026-07-17";
+export function cgtRate(holdingDays: number, investor: "individual" | "institution" = "individual", cfg: FeeConfig = DEFAULT_FEES, saleDate?: string) {
   if (investor === "institution") return cfg.cgtInstitution;
+  // Past sales keep the rate of their time unless you set your own rates in Settings.
+  if (saleDate && saleDate < CGT_CHANGE_DATE && cfg.cgtShortTerm === DEFAULT_FEES.cgtShortTerm && cfg.cgtLongTerm === DEFAULT_FEES.cgtLongTerm) return holdingDays > cfg.holdingDaysForLongTerm ? 0.05 : 0.075;
   return holdingDays > cfg.holdingDaysForLongTerm ? cfg.cgtLongTerm : cfg.cgtShortTerm;
 }
 

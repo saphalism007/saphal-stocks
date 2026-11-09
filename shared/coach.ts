@@ -98,3 +98,26 @@ export function holdingAction(h: { symbol: string; price: number | null; wacc: n
   if (/BUY/.test(h.verdict ?? "") && h.weightPct < 10 && h.buyZoneHigh != null && p <= h.buyZoneHigh) return { level: "ok", action: "Can add in the buy zone", why: `Verdict ${h.verdict}; price is within the buy zone and the position is small.` };
   return { level: "ok", action: "Hold", why: h.stop != null ? `Keep holding while above Rs. ${h.stop}.` : "No warning signs." };
 }
+
+// ---------- Wealth roadmap: the order in which money builds wealth, checked against your own numbers ----------
+export interface RoadStep { n: number; title: string; status: "done" | "doing" | "todo" | "unknown"; detail: string; to: string; cta: string }
+export function wealthRoadmap(s: { income: number; expenses: number; cashFlow: number; savingsRatePct: number | null; emergencyMonthsCovered: number | null; emergencyGap: number; debtServicePct: number | null; weightedDebtRatePct: number | null; equityPct: number | null; netWorth: number }, d: { accounts: { type: string; balance: number }[]; liabilities: { type: string; balance: number; ratePct: number }[]; emergencyMonths: number; saved: boolean }, extra: { holdings: number; sectorTopPct: number | null; journalTrades: number }): RoadStep[] {
+  const has = (t: string) => d.accounts.some((a) => a.type === t && a.balance > 0);
+  const costly = d.liabilities.filter((l) => l.balance > 0 && (l.type === "credit_card" || l.ratePct >= 14));
+  const ret = d.accounts.filter((a) => ["pf", "cit", "ssf"].includes(a.type)).reduce((x, a) => x + a.balance, 0);
+  const steps: RoadStep[] = [];
+  const push = (title: string, status: RoadStep["status"], detail: string, to: string, cta: string) => steps.push({ n: steps.length + 1, title, status, detail, to, cta });
+  if (!d.saved) push("Fill in My Money", "todo", "Add your income, spending, savings and loans once; every step below then checks itself.", "/money", "Open My Money");
+  push("Spend less than you earn", !d.saved ? "unknown" : s.cashFlow > 0 ? (s.savingsRatePct != null && s.savingsRatePct >= 20 ? "done" : "doing") : "todo",
+    !d.saved ? "Track a month of income and spending." : s.cashFlow > 0 ? `You save ${s.savingsRatePct ?? "—"}% of income${(s.savingsRatePct ?? 0) < 20 ? "; aim for 20% or more" : ""}.` : "Spending is above income: cut non-essential spending first.", "/money?tab=tracker", "Track spending");
+  push(`Emergency fund: ${d.emergencyMonths} months of expenses`, !d.saved ? "unknown" : s.emergencyGap <= 0 ? "done" : (s.emergencyMonthsCovered ?? 0) >= 1 ? "doing" : "todo",
+    !d.saved ? "Keep 3–6 months of expenses in a savings account." : s.emergencyGap <= 0 ? `Covered (${s.emergencyMonthsCovered} months).` : `Covered ${s.emergencyMonthsCovered ?? 0} months; Rs. ${Math.round(s.emergencyGap).toLocaleString("en-IN")} to go.`, "/money?tab=accounts", "Savings & investments");
+  push("Protect your family: term life and health insurance", !d.saved ? "unknown" : has("insurance") ? "done" : "todo", has("insurance") ? "Insurance recorded. Prefer pure term cover over savings-linked policies; premiums are tax-deductible up to the limits." : "One hospital bill or loss of income can undo years of saving. Term life + health cover come before investing.", "/future", "Insurance options");
+  push("Pay off costly debt", !d.saved ? "unknown" : costly.length ? "todo" : "done", costly.length ? `${costly.length} loan(s) at 14%+ or credit cards: repaying them is a guaranteed return higher than deposits.` : "No costly debt.", "/invest?tab=loan", "Prepay or invest?");
+  push("Use the tax-saving retirement funds (SSF, CIT, EPF)", !d.saved ? "unknown" : ret > 0 ? "done" : "todo", ret > 0 ? `Rs. ${Math.round(ret).toLocaleString("en-IN")} in retirement funds; contributions cut your income tax (up to a third of income, within the cap).` : "Contributions to SSF/CIT/EPF reduce your income tax and build a retirement fund.", "/calculators#income-tax", "Income tax calculator");
+  push("Invest every month in a diversified plan", extra.holdings >= 5 ? "done" : extra.holdings > 0 || has("mutual_fund") || has("stocks") ? "doing" : "todo", extra.holdings >= 5 ? `${extra.holdings} holdings.` : "Start a SIP in a mutual fund and/or build 5+ strong stocks across sectors, plus deposits and a little gold.", "/invest", "Build my plan");
+  push("Keep risk in check", extra.sectorTopPct == null ? "unknown" : extra.sectorTopPct <= 40 ? "done" : "todo", extra.sectorTopPct == null ? "Add your shares to Portfolio to check concentration." : extra.sectorTopPct <= 40 ? `Largest sector ${extra.sectorTopPct}% of your shares.` : `${extra.sectorTopPct}% in one sector: spread new money elsewhere.`, "/growth?tab=holdings", "Holdings plan");
+  push("Learn from every trade", extra.journalTrades >= 10 ? "done" : extra.journalTrades > 0 ? "doing" : "todo", extra.journalTrades ? `${extra.journalTrades} trades in your journal.` : "Write down each trade's reason, stop and target; review monthly.", "/growth?tab=coach", "Discipline coach");
+  push("Grow your income", "unknown", "Skills, a side business or a promotion raise what you can invest each month — usually the biggest lever of all.", "/future", "Ideas");
+  return steps;
+}

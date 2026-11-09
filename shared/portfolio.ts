@@ -122,7 +122,7 @@ export function computeHoldings(txs: Transaction[], prices: Record<string, numbe
         const estimated = tax == null;
         if (tax == null && tx.type === "sell") {
           const gain = proceeds - basis;
-          tax = gain > 0 ? gain * cgtRate(hd, "individual", cfg) : 0;
+          tax = gain > 0 ? gain * cgtRate(hd, "individual", cfg, tx.date) : 0;
         }
         h.realizedPnl += proceeds - basis - (tax ?? 0);
         realizedEvents.push({ date: tx.date, symbol: tx.symbol, qty: q, proceeds, costBasis: basis, gain: proceeds - basis, tax: tax ?? 0, holdingDays: hd, taxEstimated: estimated });

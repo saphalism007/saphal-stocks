@@ -422,7 +422,7 @@ const SUITS: Record<string, string> = {
   "right-share": "Existing shareholders", debenture: "Steady interest income; check issuer quality", "dev-bond": "Very safe, fixed coupon savings when issued", tbill: "Institutions and large short-term cash (via banks)",
   "life-insurance": "Protection first: term cover for anyone with dependents", "health-nonlife": "Everyone: protection, not investment", pms: "Large portfolios wanting professional management",
   "mf-open": "Beginners investing small amounts monthly (SIP) with diversification", "mf-closed": "Diversified NEPSE exposure bought on the market, often below NAV",
-  "cit-scheme": "Long-term, tax-advantaged retirement saving", epf: "Employees (mandatory for many employers): retirement", ssf: "Contributors under the Social Security Act: retirement and benefits",
+  "cit-scheme": "Long-term, tax-advantaged retirement saving", rental: "Property owners wanting monthly income", agriculture: "People with land, time and interest in farming", freelance: "Anyone with a skill: raises monthly savings fastest", "foreign-bond": "Very safe fixed income, especially for Nepalis working abroad", epf: "Employees (mandatory for many employers): retirement", ssf: "Contributors under the Social Security Act: retirement and benefits",
 };
 marketRouter.get("/future", (_req, res) => {
   const checks = new Map<string, { ok: number; status: number; checked_at: string }>();

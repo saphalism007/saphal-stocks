@@ -5,6 +5,7 @@ import { all, get, run, db, getSetting, setSetting } from "../db.ts";
 import { marketStatus, jobStates, enqueue, queueDailyRefresh, syncListing, syncHistory, syncIndices, syncNews, syncForex, syncAllDetails, syncIssues, syncFunds } from "../ingest/jobs.ts";
 import { evaluateAlerts } from "../lib/alerts.ts";
 import { DEFAULT_FEES } from "../../shared/costs.ts";
+import * as M from "../lib/market.ts";
 import { config, setEnvValue, DATA_DIR } from "../config.ts";
 import { readVault } from "../lib/vault.ts";
 import { politeFetch } from "../lib/fetcher.ts";
@@ -55,7 +56,7 @@ systemRouter.post("/data/refresh", (req, res) => {
   res.json({ ok: true, jobs: jobStates() });
 });
 
-systemRouter.get("/settings/fees", (_req, res) => res.json({ defaults: DEFAULT_FEES, current: { ...DEFAULT_FEES, ...getSetting("fees", {}) } }));
+systemRouter.get("/settings/fees", (_req, res) => res.json({ defaults: DEFAULT_FEES, current: M.fees() }));
 systemRouter.put("/settings/fees", (req, res) => {
   const p = z.object({
     commissionSlabs: z.array(z.object({ upTo: z.number().positive().nullable(), rate: z.number().min(0).max(0.05) })).min(1).optional(),

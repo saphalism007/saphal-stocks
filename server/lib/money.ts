@@ -88,6 +88,25 @@ export function metalsLongRun() {
   }, null);
 }
 
+/** NEPSE index: the deepest fall from a peak in the stored history, and how long it took to recover. */
+export function nepseWorstFall() {
+  return safe(() => {
+    const rows = all<{ date: string; close: number }>("SELECT date, close FROM indices WHERE index_id = 12 AND close > 0 ORDER BY date");
+    if (rows.length < 100) return null;
+    let peak = rows[0], worst = { pct: 0, from: rows[0].date, to: rows[0].date, recoveredBy: null as string | null };
+    let wp = rows[0], wl = rows[0];
+    for (const x of rows) { if (x.close > peak.close) peak = x; const dd = (x.close / peak.close - 1) * 100; if (dd < worst.pct) { worst = { pct: Math.round(dd * 10) / 10, from: peak.date, to: x.date, recoveredBy: null }; wp = peak; wl = x; } }
+    worst.recoveredBy = rows.find((x) => x.date > wl.date && x.close >= wp.close)?.date ?? null;
+    return worst;
+  }, null);
+}
+
+/** Small summary of the rates used as calculator defaults and in the returns comparison. */
+export function ratesSummary() {
+  const r = marketRates(), mt = metalsLongRun();
+  return { ...r, goldTola: mt?.gold?.latest ?? null, silverTola: mt?.silver?.latest ?? null, goldWorst: mt?.gold?.worstFall ?? null, silverWorst: mt?.silver?.worstFall ?? null, nepseWorst: nepseWorstFall(), nepse: nepseLongRun() };
+}
+
 export function marketRates(): MO.MarketRates & { sources: Record<string, string> } {
   const sources: Record<string, string> = {};
   const recent = depositRates().filter((d) => d.depositor !== "institutional" && (d.tenor_months == null || (d.tenor_months >= 6 && d.tenor_months <= 24)) && (!d.effective_from || Date.now() - Date.parse(d.effective_from) < 75 * 86_400_000));

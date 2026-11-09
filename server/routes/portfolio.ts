@@ -211,6 +211,7 @@ portfolioRouter.get("/briefing", (req, res) => res.json(dailyBriefing(uid(req)))
 portfolioRouter.get("/growth/today", (req, res) => res.json(GR.today(uid(req))));
 portfolioRouter.get("/growth/holdings", (req, res) => res.json(GR.holdingsPlan(uid(req))));
 portfolioRouter.get("/growth/calendar", (req, res) => res.json(GR.calendar(uid(req))));
+portfolioRouter.get("/growth/roadmap", (req, res) => res.json(GR.roadmap(uid(req))));
 portfolioRouter.get("/growth/coach", (req, res) => res.json(GR.coach(uid(req))));
 portfolioRouter.get("/growth/pretrade/:symbol", (req, res) => {
   const capital = Math.min(1e11, Math.max(1000, Number(req.query.capital) || 100000)), risk = Math.min(10, Math.max(0.1, Number(req.query.risk) || 1));

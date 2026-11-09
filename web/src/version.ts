@@ -5,13 +5,14 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.14.0";
+export const VERSION = "0.15.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "New page: My Growth. Today: a to-do list of what needs you (stops hit, targets reached, watchlist stocks in their buy zone, book closures, IPOs closing, thesis reviews, journal trades).",
-  "Holdings plan: every share you own with the chart verdict, stop-loss, target, support/resistance, weight, what to do (sell, trim, take profit, hold, add, diversify), the fees and capital gains tax if sold today, and expected dividend income.",
-  "Discipline coach: a pre-buy checklist that works out how many shares to buy from the risk you accept and checks 9 rules (GO / CAREFUL / DON'T BUY), plus the habits in your own trades (wins vs losses, holding losers too long, ignoring stops, selling winners early, revenge trades, emotions).",
-  "Dividends & events calendar: upcoming book closures, open and upcoming IPOs and right shares, and AGM/dividend notices for your holdings and watchlist (or the whole market).",
+  "Tax updated to the Finance Act 2083 (FY 2083/84, from IRD's official handbook): capital gains tax on listed shares is now 10% (held ≤ 365 days) and 7.5% (longer), up from 7.5% / 5%. Sales before 17 July 2026 keep the old rates. All profit, holdings and signal figures now use the new rates.",
+  "Money Calculators page: income tax 2083/84 (new single table: 1% to Rs. 10 lakh, then 10/20/27/29%; SSF, CIT/EPF, insurance, children's school fees, women's rebate), share sale tax & fees, dividend/interest/property tax, step-up SIP, lump sum vs monthly, goal saving, retirement fund, real return, CAGR, average price, bonus/right price, debenture yield, rent vs buy, loan affordability and gold buying cost. Sliders and instant results.",
+  "Which is best?: compare savings, FD, T-bills, mutual funds/NEPSE, gold and silver for your amount and years — after tax, after inflation, with each one's worst historical fall.",
+  "Wealth roadmap (My Growth): the 10 steps from budgeting to investing, ticked off automatically from your own data, with a button for each next step.",
+  "More ways to grow money: rental income, commercial farming & livestock, freelancing/online work for foreign clients, and government savings & foreign employment bonds, with official links.",
 ];
 
 declare const __BUILD__: string;

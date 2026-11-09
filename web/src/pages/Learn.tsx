@@ -101,7 +101,7 @@ NEPSE specifics: thin trading in small stocks makes technicals noisy; bonus-shar
 | Broker commission | Slab rate on the transaction value (0.24%–0.36%), Rs. 10 minimum |
 | SEBON fee | 0.015% of value, buy and sell |
 | DP charge | Rs. 25 per scrip sold |
-| Capital gains tax (individuals) | 7.5% if held 365 days or less; 5% if held longer |
+| Capital gains tax (individuals, from FY 2083/84) | 10% if held 365 days or less; 7.5% if held longer (was 7.5% / 5% before) |
 | Dividend tax | 5% on cash dividends and on bonus shares (face value) |
 | Bank deposit interest (individuals) | 6% withheld at source |
 

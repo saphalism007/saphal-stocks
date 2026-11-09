@@ -185,7 +185,7 @@ export function runBacktest(allBars: Bar[], opts: BacktestOptions): BacktestResu
     const sc = sellCost(qty, px, fees);
     const gross = sc.net - entryCost;
     const hd = daysBetween(entryDate, allBars[i].date);
-    const tax = gross > 0 ? gross * cgtRate(hd, "individual", fees) : 0;
+    const tax = gross > 0 ? gross * cgtRate(hd, "individual", fees, allBars[i].date) : 0;
     cash += sc.net - tax;
     totalCosts += sc.total;
     totalTax += tax;
@@ -348,7 +348,7 @@ export function runPortfolioBacktest(series: Record<string, Bar[]>, dates: strin
     const sc = sellCost(p.qty, px, fees);
     const gross = sc.net - p.entryCost;
     const hd = daysBetween(p.entryDate, date);
-    const tax = gross > 0 ? gross * cgtRate(hd, "individual", fees) : 0;
+    const tax = gross > 0 ? gross * cgtRate(hd, "individual", fees, date) : 0;
     cash += sc.net - tax;
     totalCosts += sc.total; totalTax += tax;
     trades.push({ symbol: s, entryDate: p.entryDate, entryPrice: round(p.entryPrice), exitDate: date, exitPrice: round(px), qty: p.qty, holdingDays: hd, grossPnl: round(p.qty * (px - p.entryPrice)), costs: round(p.entryCost - p.qty * p.entryPrice + sc.total), tax: round(tax), netPnl: round(gross - tax), returnPct: round(((gross - tax) / p.entryCost) * 100), reason });

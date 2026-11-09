@@ -368,7 +368,7 @@ function Rebalance({ summary, sectors, extras }: { summary: Any; sectors: Record
               { key: "w", label: "Weight", num: true, render: (t: Any) => `${num(t.fromWeightPct, 1)}% → ${num(t.toWeightPct, 1)}%` },
             ]} />
           </Card>
-          <p className="tiny faint">A plan only; nothing is traded. Consider taxes and whether selling short-term holdings (7.5% CGT) can wait until they become long-term (5%). Rebalancing small differences often costs more in charges than it is worth.</p>
+          <p className="tiny faint">A plan only; nothing is traded. Consider taxes and whether selling short-term holdings (10% CGT) can wait until they become long-term (7.5%). Rebalancing small differences often costs more in charges than it is worth.</p>
         </>}
       </div>
     </div>

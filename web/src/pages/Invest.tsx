@@ -10,7 +10,7 @@ import { LineChart } from "../components/PriceChart.tsx";
 import { compact, num, nptDate, rs, tone } from "../lib/format.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
-type Tab = "advisor" | "deposits" | "rates" | "metals" | "funds" | "loan";
+type Tab = "advisor" | "best" | "deposits" | "rates" | "metals" | "funds" | "loan";
 
 export default function Invest() {
   const [sp, setSp] = useSearchParams();
@@ -18,8 +18,9 @@ export default function Invest() {
   return (
     <div className="page">
       <div className="page-head"><div><h1>Investment Planner</h1><p className="muted">Compare real options in Nepal and get a split that fits your risk, goals and the latest official rates. Guaranteed (contractual) and market-linked returns are always shown separately.</p></div></div>
-      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "advisor", label: "Where should I invest?" }, { key: "deposits", label: "Deposit rates" }, { key: "rates", label: "Rates & inflation" }, { key: "metals", label: "Gold & silver" }, { key: "funds", label: "Funds, debentures, bonds" }, { key: "loan", label: "Prepay or invest?" }]} />
+      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "advisor", label: "Where should I invest?" }, { key: "best", label: "Which is best?" }, { key: "deposits", label: "Deposit rates" }, { key: "rates", label: "Rates & inflation" }, { key: "metals", label: "Gold & silver" }, { key: "funds", label: "Funds, debentures, bonds" }, { key: "loan", label: "Prepay or invest?" }]} />
       {tab === "advisor" && <Advisor />}
+      {tab === "best" && <BestReturns />}
       {tab === "deposits" && <Deposits />}
       {tab === "rates" && <Rates />}
       {tab === "metals" && <Metals />}
@@ -142,6 +143,68 @@ function Advisor() {
         </>
       )}
       <ChannelsCard products={future.data?.products} />
+    </div>
+  );
+}
+
+function BestReturns() {
+  const r = useApi<Any>("/money/rates-summary");
+  const [amount, setAmount] = useState<number | "">(500000);
+  const [monthly, setMonthly] = useState<number | "">(10000);
+  const [years, setYears] = useState<number | "">(5);
+  if (r.error) return <ErrorBox error={r.error} onRetry={r.reload} />;
+  if (!r.data) return <Loading />;
+  const d = r.data, A = Number(amount) || 0, M = Number(monthly) || 0, Y = Math.max(1, Number(years) || 1), inf = d.inflationPct ?? 0;
+  // Grows a lump sum + monthly at a yearly rate (monthly compounding).
+  const grow = (pct: number) => { const m = pct / 100 / 12; let v = A; for (let i = 0; i < Y * 12; i++) v = v * (1 + m) + M; return v; };
+  const paid = A + M * 12 * Y;
+  type Row = { name: string; rate: number | null; how: string; tax: string; worst: string; liquidity: string; safety: number; to: string; value?: number; real?: number };
+  const opts: Row[] = [
+    { name: "Savings account", rate: d.savingPct, how: "NRB average savings rate", tax: "6% on interest", worst: "None (deposit insurance up to a limit)", liquidity: "Instant", safety: 5, to: "/invest?tab=rates" },
+    { name: "Fixed deposit", rate: d.fdPct, how: d.sources?.fd ?? "best verified FD rate", tax: "6% on interest", worst: "None (deposit insurance up to a limit)", liquidity: "At maturity", safety: 5, to: "/invest?tab=deposits" },
+    { name: "Treasury bills", rate: d.tbillPct, how: "NRB 364-day T-bill yield", tax: "6% on interest (assumed)", worst: "None (government)", liquidity: "At maturity (via banks)", safety: 5, to: "/invest?tab=funds" },
+    { name: "Mutual funds / NEPSE shares", rate: d.equityLongRunPct, how: "NEPSE last 10 years incl. dividends", tax: "7.5% CGT on gains (held > 1 year)", worst: d.nepseWorst ? `${d.nepseWorst.pct}% (${d.nepseWorst.from.slice(0, 4)}–${d.nepseWorst.to.slice(0, 4)})` : "Large", liquidity: "2–3 days", safety: 2, to: "/invest?tab=funds" },
+    { name: "Gold", rate: d.goldPct, how: "FENEGOSIDA gold, planning rate", tax: "Dealer buy-back gap ~2%", worst: d.goldWorst ? `${d.goldWorst.pct}% (${d.goldWorst.from.slice(0, 4)}–${d.goldWorst.to.slice(0, 4)})` : "Large", liquidity: "Same day (dealer)", safety: 3, to: "/invest?tab=metals" },
+    { name: "Silver", rate: d.silverPct, how: "FENEGOSIDA silver, planning rate", tax: "Dealer buy-back gap ~4%", worst: d.silverWorst ? `${d.silverWorst.pct}% (${d.silverWorst.from.slice(0, 4)}–${d.silverWorst.to.slice(0, 4)})` : "Very large", liquidity: "Same day (dealer)", safety: 1, to: "/invest?tab=metals" },
+  ];
+  for (const o of opts) {
+    if (o.rate == null) continue;
+    if (o.tax.startsWith("6%")) o.value = grow(o.rate * 0.94);
+    else if (o.name.startsWith("Mutual")) { const g = grow(o.rate); o.value = g - Math.max(0, g - paid) * 0.075; }
+    else { const g = grow(o.rate); o.value = g * (o.name === "Gold" ? 0.98 : 0.96); }
+    o.real = o.value / Math.pow(1 + inf / 100, Y);
+  }
+  const ranked = [...opts].filter((o) => o.value != null).sort((a, b) => (b.real ?? 0) - (a.real ?? 0));
+  const max = Math.max(...ranked.map((o) => o.value ?? 0), 1);
+  const safest = ranked.filter((o) => o.safety >= 5).sort((a, b) => (b.real ?? 0) - (a.real ?? 0))[0];
+  const advice = Y < 2 ? "For under 2 years, keep the money safe: the best fixed deposit (or T-bills). Shares and gold can be down when you need the money."
+    : Y < 5 ? "For 2–5 years: mostly fixed deposits/T-bills, with up to a quarter in mutual funds and a little gold."
+    : "For 5+ years: a mix grows most — mutual funds/strong shares for growth, deposits for safety and 5–15% gold as a hedge. Spread it; don't pick only the top line.";
+  return (
+    <div className="col">
+      <Card title="Which investment is best for me?" sub="What you'd have after tax, and what it can actually buy after inflation">
+        <div className="form-grid">
+          <label className="field">Invest now (Rs.)<NumInput className="input" value={amount} onChange={(e) => setAmount(e.target.value === "" ? "" : Number(e.target.value))} /></label>
+          <label className="field">Add every month (Rs.)<NumInput className="input" value={monthly} onChange={(e) => setMonthly(e.target.value === "" ? "" : Number(e.target.value))} /></label>
+          <label className="field">For how many years<NumInput className="input" value={years} onChange={(e) => setYears(e.target.value === "" ? "" : Number(e.target.value))} /></label>
+        </div>
+        <p className="small" style={{ margin: "10px 0 0" }}>You put in <b>{rs(paid, 0)}</b>. Inflation is {num(inf, 2)}% (NRB), so Rs. 100 today buys only Rs. {num(100 / Math.pow(1 + inf / 100, Y), 0)} worth in {Y} years.</p>
+      </Card>
+      <div className="best-list">{ranked.map((o, i) => (
+        <Link key={o.name} to={o.to} className="best-row">
+          <div className="row between" style={{ flexWrap: "nowrap" }}><strong>{i + 1}. {o.name}</strong><span className="small">{num(o.rate, 2)}% a year</span></div>
+          <div className="best-bar"><i style={{ width: `${((o.value ?? 0) / max) * 100}%` }} className={(o.real ?? 0) >= paid ? "up" : "down"} /></div>
+          <div className="best-kv">
+            <span>After tax <b>{compact(o.value)}</b></span>
+            <span>Buying power <b className={(o.real ?? 0) >= paid ? "up" : "down"}>{compact(o.real)}</b></span>
+            <span>Worst fall <b>{o.worst}</b></span>
+            <span>Cash out <b>{o.liquidity}</b></span>
+          </div>
+          <div className="tiny faint">{o.how} · {o.tax}{o === safest ? " · safest with the best return" : ""}{(o.real ?? 0) < paid ? " · loses buying power" : ""}</div>
+        </Link>
+      ))}</div>
+      <Notice>{advice} <Link to="/invest">Build my diversified plan →</Link></Notice>
+      <p className="tiny faint">Rates are the latest official and historical figures in the app; past returns are not a promise. Debentures, CIT and land are left out because they have no public rate history here (see <Link to="/future">all channels</Link>).</p>
     </div>
   );
 }
