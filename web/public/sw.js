@@ -16,7 +16,7 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== location.origin) return;
-  if (url.pathname.includes("/data/")) return; // market data: handled by the app
+  if (url.pathname.includes("/data/") || url.pathname.endsWith("/version.json")) return; // market data and the version note: always from the network
   // Pages: network first (fresh app after updates), fall back to the cached shell offline.
   if (req.mode === "navigate") {
     e.respondWith(fetch(req).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(SCOPE, copy)); return r; }).catch(() => caches.match(SCOPE)));

@@ -49,7 +49,14 @@ npm run dev            # web app with the in-browser backend (needs web/public/d
 npm run export-data    # make web/public/data/market.db.bin + manifest.json from data/saphal.db
 npm run build          # production build in dist/ (set BASE_PATH=/saphal-stocks/ for GitHub Pages)
 npm run serve:pages    # serve dist/ like GitHub Pages at http://localhost:5186/saphal-stocks/
+npm run deploy         # release: bump version, test, build, commit, push, wait until live, print TALLY
 ```
+
+### Versions and updates
+
+`web/src/version.ts` holds the version, release date and notes. `npm run deploy` raises the version one step unless it was changed by hand, pushes, waits until the live site serves the new commit, and prints a line such as `TALLY  Version 0.6.2  Code 1A2B3C  Released 2026-11-10`. The app shows the same version and code in the sidebar and on **Settings → About & updates**, checks `version.json` when it opens and every 30 minutes, and offers **Update now** when a newer version is live.
+
+The workflow file only calls the project's own scripts (`npm run ingest`, `scripts/export-*.ts`, `npm test`, `npm run build`), so app and data changes never need to touch it.
 
 ## Local server (Mac only)
 

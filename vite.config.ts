@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { execSync } from "node:child_process";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const B = (f: string) => join(root, "web/src/backend", f);
@@ -35,7 +36,12 @@ export function browserBackend(): Plugin {
   };
 }
 
+// The git commit this build comes from: the version code shown in the app and tallied by the deploy script.
+const BUILD = process.env.GITHUB_SHA || (() => { try { return execSync("git rev-parse HEAD", { cwd: root }).toString().trim(); } catch { return "dev"; } })();
+const DEV = process.argv.some((a) => a === "serve" || a === "dev") || !process.argv.includes("build");
+
 export default defineConfig({
+  define: { __BUILD__: JSON.stringify(DEV ? "dev" : BUILD) },
   root: "web",
   base: process.env.BASE_PATH || "/",
   plugins: [browserBackend(), react()],

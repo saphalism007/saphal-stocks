@@ -86,6 +86,7 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 - ✅ Appearance settings per device: theme, accent, text size, density, number style, start page, menu items, phone tab bar, sidebar rail, chart defaults
 - ✅ Layouts checked at iPhone Pro Max (440×956), iPad Pro 13" (1032×1376) and MacBook Air 13" sizes: phone tab bar and bottom-sheet dialogs, tablet rail, safe areas, 16 px inputs (no iOS zoom), larger touch targets
 - ✅ GitHub Actions pipeline: daily full refresh, 15-minute price refresh in market hours, tests, build, deploy to GitHub Pages
+- ✅ Versions and updates: version and code in the app, update check with Update now, `npm run deploy` publishes and prints a TALLY line that matches the app (0.6.1, 9 November 2026)
 - ⬜ Background alerts on iOS (web apps cannot run in the background; alerts are checked when the app opens)
 
 ## Running it

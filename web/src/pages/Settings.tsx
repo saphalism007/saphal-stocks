@@ -5,19 +5,21 @@ import { Link } from "react-router-dom";
 import { usePrefs, NAV } from "../App.tsx";
 import { DEFAULT_PREFS, type Prefs } from "../lib/prefs.ts";
 import { SyncTab } from "./SyncTab.tsx";
+import { VERSION, RELEASED, NOTES, CODE, BUILD } from "../version.ts";
+import { check as checkUpdate, update as applyUpdate, type Check } from "../lib/update.ts";
 import { Card, Loading, Badge, Notice, Tabs, DataTable } from "../components/ui.tsx";
 import { nptDate, ago, int } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type Tab = "appearance" | "data" | "quality" | "ai" | "fees" | "security" | "sync";
+type Tab = "appearance" | "data" | "quality" | "ai" | "fees" | "security" | "sync" | "about";
 
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("appearance");
   return (
     <div className="page">
       <div className="page-head"><div><h1>Settings</h1><p>Data sources and refresh, AI provider, Nepal fees and taxes, security, export and deletion.</p></div></div>
-      <Tabs value={tab} onChange={setTab} tabs={[{ key: "appearance", label: "Appearance" }, { key: "sync", label: "Sync & devices" }, { key: "data", label: "Data" }, { key: "quality", label: "Data quality" }, { key: "ai", label: "AI" }, { key: "fees", label: "Fees & taxes" }, { key: "security", label: "Security & privacy" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ key: "appearance", label: "Appearance" }, { key: "sync", label: "Sync & devices" }, { key: "data", label: "Data" }, { key: "quality", label: "Data quality" }, { key: "ai", label: "AI" }, { key: "fees", label: "Fees & taxes" }, { key: "security", label: "Security & privacy" }, { key: "about", label: "About & updates" }]} />
       {tab === "appearance" && <AppearanceTab />}
       {tab === "sync" && <SyncTab />}
       {tab === "data" && <DataTab />}
@@ -25,6 +27,7 @@ export default function Settings() {
       {tab === "ai" && <AiTab />}
       {tab === "fees" && <FeesTab />}
       {tab === "security" && <SecurityTab />}
+      {tab === "about" && <AboutTab />}
     </div>
   );
 }
@@ -152,6 +155,34 @@ function FeesTab() {
         <ul className="tiny faint" style={{ paddingLeft: 18 }}>{s.data.defaults.notes.map((n: string) => <li key={n}>{n}</li>)}</ul>
         <div className="row"><button className="btn primary" onClick={save}>Save rates</button><button className="btn" onClick={async () => { await api("/settings/fees/reset", { body: {} }); s.reload(); }}>Reset to defaults</button></div>
         {msg && <Notice>{msg}</Notice>}
+      </Card>
+    </div>
+  );
+}
+
+function AboutTab() {
+  const [c, setC] = useState<Check | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async () => { setBusy(true); try { setC(await checkUpdate()); } finally { setBusy(false); } };
+  useEffect(() => { void run(); }, []);
+  return (
+    <div className="grid g2">
+      <Card title={`Saphal Stocks ${VERSION}`} sub={`Code ${CODE} · released ${RELEASED}`}>
+        <div className="col">
+          {c?.state === "latest" && <Notice>This is the latest version.</Notice>}
+          {c?.state === "behind" && <Notice tone="warn">Version {c.release.version} (code {c.release.code}, {c.release.released}) is available.</Notice>}
+          {c?.state === "offline" && <Notice tone="warn">Could not check for updates (offline?).</Notice>}
+          {c?.state === "local" && <Notice>Running a local development copy; updates come from your code.</Notice>}
+          <div className="row">
+            <button className="btn" disabled={busy} onClick={run}>{busy ? <span className="spinner" /> : "Check for updates"}</button>
+            {c?.state === "behind" && <button className="btn primary" onClick={() => { setBusy(true); void applyUpdate(); }}>Update now</button>}
+          </div>
+          <p className="small faint">Build {BUILD}. The app checks for a new version when it opens and every 30 minutes; market data updates separately (Settings → Data).</p>
+        </div>
+      </Card>
+      <Card title={`What's new in ${VERSION}`}>
+        <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{NOTES.map((n) => <li key={n}>{n}</li>)}</ul>
+        {c && "release" in c && c.state === "behind" && c.release.notes?.length ? (<><div className="small muted" style={{ marginTop: 12 }}>In {c.release.version}:</div><ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{c.release.notes.map((n) => <li key={n}>{n}</li>)}</ul></>) : null}
       </Card>
     </div>
   );

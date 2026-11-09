@@ -4,6 +4,8 @@ import { api, useApi } from "./lib/api.ts";
 import { I } from "./components/icons.tsx";
 import { Loading, Notice } from "./components/ui.tsx";
 import { BROWSER_BACKEND, backendState, onBackendEvent } from "./lib/backend.ts";
+import { VERSION, CODE, NOTES } from "./version.ts";
+import { check as checkUpdate, update as applyUpdate, justUpdated, type Release } from "./lib/update.ts";
 import { DEFAULT_PREFS, applyPrefs, cachePrefs, cachedPrefs, onSystemThemeChange, resolveTheme, type Prefs } from "./lib/prefs.ts";
 
 const Overview = lazy(() => import("./pages/Overview.tsx"));
@@ -172,7 +174,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           })}
         </nav>
         <div style={{ marginTop: "auto", padding: 14, borderTop: "1px solid var(--border)" }} className="row between">
-          <span className="small muted nav-label">{BROWSER_BACKEND ? "On this device" : user.username}</span>
+          <span className="small muted nav-label" title="App version and build code">{BROWSER_BACKEND ? "On this device" : user.username}<br /><span className="faint">v{VERSION} · {CODE}</span></span>
           {!BROWSER_BACKEND && <button className="btn ghost sm" onClick={async () => { await api("/auth/logout", { body: {} }); onLogout(); }} title="Sign out"><I.logout /></button>}
         </div>
       </aside>
@@ -187,6 +189,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
         </header>
         {open && <div className="scrim" onClick={() => setOpen(false)} />}
+        <AppUpdateBanner />
         <DataUpdateBanner />
         <main className="content">
           <Suspense fallback={<Loading />}>
@@ -297,6 +300,34 @@ function MarketBadge() {
       {label}{d.session === "open" && mins != null ? ` · ${mins} min ago` : ""}
     </span>
   );
+}
+
+function AppUpdateBanner() {
+  const [behind, setBehind] = useState<Release | null>(null);
+  const [updated, setUpdated] = useState(() => justUpdated());
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const run = async () => { const c = await checkUpdate(); setBehind(c.state === "behind" ? c.release : null); };
+    void run();
+    const id = setInterval(run, 30 * 60_000);
+    const vis = () => { if (document.visibilityState === "visible") void run(); };
+    document.addEventListener("visibilitychange", vis);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", vis); };
+  }, []);
+  const bar = { position: "sticky" as const, top: 0, zIndex: 41, padding: "8px 16px", background: "var(--accent-soft)", borderBottom: "1px solid var(--border)" };
+  if (behind) return (
+    <div style={bar} className="row between small">
+      <span>Version {behind.version} (code {behind.code}) is available. You have {VERSION} ({CODE}).</span>
+      <span className="row"><button className="btn sm primary" disabled={busy} onClick={() => { setBusy(true); void applyUpdate(); }}>{busy ? <span className="spinner" /> : "Update now"}</button><button className="btn sm ghost" onClick={() => setBehind(null)}>Later</button></span>
+    </div>
+  );
+  if (updated) return (
+    <div style={bar} className="row between small">
+      <span>Updated to version {VERSION} ({CODE}). {NOTES[0]}</span>
+      <button className="btn sm ghost" onClick={() => setUpdated(false)}>OK</button>
+    </div>
+  );
+  return null;
 }
 
 function DataUpdateBanner() {
