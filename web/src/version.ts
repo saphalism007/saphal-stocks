@@ -5,15 +5,16 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.10.0";
+export const VERSION = "0.11.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "Start Investing: open the right accounts once (bank, Demat, Mero Share, C-ASBA, broker), then follow a path by amount, from Rs. 500 a month to Rs. 1 lakh+, with a direct official link for every step, checked daily.",
-  "NEPSE Market home: turnover vs the previous session, market leaders, dividend/bonus and AGM disclosures, a sector heatmap (1D/1W/1M/1Y) and movers including results.",
-  "Technical Signals: breadth against the 20/50/200-day averages and 22 signals (RSI, MACD, crosses, VWAP, breakouts, volume, circuit) with counts and every stock's signals.",
-  "Quarterly Results: every company's latest quarter against the same quarter last year, with ups, downs and the biggest movers.",
-  "IPO & FPO: open, upcoming and recent listings with gains, apply and allotment links, reminders and your saved BOIDs. Floorsheet: every trade by stock and by broker, plus a Brokers tab on each stock.",
-  "Chart Terminal with ranges, log scale, indicators and drawing tools (trendline, horizontal line, Fibonacci) saved per stock; plain-language pros and cons on each stock; company cards with sector chips.",
+  "Chart Terminal rebuilt: candles, hollow, Heikin Ashi, bars, line, step, area and baseline charts; daily, weekly and monthly candles; date ranges and a custom range; 1, 2 or 4 charts at once; full screen and chart pictures.",
+  "64 indicators with a searchable library: moving averages, VWAP, Ichimoku, Supertrend, SAR, ADX, RSI, MACD, Stochastic, CCI, MFI, OBV, CMF and more, on the price or in their own panels, with your own settings, colours and saved templates.",
+  "30 drawing tools in a left toolbar: trendlines, rays, channels, pitchfork, Fibonacci, shapes, brush, text, price/date ranges and long/short positions. Drag to draw, move, edit, lock, undo, with magnet snapping; saved per stock.",
+  "AI Analyst beside every chart: a clear verdict (Strong buy to Strong sell, or Wait), entry, best buying zone, breakout entry, stop-loss and three targets, with the evidence in numbers; support, resistance and supply/demand zones drawn on the chart; strategies from very short-term to long-term; separate short, medium and long-term suitability.",
+  "Ask AI about the chart (works without a key; uses Claude with your key), a trade planner that saves and tracks plans or paper-trades them, and a scanner for buy setups, breakouts, momentum, oversold/overbought, reversals and volume spikes.",
+  "Company pages: Quarterly Reports, Annual & Audit Reports, Notices & Announcements, News and Downloads, linking to the company's official website pages and PDFs. Quarterly, annual and audited documents are never mixed up, and the newest files are checked to open.",
+  "Compare financial reports: put quarterly reports of the company or its peers side by side (revenue, profit, EPS, reserves, liabilities, deposits, NPL and more).",
 ];
 
 declare const __BUILD__: string;

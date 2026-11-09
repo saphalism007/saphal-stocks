@@ -177,6 +177,13 @@ const MIGRATIONS: string[] = [
   CREATE TABLE floorsheet_broker (date TEXT NOT NULL, symbol TEXT NOT NULL, broker INTEGER NOT NULL, buy_qty REAL, sell_qty REAL, buy_amt REAL, sell_amt REAL, trades INTEGER, PRIMARY KEY (date, symbol, broker)) WITHOUT ROWID;
   CREATE INDEX floorsheet_broker_broker ON floorsheet_broker(broker, date);
   `,
+  // 14: official company website pages and documents (quarterly / annual / audited reports, notices, downloads)
+  `
+  CREATE TABLE company_crawl (symbol TEXT PRIMARY KEY, website TEXT, final_url TEXT, status TEXT, http_status INTEGER, pages INTEGER, docs INTEGER, note TEXT, crawled_at TEXT);
+  CREATE TABLE company_pages (symbol TEXT NOT NULL, kind TEXT NOT NULL, url TEXT NOT NULL, label TEXT, PRIMARY KEY (symbol, kind));
+  CREATE TABLE company_docs (symbol TEXT NOT NULL, url TEXT NOT NULL, title TEXT, type TEXT, fiscal_year TEXT, quarter INTEGER, published TEXT, page_url TEXT, offsite INTEGER, verified INTEGER, content_type TEXT, reason TEXT, checked_at TEXT, PRIMARY KEY (symbol, url));
+  CREATE INDEX company_docs_type ON company_docs(symbol, type);
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

@@ -143,7 +143,7 @@ export async function ssCompanySession(symbol: string): Promise<CompanySession> 
   return { jar, token, companyId, symbol: symbol.toUpperCase(), html };
 }
 
-async function ssPost(s: CompanySession, path: string, form: Record<string, string>) {
+export async function ssPost(s: CompanySession, path: string, form: Record<string, string>) {
   const body = new URLSearchParams(form).toString();
   return politeFetch(`${SS}/${path}`, {
     method: "POST", jar: s.jar, body, browserLike: true,

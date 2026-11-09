@@ -29,6 +29,8 @@ if (existsSync(tmp)) unlinkSync(tmp);
   write("track", setupKeyPublic(), JSON.stringify(T.computeTrack()));
   const INS = await import("../server/lib/insights.ts");
   write("signal_board", setupKeyPublic(), JSON.stringify(INS.computeSignalBoard()));
+  const CH = await import("../server/lib/chart.ts");
+  write("scanner", setupKeyPublic(), JSON.stringify(CH.computeScanner()));
   // Forward log: today's BUY and SELL signals (one row per stock per day).
   const ins = db.prepare("INSERT OR REPLACE INTO signal_log (date, symbol, action, setup, entry_low, entry_high, stop, t1, t2, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   for (const o of opp.rows.filter((r) => r.action === "BUY" || r.action === "SELL")) ins.run(o.priceDate, o.symbol, o.action, o.setupType, o.entryLow, o.entryHigh, o.stop, o.targets[0]?.price ?? null, o.targets[1]?.price ?? null, o.price);

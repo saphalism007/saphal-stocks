@@ -1,0 +1,381 @@
+// One chart in the terminal: real daily bars (resampled to weekly/monthly when chosen), any chart
+// type, indicators overlaid or in their own panes, an SVG layer for drawings, and the AI analyst's
+// levels, zones and patterns drawn on the price pane.
+import React, { useEffect, useMemo, useRef, useState, useCallback, type PointerEvent as RPE } from "react";
+import { createChart, createSeriesMarkers, CandlestickSeries, BarSeries, LineSeries, AreaSeries, BaselineSeries, HistogramSeries, LineStyle, LineType, PriceScaleMode, CrosshairMode, type IChartApi, type ISeriesApi, type SeriesType, type Time, type Logical } from "lightweight-charts";
+import { resample, type Timeframe } from "../../../shared/timeframe.ts";
+import { INDICATOR_MAP, type IndicatorDef } from "../../../shared/ta.ts";
+import { allCandles } from "../../../shared/candles.ts";
+import type { ChartAnalysis } from "../../../shared/analyst.ts";
+import type { Bar } from "../../../shared/types.ts";
+import { geometry, TOOLS, type Drawing, type Pt, type ToolId, type Mapper } from "./draw.ts";
+
+export type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area" | "baseline" | "step";
+export interface IndInst { uid: string; id: string; params: Record<string, number>; colors: Record<string, string>; hidden?: boolean }
+export interface PaneApi { screenshot: () => Promise<HTMLCanvasElement | null>; fit: () => void }
+export interface PaneProps {
+  bars: Bar[] | null; symbol: string; tf: Timeframe; chartType: ChartType; scaleMode: 0 | 1 | 2; range: number; from: string | null; to: string | null;
+  indicators: IndInst[]; onEditIndicator: (uid: string) => void; onRemoveIndicator: (uid: string) => void; onToggleIndicator: (uid: string) => void;
+  drawings: Drawing[]; onDrawings: (d: Drawing[], commit: boolean) => void; selected: string | null; onSelect: (id: string | null) => void;
+  tool: ToolId; onToolDone: () => void; magnet: boolean; keepDrawing: boolean; hideDrawings: boolean;
+  analysis: ChartAnalysis | null; showAi: boolean; showPatterns: boolean; showVolume: boolean; grid: boolean;
+  onScaleMode: (m: 0 | 1 | 2) => void; active: boolean; onFocus: () => void; register: (api: PaneApi | null) => void; themeKey: string;
+}
+
+const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const DAY = 86_400_000;
+const r2 = (x: number) => Math.round(x * 100) / 100;
+const fmtP = (p: number) => (Math.abs(p) >= 1e6 ? `${(p / 1e6).toFixed(2)}M` : Math.abs(p) >= 1e4 ? `${(p / 1e3).toFixed(1)}K` : r2(p).toLocaleString("en-IN"));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+
+function heikin(b: Bar[]): Bar[] {
+  const out: Bar[] = [];
+  for (let i = 0; i < b.length; i++) {
+    const c = (b[i].open + b[i].high + b[i].low + b[i].close) / 4;
+    const o = i ? (out[i - 1].open + out[i - 1].close) / 2 : (b[i].open + b[i].close) / 2;
+    out.push({ ...b[i], open: o, close: c, high: Math.max(b[i].high, o, c), low: Math.min(b[i].low, o, c) });
+  }
+  return out;
+}
+
+export default function ChartPane(p: PaneProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const mainRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const keepRange = useRef<{ key: string; from: number; to: number } | null>(null);
+  const [tick, setTick] = useState(0);
+  const [hover, setHover] = useState<number | null>(null);
+  const [panes, setPanes] = useState<{ top: number; h: number }[]>([]);
+  const [draft, setDraftS] = useState<Drawing | null>(null);
+  const draftRef = useRef<Drawing | null>(null);
+  const setDraft = (d: Drawing | null) => { draftRef.current = d; setDraftS(d); };
+  const fixed = useRef(0);
+  const downAt = useRef<{ x: number; y: number } | null>(null);
+
+  const data = useMemo(() => {
+    let b = p.bars ?? [];
+    if (p.tf !== "D") b = resample(b, p.tf);
+    return b;
+  }, [p.bars, p.tf]);
+  const shown = useMemo(() => (p.chartType === "heikin" ? heikin(data) : data), [data, p.chartType]);
+  const dates = useMemo(() => data.map((b) => b.date), [data]);
+  const comp = useMemo(() => {
+    const out: { inst: IndInst; def: IndicatorDef; vals: Record<string, (number | null)[]> }[] = [];
+    for (const inst of p.indicators) { const def = INDICATOR_MAP.get(inst.id); if (!def || data.length < 2) continue; try { out.push({ inst, def, vals: def.compute(data, { ...Object.fromEntries(def.params.map((x) => [x.key, x.def])), ...inst.params }) }); } catch { /* skip */ } }
+    return out;
+  }, [p.indicators, data]);
+
+  // date <-> logical index (fractional; extrapolated beyond the data for projections)
+  const perBar = useMemo(() => { const n = dates.length; if (n < 2) return 1; const k = Math.min(60, n - 1); return (Date.parse(dates[n - 1]) - Date.parse(dates[n - 1 - k])) / DAY / k || 1; }, [dates]);
+  const toL = useCallback((t: string) => {
+    const n = dates.length; if (!n) return 0;
+    const ms = Date.parse(t);
+    if (t >= dates[n - 1]) return n - 1 + (ms - Date.parse(dates[n - 1])) / DAY / perBar;
+    if (t <= dates[0]) return (ms - Date.parse(dates[0])) / DAY / perBar;
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (dates[m] <= t) lo = m; else hi = m; }
+    const a = Date.parse(dates[lo]), b = Date.parse(dates[hi]);
+    return lo + (b > a ? (ms - a) / (b - a) : 0);
+  }, [dates, perBar]);
+  const fromL = useCallback((l: number) => {
+    const n = dates.length, i = Math.round(l);
+    if (i >= 0 && i < n) return dates[i];
+    const base = i < 0 ? dates[0] : dates[n - 1], k = i < 0 ? i : i - (n - 1);
+    return new Date(Date.parse(base) + Math.round(k * perBar) * DAY).toISOString().slice(0, 10);
+  }, [dates, perBar]);
+
+  // ---------- build the chart ----------
+  useEffect(() => {
+    if (!host.current || shown.length < 2) return;
+    const up = css("--up") || "#16a34a", down = css("--down") || "#dc2626", text = css("--text-2") || "#888", grid = css("--border") || "#333", accent = css("--accent") || "#10b981";
+    const chart = createChart(host.current, {
+      autoSize: true, layout: { background: { color: "transparent" }, textColor: text, fontSize: 11, panes: { separatorColor: grid, enableResize: true } },
+      grid: { vertLines: { color: p.grid ? grid + "44" : "transparent" }, horzLines: { color: p.grid ? grid + "44" : "transparent" } },
+      rightPriceScale: { borderColor: grid, mode: p.scaleMode === 1 ? PriceScaleMode.Logarithmic : p.scaleMode === 2 ? PriceScaleMode.Percentage : PriceScaleMode.Normal },
+      timeScale: { borderColor: grid, rightOffset: 10, minBarSpacing: 0.5 }, crosshair: { mode: CrosshairMode.Normal },
+    });
+    chartRef.current = chart;
+    const T = (d: string) => d as Time;
+    const ohlc = shown.map((b) => ({ time: T(b.date), open: b.open, high: b.high, low: b.low, close: b.close }));
+    const line = shown.map((b) => ({ time: T(b.date), value: b.close }));
+    let main: ISeriesApi<SeriesType>;
+    switch (p.chartType) {
+      case "bars": main = chart.addSeries(BarSeries, { upColor: up, downColor: down, thinBars: false }); main.setData(ohlc); break;
+      case "line": main = chart.addSeries(LineSeries, { color: accent, lineWidth: 2 }); main.setData(line); break;
+      case "step": main = chart.addSeries(LineSeries, { color: accent, lineWidth: 2, lineType: LineType.WithSteps }); main.setData(line); break;
+      case "area": main = chart.addSeries(AreaSeries, { lineColor: accent, topColor: accent + "55", bottomColor: accent + "05", lineWidth: 2 }); main.setData(line); break;
+      case "baseline": { const vis = shown.slice(-Math.min(shown.length, p.range)); main = chart.addSeries(BaselineSeries, { baseValue: { type: "price", price: vis[0].close }, topLineColor: up, bottomLineColor: down, topFillColor1: up + "44", topFillColor2: up + "05", bottomFillColor1: down + "05", bottomFillColor2: down + "44" }); main.setData(line); break; }
+      default: { const hollow = p.chartType === "hollow"; main = chart.addSeries(CandlestickSeries, { upColor: hollow ? "transparent" : up, downColor: down, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down }); main.setData(ohlc); }
+    }
+    mainRef.current = main;
+    if (p.showVolume) {
+      const vol = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "vol", lastValueVisible: false, priceLineVisible: false });
+      vol.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
+      vol.setData(data.map((b) => ({ time: T(b.date), value: b.volume, color: (b.close >= b.open ? up : down) + "55" })));
+    }
+    // Indicators
+    let paneNo = 0;
+    for (const { inst, def, vals } of comp) {
+      if (inst.hidden) continue;
+      const pane = def.overlay ? 0 : ++paneNo;
+      let first: ISeriesApi<SeriesType> | null = null;
+      for (const o of def.outputs) {
+        const color = inst.colors[o.key] || o.color;
+        const v = vals[o.key] ?? [];
+        const pts = v.map((x, i) => (x == null || !Number.isFinite(x) ? (o.connect ? null : { time: T(data[i].date) }) : { time: T(data[i].date), value: x })).filter(Boolean) as { time: Time; value?: number }[];
+        let s: ISeriesApi<SeriesType>;
+        if (o.kind === "histogram") {
+          s = chart.addSeries(HistogramSeries, { color, priceLineVisible: false, lastValueVisible: false, priceFormat: def.id === "volume" || def.id === "turnover" ? { type: "volume" } : undefined }, pane);
+          s.setData(pts.map((q, i) => (q.value == null ? q : { ...q, color: def.id === "volume" ? ((data[i]?.close ?? 0) >= (data[i]?.open ?? 0) ? up : down) + "88" : q.value >= 0 ? (o.key === "bear" ? color : up + "aa") : down + "aa" })) as never);
+        } else {
+          s = chart.addSeries(LineSeries, { color, lineWidth: (o.width ?? 1) as 1, lineStyle: o.dashed ? LineStyle.Dashed : LineStyle.Solid, lineType: o.kind === "step" ? LineType.WithSteps : LineType.Simple, lineVisible: o.kind !== "dots", pointMarkersVisible: o.kind === "dots", pointMarkersRadius: 1.5, priceLineVisible: false, lastValueVisible: !def.overlay, crosshairMarkerVisible: false }, pane);
+          s.setData(pts as never);
+        }
+        first = first ?? s;
+      }
+      if (first && def.levels) for (const lv of def.levels) first.createPriceLine({ price: lv, color: grid, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
+    }
+    // AI levels on the price pane
+    if (p.showAi && p.analysis) {
+      const a = p.analysis;
+      const col = (k: string) => (k.includes("support") ? up : k.includes("resistance") ? down : k.includes("Breakout") ? "#2962ff" : k.includes("Breakdown") ? "#f97316" : "#94a3b8");
+      for (const l of a.levels.filter((x) => x.side !== "support" || /support/i.test(x.kind)).filter((x) => !/average|EMA|SMA|VWAP|Supertrend|SAR|Kijun/i.test(x.kind)))
+        main.createPriceLine({ price: l.price, color: col(l.kind), lineWidth: /Strong|Break/.test(l.kind) ? 2 : 1, lineStyle: /Break/.test(l.kind) ? LineStyle.Dotted : LineStyle.Dashed, axisLabelVisible: true, title: l.kind.replace("Immediate ", "").replace(" level", "") });
+      if (a.plan.stop != null) main.createPriceLine({ price: a.plan.stop, color: down, lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: "AI stop" });
+      a.plan.targets.forEach((t, i) => main.createPriceLine({ price: t.price, color: up, lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `T${i + 1}` }));
+    }
+    if (p.showPatterns) {
+      const cs = allCandles(data, Math.max(0, data.length - 300));
+      createSeriesMarkers(main, cs.map((c) => ({ time: T(c.date), position: c.dir === "bullish" ? "belowBar" : "aboveBar", color: c.dir === "bullish" ? up : down, shape: c.dir === "bullish" ? "arrowUp" : "arrowDown", text: c.name.replace(/Bullish |Bearish /, "").split(" ").map((w) => w[0]).join("").toUpperCase() })) as never);
+    }
+    // Pane heights
+    const H = host.current.clientHeight, sub = paneNo ? Math.max(70, Math.min(130, (H * 0.45) / paneNo)) : 0;
+    chart.panes().forEach((pn, i) => { if (i > 0) pn.setHeight(sub); });
+    if (paneNo) chart.panes()[0].setHeight(Math.max(140, H - sub * paneNo - 26));
+    // Range
+    const key = `${p.symbol}|${p.tf}`;
+    const n = data.length;
+    const kept = keepRange.current?.key === key ? { ...keepRange.current } : null;
+    const restore = () => { if (chartRef.current !== chart) return; if (kept) chart.timeScale().setVisibleLogicalRange({ from: kept.from, to: kept.to }); else applyRange(chart); };
+    restore(); requestAnimationFrame(restore); setTimeout(restore, 120);
+    const onRange = () => { const r = chart.timeScale().getVisibleLogicalRange(); if (r) keepRange.current = { key, from: r.from, to: r.to }; setTick((x) => x + 1); };
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
+    const onMove = (param: { logical?: number }) => setHover(param.logical != null && param.logical >= 0 && param.logical < n ? Math.round(param.logical) : null);
+    chart.subscribeCrosshairMove(onMove as never);
+    // Repaint the drawing layer whenever the price scale or size changes (no event for those).
+    let raf = 0, sig = "";
+    const loop = () => {
+      const pn = chart.panes();
+      const s = `${main.priceToCoordinate(shown[n - 1].close)}|${chart.timeScale().logicalToCoordinate(0 as Logical)}|${chart.timeScale().width()}|${pn.map((x) => x.getHeight()).join(",")}`;
+      if (s !== sig) { sig = s; let top = 0; setPanes(pn.map((x) => { const r = { top, h: x.getHeight() }; top += x.getHeight() + 1; return r; })); setTick((x) => x + 1); }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => { cancelAnimationFrame(raf); chart.remove(); chartRef.current = null; mainRef.current = null; };
+  }, [shown, data, comp, p.chartType, p.scaleMode, p.showVolume, p.showAi, p.analysis, p.showPatterns, p.grid, p.themeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function applyRange(chart = chartRef.current) {
+    if (!chart) return;
+    const n = data.length;
+    if (p.from || p.to) {
+      const a = p.from ? toL(p.from) : 0, b = p.to ? toL(p.to) : n - 1;
+      chart.timeScale().setVisibleLogicalRange({ from: a, to: b + 3 });
+    } else {
+      const per = p.tf === "W" ? 5 : p.tf === "M" ? 21 : 1;
+      const k = Math.ceil(p.range / per);
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(-2, n - k), to: n + 6 });
+    }
+  }
+  useEffect(() => { keepRange.current = null; applyRange(); }, [p.range, p.from, p.to]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    p.register({
+      fit: () => { keepRange.current = null; chartRef.current?.timeScale().fitContent(); chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); },
+      screenshot: async () => {
+        const chart = chartRef.current; if (!chart) return null;
+        const cv = chart.takeScreenshot(true, false);
+        const svg = host.current?.parentElement?.querySelector("svg.draw-layer") as SVGSVGElement | null;
+        if (svg) {
+          const xml = new XMLSerializer().serializeToString(svg);
+          const img = new Image();
+          await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml); });
+          const ctx = cv.getContext("2d"); const ratio = cv.width / (host.current?.clientWidth || cv.width);
+          try { ctx?.drawImage(img, 0, 0, svg.clientWidth * ratio, svg.clientHeight * ratio); } catch { /* ignore */ }
+        }
+        return cv;
+      },
+    });
+    return () => p.register(null);
+  }, [p.register]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------- drawing layer ----------
+  const chart = chartRef.current, main = mainRef.current;
+  const w = chart ? chart.timeScale().width() : 0, h = panes[0]?.h ?? 0;
+  const mapper: Mapper | null = chart && main ? {
+    x: (t) => chart.timeScale().logicalToCoordinate(toL(t) as Logical), y: (pr) => main.priceToCoordinate(pr), w, h, idx: toL, fmt: fmtP,
+    closesBetween: (a, b) => { const i0 = Math.round(toL(a < b ? a : b)), i1 = Math.round(toL(a < b ? b : a)); const out: { i: number; c: number }[] = []; for (let i = Math.max(0, i0); i <= Math.min(data.length - 1, i1); i++) out.push({ i, c: data[i].close }); return out; },
+  } : null;
+  void tick;
+
+  const toPt = (x: number, y: number, snap = p.magnet): Pt | null => {
+    if (!chart || !main) return null;
+    const l = chart.timeScale().coordinateToLogical(x); let pr: number | null = main.coordinateToPrice(y);
+    if (l == null || pr == null) return null;
+    if (snap) { const i = Math.round(l); const b = data[i]; if (b) { const c = [b.open, b.high, b.low, b.close]; const best = c.reduce((m, v) => (Math.abs(v - (pr as number)) < Math.abs(m - (pr as number)) ? v : m), c[0]); const yb = main.priceToCoordinate(best); if (yb != null && Math.abs(yb - y) < 40) pr = best; } }
+    return { t: fromL(l), p: r2(pr as number) };
+  };
+  const rel = (e: { clientX: number; clientY: number }) => { const r = host.current!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const finish = (d: Drawing) => {
+    let fin = { ...d, pts: d.pts.slice(0, Math.max(1, TOOLS.get(d.tool)?.points || d.pts.length)) };
+    if (d.tool === "text" || d.tool === "callout") { const t = window.prompt("Text for the note", d.text ?? ""); if (t == null) { setDraft(null); return; } fin = { ...fin, text: t }; }
+    p.onDrawings([...p.drawings, fin], true); p.onSelect(fin.id); setDraft(null); fixed.current = 0;
+    if (!p.keepDrawing) p.onToolDone();
+  };
+  const svgDown = (e: RPE<SVGSVGElement>) => {
+    if (p.tool === "cursor") return;
+    e.preventDefault();
+    const { x, y } = rel(e); downAt.current = { x, y };
+    const pt = toPt(x, y); if (!pt) return;
+    const def = TOOLS.get(p.tool)!;
+    if (def.points === 0) { // freehand
+      const d: Drawing = { id: uid(), tool: p.tool, pts: [pt], color: p.tool === "highlighter" ? "#facc15" : "#2962ff", width: 2, dash: false };
+      setDraft(d);
+      const move = (ev: PointerEvent) => { const q = rel(ev); const pp = toPt(q.x, q.y, false); if (pp) { d.pts.push(pp); setDraft({ ...d }); } };
+      const upH = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", upH); if (d.pts.length > 1) finish(d); else setDraft(null); };
+      window.addEventListener("pointermove", move); window.addEventListener("pointerup", upH);
+      return;
+    }
+    const cur = draftRef.current;
+    if (!cur) {
+      const d: Drawing = { id: uid(), tool: p.tool, pts: def.points > 1 ? [pt, pt] : [pt], color: p.tool === "fib" || p.tool === "fibext" ? "#eab308" : "#2962ff", width: 2, dash: false };
+      fixed.current = 1;
+      if (def.points === 1) { finish(d); return; }
+      setDraft(d);
+      // Drag-to-draw: releasing away from the first point fixes the second point.
+      const upH = (ev: PointerEvent) => {
+        window.removeEventListener("pointerup", upH);
+        const q = rel(ev), start = downAt.current; downAt.current = null;
+        const dr = draftRef.current;
+        if (!dr || !start || fixed.current !== 1 || Math.hypot(q.x - start.x, q.y - start.y) <= 6) return;
+        const p2 = toPt(q.x, q.y); if (!p2) return;
+        fixed.current = 2; const pts = [dr.pts[0], p2];
+        if (def.points <= 2) finish({ ...dr, pts }); else setDraft({ ...dr, pts: [...pts, p2] });
+      };
+      window.addEventListener("pointerup", upH);
+    } else {
+      fixed.current++;
+      const pts = [...cur.pts]; pts[fixed.current - 1] = pt;
+      if (fixed.current >= def.points) finish({ ...cur, pts }); else setDraft({ ...cur, pts: [...pts, pt] });
+    }
+  };
+  const svgMove = (e: RPE<SVGSVGElement>) => { const cur = draftRef.current; if (!cur || TOOLS.get(cur.tool)?.points === 0) return; const { x, y } = rel(e); const pt = toPt(x, y); if (!pt) return; const pts = [...cur.pts]; pts[pts.length - 1] = pt; setDraft({ ...cur, pts }); };
+  const svgUp = () => { /* handled by the window listener */ };
+  useEffect(() => { if (p.tool === "cursor") { setDraft(null); fixed.current = 0; } }, [p.tool]);
+
+  const startDrag = (e: RPE<SVGElement>, d: Drawing, handle: number | null) => {
+    if (p.tool !== "cursor") return;
+    e.stopPropagation(); e.preventDefault(); p.onFocus(); p.onSelect(d.id);
+    if (d.locked || !chart || !main) return;
+    const s = rel(e), l0 = chart.timeScale().coordinateToLogical(s.x), p0 = main.coordinateToPrice(s.y);
+    if (l0 == null || p0 == null) return;
+    const orig = d; let last = d;
+    const move = (ev: PointerEvent) => {
+      const q = rel(ev); const l = chart.timeScale().coordinateToLogical(q.x), pr = main.coordinateToPrice(q.y);
+      if (l == null || pr == null) return;
+      let next: Drawing;
+      if (handle == null) { const dl = l - l0, dp = pr - p0; next = { ...orig, pts: orig.pts.map((pt) => ({ t: fromL(toL(pt.t) + dl), p: r2(pt.p + dp) })), target: orig.target != null ? r2(orig.target + dp) : undefined }; }
+      else { const pt = toPt(q.x, q.y)!; const pts = [...orig.pts];
+        if (handle < pts.length) pts[handle] = pt; else if (handle === 10) { pts[0] = { ...pts[0], t: pt.t }; pts[1] = { ...pts[1], p: pt.p }; } else if (handle === 11) { pts[1] = { ...pts[1], t: pt.t }; pts[0] = { ...pts[0], p: pt.p }; }
+        next = { ...orig, pts, target: handle === 20 ? pt.p : orig.target }; }
+      last = next;
+      p.onDrawings(p.drawings.map((x) => (x.id === d.id ? next : x)), false);
+    };
+    const upH = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", upH); p.onDrawings(p.drawings.map((x) => (x.id === d.id ? last : x)), true); };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", upH);
+  };
+
+  const renderOne = (d: Drawing, isDraft = false) => {
+    if (!mapper) return null;
+    const g = geometry(d, mapper); if (!g) return null;
+    const sel = p.selected === d.id && !isDraft;
+    const hitD = g.paths.map((x) => x.d).join(" ") + (g.labels.length && (d.tool === "text" || d.tool === "callout") ? ` M${g.labels[0].x - 4},${g.labels[0].y - 14}h80v20h-80Z` : "");
+    return (
+      <g key={d.id} opacity={isDraft ? 0.8 : 1}>
+        {g.paths.map((x, i) => <path key={i} d={x.d} fill={x.fill ?? "none"} fillOpacity={x.fill ? x.opacity ?? 1 : undefined} stroke={x.stroke === "none" ? "none" : x.stroke ?? d.color} strokeWidth={x.width ?? d.width} strokeOpacity={x.fill ? (x.stroke ? 1 : 0) : x.opacity ?? 1} strokeDasharray={x.dash ? "6 4" : undefined} strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: "none" }} />)}
+        {g.labels.map((l, i) => (
+          <g key={`l${i}`} style={{ pointerEvents: "none" }}>
+            {l.bg && <rect x={l.anchor === "middle" ? l.x - (l.text.length * 3.3 + 6) : l.anchor === "end" ? l.x - l.text.length * 6.6 - 8 : l.x - 3} y={l.y - (l.size ?? 11) - 2} width={l.text.length * 6.6 + 10} height={(l.size ?? 11) + 7} rx={4} fill={l.bg === "panel" ? "var(--panel)" : l.bg} opacity={l.bg === "panel" ? 0.9 : 0.9} />}
+            <text x={l.x + (l.bg && l.anchor !== "middle" && l.anchor !== "end" ? 2 : 0)} y={l.y} fontSize={l.size ?? 11} textAnchor={l.anchor ?? "start"} fill={l.bg && l.bg !== "panel" ? "#fff" : l.color ?? d.color} fontWeight={l.bg ? 600 : 500} style={{ paintOrder: "stroke", stroke: l.bg ? "none" : "var(--bg)", strokeWidth: 3 }}>{l.text}</text>
+          </g>
+        ))}
+        {!isDraft && <path d={hitD} fill="none" stroke="transparent" strokeWidth={14} style={{ pointerEvents: p.tool === "cursor" ? "all" : "none", cursor: d.locked ? "pointer" : "move" }} onPointerDown={(e) => startDrag(e, d, null)} />}
+        {sel && !d.locked && g.handles.map((hd) => <circle key={`h${hd.i}`} cx={hd.x} cy={hd.y} r={6} fill="var(--panel)" stroke={d.color} strokeWidth={2} style={{ pointerEvents: "all", cursor: "grab" }} onPointerDown={(e) => startDrag(e, d, hd.i)} />)}
+      </g>
+    );
+  };
+
+  // AI zones, divergences and chart patterns as evidence on the chart
+  const aiLayer = () => {
+    if (!p.showAi || !p.analysis || !mapper) return null;
+    const a = p.analysis, out: React.ReactElement[] = [];
+    a.zones.slice(0, 4).forEach((z, i) => { const y1 = mapper.y(z.high), y2 = mapper.y(z.low); if (y1 == null || y2 == null) return; const c = z.kind === "demand" ? "#22c55e" : "#ef4444"; out.push(<g key={`z${i}`}><rect x={w * 0.55} y={y1} width={w * 0.45} height={Math.max(2, y2 - y1)} fill={c} opacity={0.1} /><text x={w - 6} y={y1 + 11} fontSize={10} textAnchor="end" fill={c}>{z.kind === "demand" ? "Demand" : "Supply"} zone{z.fresh ? " (fresh)" : ""}</text></g>); });
+    if (a.plan.entryLow != null && a.plan.entryHigh != null) { const y1 = mapper.y(a.plan.entryHigh), y2 = mapper.y(a.plan.entryLow); if (y1 != null && y2 != null) out.push(<g key="entry"><rect x={w * 0.7} y={y1} width={w * 0.3} height={Math.max(3, y2 - y1)} fill="#2962ff" opacity={0.16} /><text x={w * 0.7 + 4} y={y1 - 3} fontSize={10} fill="#2962ff" fontWeight={600}>AI entry zone</text></g>); }
+    a.divergences.forEach((dv, i) => { const x1 = mapper.x(dv.from), x2 = mapper.x(dv.to), y1 = mapper.y(dv.fromPrice), y2 = mapper.y(dv.toPrice); if ([x1, x2, y1, y2].some((v) => v == null)) return; const c = dv.dir === "bullish" ? "#22c55e" : "#ef4444"; out.push(<g key={`d${i}`}><path d={`M${x1},${y1}L${x2},${y2}`} stroke={c} strokeWidth={2} strokeDasharray="4 3" /><text x={x2! + 4} y={y2! + (dv.dir === "bullish" ? 14 : -6)} fontSize={10} fill={c}>{dv.indicator} {dv.dir} div.</text></g>); });
+    a.patterns.slice(0, 2).forEach((pt, i) => { const xy = pt.points.map((q) => [mapper.x(q.date), mapper.y(q.price)]); if (xy.length < 2 || xy.some((q) => q[0] == null || q[1] == null)) return; const c = pt.direction === "bullish" ? "#22c55e" : pt.direction === "bearish" ? "#ef4444" : "#a855f7"; out.push(<g key={`p${i}`}><path d={"M" + xy.map((q) => `${q[0]},${q[1]}`).join("L")} fill="none" stroke={c} strokeWidth={1.5} opacity={0.9} /><text x={xy[xy.length - 1][0]! + 4} y={xy[xy.length - 1][1]! - 6} fontSize={10} fill={c} fontWeight={600}>{pt.name}</text></g>); });
+    return <g style={{ pointerEvents: "none" }}>{out}</g>;
+  };
+
+  // ---------- legend ----------
+  const hi = hover ?? data.length - 1, bar = data[hi], pb = data[hi - 1];
+  const chg = bar && pb ? ((bar.close - pb.close) / pb.close) * 100 : null;
+  const val = (vals: (number | null)[]) => { const v = vals[hi]; return v == null ? "—" : fmtP(v); };
+  let sub = 0;
+  return (
+    <div className={`term-pane ${p.active ? "on" : ""}`} onPointerDown={p.onFocus}>
+      <div ref={host} style={{ position: "absolute", inset: 0 }} />
+      {!p.bars && <div className="term-msg">Loading prices…</div>}
+      {p.bars && data.length < 2 && <div className="term-msg">No price history stored for {p.symbol}.</div>}
+      {mapper && w > 0 && h > 0 && (
+        <svg className="draw-layer" width={w} height={h} style={{ position: "absolute", left: 0, top: 0, zIndex: 5, pointerEvents: p.tool === "cursor" ? "none" : "all", touchAction: p.tool === "cursor" ? "auto" : "none", cursor: p.tool === "cursor" ? "default" : "crosshair", overflow: "hidden" }}
+          onPointerDown={svgDown} onPointerMove={svgMove} onPointerUp={svgUp} onClick={(e) => { if (p.tool === "cursor" && e.target === e.currentTarget) p.onSelect(null); }}>
+          {aiLayer()}
+          {!p.hideDrawings && p.drawings.filter((d) => !d.hidden).map((d) => renderOne(d))}
+          {draft && renderOne(draft, true)}
+        </svg>
+      )}
+      {bar && (
+        <div className="term-legend">
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+            <strong>{p.symbol}</strong><span className="faint">· {p.tf === "D" ? "1D" : p.tf === "W" ? "1W" : "1M"} · {bar.date}</span>
+            <span className={bar.close >= bar.open ? "up" : "down"} style={{ fontVariantNumeric: "tabular-nums" }}>O {fmtP(bar.open)} H {fmtP(bar.high)} L {fmtP(bar.low)} C {fmtP(bar.close)} {chg != null ? `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%` : ""}</span>
+            <span className="faint">Vol {fmtP(bar.volume)}</span>
+          </div>
+          {comp.filter((c) => c.def.overlay).map(({ inst, def, vals }) => (
+            <div key={inst.uid} className="leg-row"><span style={{ opacity: inst.hidden ? 0.4 : 1 }}>{def.short}{def.params.length ? ` (${def.params.map((x) => inst.params[x.key] ?? x.def).join(", ")})` : ""}</span>
+              {!inst.hidden && def.outputs.map((o) => <span key={o.key} style={{ color: inst.colors[o.key] || o.color }}>{val(vals[o.key] ?? [])}</span>)}
+              <LegBtns inst={inst} p={p} /></div>
+          ))}
+        </div>
+      )}
+      {comp.filter((c) => !c.def.overlay && !c.inst.hidden).map(({ inst, def, vals }) => { sub++; const pn = panes[sub]; if (!pn) return null; return (
+        <div key={inst.uid} className="term-legend sub" style={{ top: pn.top + 2 }}><div className="leg-row"><span>{def.short}{def.params.length ? ` (${def.params.map((x) => inst.params[x.key] ?? x.def).join(", ")})` : ""}</span>{def.outputs.map((o) => <span key={o.key} style={{ color: inst.colors[o.key] || o.color }}>{val(vals[o.key] ?? [])}</span>)}<LegBtns inst={inst} p={p} /></div></div>
+      ); })}
+      {comp.filter((c) => !c.def.overlay && c.inst.hidden).length > 0 && <div className="term-legend sub" style={{ bottom: 30, top: "auto" }}>{comp.filter((c) => !c.def.overlay && c.inst.hidden).map(({ inst, def }) => <div key={inst.uid} className="leg-row"><span style={{ opacity: 0.5 }}>{def.short} (hidden)</span><LegBtns inst={inst} p={p} /></div>)}</div>}
+      <div className="term-scale">
+        <button className={p.scaleMode === 2 ? "on" : ""} onClick={() => p.onScaleMode(p.scaleMode === 2 ? 0 : 2)} title="Percentage scale">%</button>
+        <button className={p.scaleMode === 1 ? "on" : ""} onClick={() => p.onScaleMode(p.scaleMode === 1 ? 0 : 1)} title="Logarithmic scale">log</button>
+        <button onClick={() => { chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); }} title="Auto-fit the price scale">auto</button>
+      </div>
+    </div>
+  );
+}
+
+function LegBtns({ inst, p }: { inst: IndInst; p: PaneProps }) {
+  return (
+    <span className="leg-btns">
+      <button title={inst.hidden ? "Show" : "Hide"} onClick={(e) => { e.stopPropagation(); p.onToggleIndicator(inst.uid); }}>{inst.hidden ? "◌" : "◉"}</button>
+      <button title="Settings" onClick={(e) => { e.stopPropagation(); p.onEditIndicator(inst.uid); }}>⚙</button>
+      <button title="Remove" onClick={(e) => { e.stopPropagation(); p.onRemoveIndicator(inst.uid); }}>✕</button>
+    </span>
+  );
+}

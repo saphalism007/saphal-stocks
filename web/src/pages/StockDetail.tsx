@@ -3,10 +3,10 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { BROWSER_BACKEND } from "../lib/backend.ts";
+import { CompanyCentre } from "../components/CompanyCentre.tsx";
 import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score, ScoreBar, Tabs, DataTable, Disclaimer, Modal, Seg, NumInput } from "../components/ui.tsx";
 import { PriceChart, LineChart, type Overlay, type Lower, type ChartLevel, type ChartSegment, type ChartZone } from "../components/PriceChart.tsx";
 import { resample, trendlines, type Timeframe } from "../../../shared/timeframe.ts";
-import { AuditViewer } from "../components/AuditViewer.tsx";
 import { BrokerActivity } from "./Floorsheet.tsx";
 import { prosCons } from "../../../shared/proscons.ts";
 import { num, pct, tone, compact, int, nptDate, isNum } from "../lib/format.ts";
@@ -17,7 +17,7 @@ import type { Bar } from "../../../shared/types.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
-type TabKey = "summary" | "chart" | "levels" | "fundamentals" | "financials" | "dividends" | "news" | "backtest" | "audit" | "brokers";
+type TabKey = "summary" | "chart" | "levels" | "fundamentals" | "financials" | "dividends" | "news" | "backtest" | "audit" | "brokers" | "quarterly" | "annual" | "notices" | "downloads";
 
 export default function StockDetail() {
   const { symbol = "" } = useParams();
@@ -25,7 +25,7 @@ export default function StockDetail() {
   const a = useApi<Any>(`/stocks/${sym}`, [sym]);
   const rep = useApi<Any>(`/stocks/${sym}/report`, [sym]);
   const barsQ = useApi<{ bars: Bar[]; adjustments: Any[]; skipped: Any[] }>(`/stocks/${sym}/bars`, [sym]);
-  const [tab, setTab] = useState<TabKey>(() => (new URLSearchParams(location.search).get("tab") as TabKey) || "summary");
+  const [tab, setTab] = useState<TabKey>(() => { const t = new URLSearchParams(location.search).get("tab") as TabKey | null; return t === "audit" ? "annual" : t || "summary"; });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [showWatch, setShowWatch] = useState(false);
@@ -56,7 +56,7 @@ export default function StockDetail() {
             <div className="mono" style={{ fontSize: 26, fontWeight: 600 }}>{num(lastClose)}</div>
             <div className={`mono small ${tone(q?.change_pct)}`}>{num(q?.change)} ({pct(q?.change_pct)})</div>
           </div>
-          <button className="btn primary" onClick={() => { setTab("audit"); setTimeout(() => document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}><I.reports /> Audit report</button>
+          <button className="btn primary" onClick={() => { setTab("annual"); setTimeout(() => document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}><I.reports /> Reports & audit</button>
           <button className="btn" onClick={() => setShowWatch(true)}><I.star /> Watch</button>
           <button className="btn" onClick={() => nav(`/terminal/${sym}`)}><I.technical /> Terminal</button>
           <button className="btn" onClick={() => setShowAlert(true)}><I.alerts /> Alert</button>
@@ -79,20 +79,20 @@ export default function StockDetail() {
       </div>
 
       <Tabs value={tab} onChange={setTab} tabs={[
-        { key: "summary", label: "Summary" }, { key: "chart", label: "Chart & technicals" }, { key: "levels", label: "Support & resistance" },
-        { key: "fundamentals", label: "Fundamentals" }, { key: "financials", label: "Financial statements" }, { key: "audit", label: "Reports & audit" }, { key: "dividends", label: "Dividends" },
-        { key: "news", label: "Announcements" }, { key: "brokers", label: "Brokers" }, { key: "backtest", label: "Backtest" },
+        { key: "summary", label: "Overview" }, { key: "chart", label: "Chart & technicals" }, { key: "levels", label: "Support & resistance" },
+        { key: "fundamentals", label: "Fundamentals" }, { key: "financials", label: "Financial statements" },
+        { key: "quarterly", label: "Quarterly Reports" }, { key: "annual", label: "Annual & Audit Reports" }, { key: "notices", label: "Notices & Announcements" }, { key: "news", label: "News" }, { key: "downloads", label: "Downloads" },
+        { key: "dividends", label: "Dividends" }, { key: "brokers", label: "Brokers" }, { key: "backtest", label: "Backtest" },
       ]} />
-
       {tab === "summary" && <Summary d={d} rep={rep.data} bars={barsQ.data?.bars ?? []} onTab={setTab} />}
       {tab === "chart" && <ChartTab d={d} bars={barsQ.data} />}
       {tab === "levels" && <LevelsTab d={d} bars={barsQ.data?.bars ?? []} />}
       {tab === "fundamentals" && <FundamentalsTab d={d} />}
       {tab === "financials" && <FinancialsTab sym={sym} />}
-      {tab === "audit" && <AuditTab sym={sym} />}
+      {(tab === "quarterly" || tab === "annual" || tab === "notices" || tab === "downloads") && <CompanyCentre sym={sym} tab={tab} />}
       {tab === "brokers" && <Card title="Broker activity" sub="From the floorsheet: which brokers' clients bought and sold most"><BrokerActivity symbol={sym} /></Card>}
       {tab === "dividends" && <DividendsTab d={d} />}
-      {tab === "news" && <NewsTab sym={sym} />}
+      {tab === "news" && <CompanyCentre sym={sym} tab="news" />}
       {tab === "backtest" && <BacktestTab sym={sym} />}
       {showWatch && <WatchModal sym={sym} price={lastClose} onClose={() => setShowWatch(false)} />}
       {showAlert && <AlertModal sym={sym} onClose={() => setShowAlert(false)} />}
@@ -461,27 +461,6 @@ function DividendsTab({ d }: { d: Any }) {
   );
 }
 
-function NewsTab({ sym }: { sym: string }) {
-  const n = useApi<Any[]>(`/stocks/${sym}/announcements`, [sym]);
-  const nav = useNavigate();
-  if (n.loading) return <Loading />;
-  return (
-    <Card title="Announcements & disclosures" flush sub="Headlines from public sources; open the link for the full notice">
-      {!n.data?.length ? <Empty title="No announcements stored">Click Update to fetch them.</Empty> : (
-        <div className="list">{n.data.map((a: Any) => (
-          <div key={a.id} className="list-item">
-            <div style={{ flex: 1 }}>
-              <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--text)" }}>{a.title}</a>
-              <div className="tiny faint">{nptDate(a.published_date)} · <Badge>{a.category}</Badge> · {a.source}</div>
-            </div>
-            <button className="btn sm" onClick={() => nav(`/analyst?q=${encodeURIComponent(`Explain this ${sym} announcement and its likely impact: "${a.title}" (${a.published_date}). What happened, why it matters, short vs long-term impact, and what should I monitor?`)}`)}>Explain</button>
-          </div>
-        ))}</div>
-      )}
-    </Card>
-  );
-}
-
 function BacktestTab({ sym }: { sym: string }) {
   const strategies = useApi<Any[]>("/backtest/strategies");
   const { theme } = useTheme();
@@ -609,43 +588,6 @@ export function AlertModal({ sym, onClose }: { sym?: string; onClose: () => void
 }
 
 /** Audited results, annual reports, auditor and AGM filings, and where to get the full report. */
-function AuditTab({ sym }: { sym: string }) {
-  const f = useApi<Any>(`/stocks/${sym}/filings`, [sym]);
-  if (f.error) return <ErrorBox error={f.error} onRetry={f.reload} />;
-  if (!f.data) return <Loading />;
-  const d = f.data;
-  const Row = ({ r, tag }: { r: Any; tag?: string }) => (
-    <div className="list-row" style={{ alignItems: "flex-start" }}>
-      <span className="small faint mono" style={{ minWidth: 82 }}>{nptDate(r.published_date)}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>{tag && <Badge>{tag}</Badge>} <a href={r.url} target="_blank" rel="noopener noreferrer" className="small">{r.title}</a></div>
-    </div>
-  );
-  const keyEvents = d.events.filter((e: Any) => e.kind !== "Other");
-  return (
-    <div className="col">
-      <Card title="Audited financial statements" sub="As published by the company"><AuditViewer symbol={sym} /></Card>
-      <Card title="Full annual report and auditor's report" sub={`FY ${d.lastCompletedFiscalYear} is the latest completed fiscal year`}>
-        <div className="col" style={{ gap: 8 }}>
-          {d.where.map((w: Any) => <a key={w.url} className="btn link-btn" href={w.url} target="_blank" rel="noopener noreferrer"><span style={{ textAlign: "left" }}>{w.label}</span><I.external /></a>)}
-        </div>
-        <p className="tiny faint" style={{ marginTop: 8 }}>Companies publish audited annual results before their AGM, usually within six months after the fiscal year ends in mid-July. Download the PDF and upload it under <Link to="/reports">Reports</Link> to let the AI read it with page citations.</p>
-      </Card>
-      <div className="grid g2">
-        <Card title="Audited results & annual reports" sub="From the company's official announcements">
-          {d.audited.length === 0 ? <Empty title="None stored yet">Check the company website above; new filings appear here after the daily refresh.</Empty> : <div className="list">{d.audited.map((r: Any) => <Row key={r.url} r={r} />)}</div>}
-        </Card>
-        <Card title="Auditor, AGM and other official filings" sub="NEPSE corporate events">
-          {d.latestAuditorNotice && <Notice>Latest auditor notice: <a href={d.latestAuditorNotice.url} target="_blank" rel="noopener noreferrer">{d.latestAuditorNotice.title}</a> ({nptDate(d.latestAuditorNotice.published_date)})</Notice>}
-          {keyEvents.length === 0 ? <Empty title="No filings stored yet">They are added on the next data refresh.</Empty> : <div className="list">{keyEvents.slice(0, 25).map((r: Any) => <Row key={r.url} r={r} tag={r.kind} />)}</div>}
-        </Card>
-      </div>
-      <Card title="Quarterly results" sub={d.statementsStored.length ? `Statements stored: ${d.statementsStored.map((r: Any) => r.period).join(", ")}` : "No statements stored yet"}>
-        {d.quarterly.length === 0 ? <Empty title="No quarterly report announcements stored" /> : <div className="list">{d.quarterly.map((r: Any) => <Row key={r.url} r={r} />)}</div>}
-      </Card>
-    </div>
-  );
-}
-
 function ProsCons({ items, period }: { items: { side: "pro" | "con"; category: string; text: string }[]; period?: string | null }) {
   if (!items.length) return null;
   const col = (side: "pro" | "con") => items.filter((x) => x.side === side);

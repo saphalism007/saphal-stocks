@@ -5,6 +5,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { all, get, run, nowIso } from "../db.ts";
 import { runAgent, aiAvailable } from "../ai/agent.ts";
 import { answerOffline } from "../ai/offline.ts";
+import { analysisFor } from "../lib/chart.ts";
+import { answerChart, summaryForAI } from "../../shared/analyst.ts";
 import { config } from "../config.ts";
 import { ingestPdf, searchDocuments, invalidateDocIndex } from "../lib/documents.ts";
 
@@ -71,6 +73,26 @@ aiRouter.post("/ai/chat", async (req, res) => {
   }
   send("done", {});
   res.end();
+});
+
+// ---------- chart Q&A: answers about the stock on screen, from its computed analysis ----------
+aiRouter.post("/chart/:symbol/ask", async (req, res) => {
+  const { question, history } = z.object({ question: z.string().trim().min(1).max(1000), history: z.array(z.object({ q: z.string().max(1000), a: z.string().max(6000) })).max(6).optional() }).parse(req.body);
+  const sym = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,12}$/).parse(req.params.symbol);
+  const a = analysisFor(sym, { history: true });
+  if (!a) return res.status(404).json({ error: "Unknown symbol" });
+  const rules = answerChart(question, a);
+  if (!aiAvailable()) return res.json({ answer: rules, source: "rules", asOf: a.asOf });
+  try {
+    const context = `CHART CONTEXT (computed by Saphal Stocks from stored daily NEPSE bars; treat as the facts for this answer):\n${summaryForAI(a)}`;
+    const msgs: Anthropic.MessageParam[] = [];
+    for (const h of history ?? []) { msgs.push({ role: "user", content: h.q }); msgs.push({ role: "assistant", content: h.a }); }
+    msgs.push({ role: "user", content: `${context}\n\nThe user is looking at the ${sym} chart and asks: "${question}"\n\nAnswer using the chart context above (quote its actual prices, levels and indicator values). Keep trading advice separate from long-term investing. If the data can't answer it, say so. Be concise: under 250 words, short bullet points.` });
+    const r = await runAgent(msgs, req.userId!, () => {});
+    res.json({ answer: r.finalText || rules, source: "ai", asOf: a.asOf });
+  } catch (e) {
+    res.json({ answer: rules, source: "rules", note: `AI unavailable (${(e instanceof Error ? e.message : String(e)).slice(0, 120)}); answered from the chart analysis instead.`, asOf: a.asOf });
+  }
 });
 
 // ---------- documents ----------

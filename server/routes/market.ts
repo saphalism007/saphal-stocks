@@ -10,6 +10,9 @@ import { buildStockReport } from "../ai/offline.ts";
 import * as MON from "../lib/money.ts";
 import * as TR from "../lib/trading.ts";
 import * as INS from "../lib/insights.ts";
+import * as CH from "../lib/chart.ts";
+import { classifyDoc, docSortKey, fiscalYear as fyOf, quarterOf, DOC_LABEL } from "../../shared/docs.ts";
+import { compareFigures, COMPARE_METRICS } from "../../shared/reportCompare.ts";
 import { evaluate, longTermIdea } from "../../shared/opportunities.ts";
 import { debentureYield } from "../../shared/money.ts";
 
@@ -434,6 +437,12 @@ marketRouter.get("/trading/opportunities", (_req, res) => {
   res.json({ asOf: o.asOf, price: priceInfo(), rows: TR.withTrack(o.rows), longTerm: o.longTerm, track: t.summary, trackMethod: t.method,
     disclaimer: "Educational, rule-based analysis from stored NEPSE data. Not a guarantee or licensed investment advice; past results of these rules are shown so you can judge them." });
 });
+marketRouter.get("/chart/:symbol/analysis", (req, res) => {
+  const a = CH.analysisFor(SYM.parse(req.params.symbol), { history: req.query.history !== "0" });
+  if (!a) return res.status(404).json({ error: "Unknown symbol" });
+  res.json({ ...a, priceInfo: priceInfo() });
+});
+marketRouter.get("/market/scanner", (_req, res) => res.json(CH.scanner()));
 marketRouter.get("/trading/track", (_req, res) => res.json({ ...TR.track(), log: TR.signalLog(200) }));
 marketRouter.get("/trading/stock/:symbol", (req, res) => {
   const sym = SYM.parse(req.params.symbol);
@@ -470,6 +479,42 @@ marketRouter.get("/stocks/:symbol/filings", (req, res) => {
   });
 });
 
+// Company information centre: official website pages and classified documents, plus exchange filings.
+marketRouter.get("/stocks/:symbol/documents", (req, res) => {
+  const sym = SYM.parse(req.params.symbol);
+  const c = get<{ name: string; website: string | null; sector: string | null }>("SELECT name, website, sector FROM companies WHERE symbol = ?", sym);
+  if (!c) return res.status(404).json({ error: "Unknown symbol" });
+  const q = <T,>(sql: string, ...p: unknown[]): T[] => { try { return all<T>(sql, ...p); } catch { return []; } };
+  const crawl = q<Record<string, unknown>>("SELECT * FROM company_crawl WHERE symbol = ?", sym)[0] ?? null;
+  const pages = Object.fromEntries(q<{ kind: string; url: string; label: string }>("SELECT kind, url, label FROM company_pages WHERE symbol = ?", sym).map((p) => [p.kind, p]));
+  const docs = q<{ url: string; title: string; type: string; fiscal_year: string | null; quarter: number | null; published: string | null; page_url: string; offsite: number; verified: number | null; content_type: string | null; reason: string; checked_at: string }>("SELECT * FROM company_docs WHERE symbol = ?", sym)
+    .map((d) => ({ ...d, typeLabel: DOC_LABEL[d.type as keyof typeof DOC_LABEL] ?? d.type, source: "Official website" }))
+    .sort((a, b) => docSortKey({ fiscalYear: b.fiscal_year, quarter: b.quarter, published: b.published, url: b.url, title: b.title }).localeCompare(docSortKey({ fiscalYear: a.fiscal_year, quarter: a.quarter, published: a.published, url: a.url, title: a.title })));
+  // Exchange filings (mirrored by ShareSansar from NEPSE): typed from their titles with the same strict rules.
+  const filings = q<{ title: string; url: string; published_date: string; category: string }>("SELECT title, url, published_date, category FROM announcements WHERE symbol = ? ORDER BY published_date DESC LIMIT 300", sym).map((a) => {
+    const cl = classifyDoc({ url: a.url, title: a.title, context: "" });
+    let type = a.category === "Quarterly report" ? "quarterly" : a.category === "Annual report" ? (cl.type === "audited" ? "audited" : "annual") : cl.type === "quarterly" || cl.type === "audited" || cl.type === "annual" ? cl.type : "notice";
+    if (type === "quarterly" && /audited/i.test(a.title) && !/unaudited/i.test(a.title)) type = "unclassified";
+    return { ...a, type, typeLabel: DOC_LABEL[type as keyof typeof DOC_LABEL], fiscal_year: fyOf(a.title), quarter: type === "quarterly" ? quarterOf(a.title, true) : null, source: "NEPSE filing (via ShareSansar)" };
+  });
+  const events = q<{ title: string; url: string; published_date: string; kind: string }>("SELECT title, url, published_date, kind FROM company_events WHERE symbol = ? ORDER BY published_date DESC LIMIT 80", sym);
+  const news = q<{ title: string; url: string; published_date: string }>("SELECT title, url, published_date FROM announcements WHERE category = 'News' AND (title LIKE ? OR title LIKE ?) ORDER BY published_date DESC LIMIT 20", `%${sym}%`, `%${c.name.split(" ").slice(0, 2).join(" ")}%`);
+  const stored = q<{ period: string; fiscal_year: string; quarter: number }>("SELECT period, fiscal_year, quarter FROM reports WHERE symbol = ? ORDER BY fiscal_year DESC, quarter DESC", sym);
+  res.json({ symbol: sym, name: c.name, sector: c.sector, website: c.website, crawl, pages, docs, filings, events, news, stored, sharesansar: `https://www.sharesansar.com/company/${sym.toLowerCase()}` });
+});
+
+// Financial report comparison: key figures from stored quarterly statements of this and other companies.
+marketRouter.get("/stocks/:symbol/report-compare", (req, res) => {
+  const syms = [SYM.parse(req.params.symbol), ...String(req.query.with ?? "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z0-9]{1,12}$/.test(x))].slice(0, 6);
+  const out: { symbol: string; name: string; period: string; fiscalYear: string; quarter: number; fetchedAt: string; figures: Record<string, number | null> }[] = [];
+  for (const s of [...new Set(syms)]) {
+    const reps = all<{ id: number; period: string; fiscal_year: string; quarter: number; fetched_at: string }>("SELECT id, period, fiscal_year, quarter, fetched_at FROM reports WHERE symbol = ? ORDER BY fiscal_year DESC, quarter DESC LIMIT 12", s);
+    const name = get<{ name: string }>("SELECT name FROM companies WHERE symbol = ?", s)?.name ?? s;
+    for (const r of s === syms[0] ? reps : reps.slice(0, 1)) out.push({ symbol: s, name, period: r.period, fiscalYear: r.fiscal_year, quarter: r.quarter, fetchedAt: r.fetched_at, figures: compareFigures(all("SELECT statement, label, value FROM report_items WHERE report_id = ? ORDER BY ord", r.id)) });
+  }
+  res.json({ metrics: COMPARE_METRICS, reports: out, note: "Figures as published in each quarterly report (Rs. '000 unless stated). Profit and revenue are fiscal-year-to-date, so compare the same quarter across years, or a company with peers for the same quarter." });
+});
+
 // Audited financial statements of one company: the official notice images / PDFs, newest first.
 marketRouter.get("/stocks/:symbol/audit", (req, res) => {
   const sym = SYM.parse(req.params.symbol);
@@ -479,6 +524,20 @@ marketRouter.get("/stocks/:symbol/audit", (req, res) => {
   try { docs = all("SELECT url, fiscal_year, title, published, images, pdfs FROM audit_docs WHERE symbol = ? ORDER BY published DESC", sym); } catch { /* older snapshot */ }
   const parsed = docs.map((d) => ({ ...d, images: JSON.parse(d.images || "[]") as string[], pdfs: JSON.parse(d.pdfs || "[]") as string[] })).filter((d) => d.images.length || d.pdfs.length);
   res.json({ symbol: sym, name: c.name, sector: c.sector, website: c.website, docs: parsed, source: `https://www.sharesansar.com/company/${sym.toLowerCase()}` });
+});
+
+// Directory of every company's official reports: latest quarterly, annual and audited documents from its website.
+marketRouter.get("/reports/official", (_req, res) => {
+  try {
+    const cos = all<{ symbol: string; name: string; sector: string; website: string | null }>("SELECT symbol, name, sector, website FROM companies WHERE status = 'active' AND (sector IS NULL OR sector NOT IN ('Promoter Share','Corporate Debentures','Mutual Fund')) ORDER BY symbol");
+    const crawl = new Map(all<{ symbol: string; status: string; crawled_at: string }>("SELECT symbol, status, crawled_at FROM company_crawl").map((r) => [r.symbol, r]));
+    const docs = all<{ symbol: string; url: string; title: string; type: string; fiscal_year: string | null; quarter: number | null; published: string | null; verified: number | null }>("SELECT symbol, url, title, type, fiscal_year, quarter, published, verified FROM company_docs WHERE type IN ('quarterly','annual','audited')");
+    const by = new Map<string, typeof docs>();
+    for (const d of docs) by.set(d.symbol, [...(by.get(d.symbol) ?? []), d]);
+    const latest = (list: typeof docs, t: string) => list.filter((d) => d.type === t).sort((a, b) => docSortKey({ fiscalYear: b.fiscal_year, quarter: b.quarter, published: b.published, url: b.url, title: b.title }).localeCompare(docSortKey({ fiscalYear: a.fiscal_year, quarter: a.quarter, published: a.published, url: a.url, title: a.title })))[0] ?? null;
+    const rows = cos.map((c) => { const l = by.get(c.symbol) ?? []; return { ...c, status: crawl.get(c.symbol)?.status ?? (c.website ? "pending" : "no-website"), checked: crawl.get(c.symbol)?.crawled_at ?? null, counts: { quarterly: l.filter((d) => d.type === "quarterly").length, annual: l.filter((d) => d.type === "annual").length, audited: l.filter((d) => d.type === "audited").length }, quarterly: latest(l, "quarterly"), annual: latest(l, "annual"), audited: latest(l, "audited") }; });
+    res.json({ rows, total: rows.length, withDocs: rows.filter((r) => r.quarterly || r.annual || r.audited).length });
+  } catch { res.json({ rows: [], total: 0, withDocs: 0 }); }
 });
 
 marketRouter.get("/reports/audited", (_req, res) => {

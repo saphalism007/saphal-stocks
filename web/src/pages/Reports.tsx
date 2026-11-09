@@ -4,7 +4,6 @@ import { api, useApi } from "../lib/api.ts";
 import { Card, Loading, Empty, DataTable, Notice, Badge, Modal } from "../components/ui.tsx";
 import { nptDate } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
-import { AuditViewer } from "../components/AuditViewer.tsx";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export default function Reports() {
@@ -78,31 +77,26 @@ export default function Reports() {
 
 /** Every company's latest audited financial statement: tap a company to see it. */
 function AuditedList() {
-  const r = useApi<any>("/reports/audited");
+  const r = useApi<any>("/reports/official");
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState<string | null>(null);
-  if (!r.data) return <Card title="Audited financial statements"><Loading /></Card>;
+  const [only, setOnly] = useState(true);
+  if (!r.data) return <Card title="Official company reports"><Loading /></Card>;
   const term = q.trim().toLowerCase();
-  const match = (x: any) => !term || x.symbol.toLowerCase().includes(term) || (x.name ?? "").toLowerCase().includes(term) || (x.sector ?? "").toLowerCase().includes(term);
-  const rows = r.data.rows.filter(match);
-  const missing = r.data.missing.filter(match);
+  const rows = r.data.rows.filter((x: any) => (!only || term || x.quarterly || x.annual || x.audited) && (!term || x.symbol.toLowerCase().includes(term) || (x.name ?? "").toLowerCase().includes(term) || (x.sector ?? "").toLowerCase().includes(term)));
+  const Doc = ({ d, label }: { d: any; label: string }) => d ? <a className="btn sm" href={d.url} target="_blank" rel="noopener noreferrer" title={d.title}>{label}{d.fiscal_year ? ` ${d.fiscal_year}` : ""}{d.quarter ? ` Q${d.quarter}` : ""}{d.verified === 1 ? " ✓" : ""}</a> : null;
   return (
-    <Card title="Audited financial statements" sub={`${r.data.rows.length} of ${r.data.total} companies · tap a company to see its statement`} actions={<input className="input" style={{ width: 220 }} placeholder="Search company or sector" value={q} onChange={(e) => setQ(e.target.value)} />}>
+    <Card title="Official company reports" sub={`Documents linked from each company's own website · ${r.data.withDocs} of ${r.data.total} companies so far`} actions={<input className="input" style={{ width: 220 }} placeholder="Search company or sector" value={q} onChange={(e) => setQ(e.target.value)} />}>
+      <label className="row small" style={{ gap: 6, marginBottom: 8 }}><input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} /> Only companies with documents found</label>
       <div className="list">
-        {rows.slice(0, term ? 400 : 60).map((x: any) => (
-          <button key={x.symbol} className="entry-row" onClick={() => setOpen(x.symbol)}>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span className="sym">{x.symbol}</span> <span className="small">{x.name}</span>
-              <span className="tiny faint" style={{ display: "block" }}>{x.sector} · published {nptDate(x.published)}{x.n > 1 ? ` · ${x.n} years` : ""}</span>
-            </span>
-            <span className="badge">{x.fiscal_year ? `FY ${x.fiscal_year}` : "View"}</span>
-          </button>
+        {rows.slice(0, term ? 400 : 80).map((x: any) => (
+          <div key={x.symbol} className="doc-row">
+            <div className="doc-main"><Link className="sym" to={`/stocks/${x.symbol}?tab=annual`}>{x.symbol}</Link> <span className="small">{x.name}</span>
+              <div className="tiny faint">{x.sector} · {x.status === "ok" ? `${x.counts.quarterly} quarterly · ${x.counts.annual} annual · ${x.counts.audited} audited` : x.status === "no-website" ? "no official website listed" : x.status === "unreachable" ? "website couldn't be reached" : x.status === "script-only" ? "website lists documents with scripts (open it directly)" : "website not scanned yet"}</div></div>
+            <div className="row wrap" style={{ gap: 6 }}><Doc d={x.quarterly} label="Quarterly" /><Doc d={x.annual} label="Annual report" /><Doc d={x.audited} label="Audited" />{x.website && <a className="btn sm ghost" href={x.website} target="_blank" rel="noopener noreferrer">Website</a>}</div>
+          </div>
         ))}
       </div>
-      {!term && rows.length > 60 && <p className="small muted" style={{ marginTop: 8 }}>Showing the 60 most recent. Search to find any company.</p>}
-      {term && missing.length > 0 && <div style={{ marginTop: 12 }}><div className="small muted">No audited statement stored yet:</div>{missing.slice(0, 20).map((m: any) => <div key={m.symbol} className="small"><Link className="sym" to={`/stocks/${m.symbol}?tab=audit`}>{m.symbol}</Link> {m.name} {m.website && <a href={m.website} target="_blank" rel="noopener noreferrer">website</a>}</div>)}</div>}
-      <p className="tiny faint" style={{ marginTop: 8 }}>{r.data.note}</p>
-      {open && <Modal title={`${open} · audited financial statements`} onClose={() => setOpen(null)}><AuditViewer symbol={open} showCompanyLink /></Modal>}
+      <p className="tiny faint" style={{ marginTop: 8 }}>Quarterly reports are interim (usually unaudited); annual reports and audited statements are listed separately. ✓ = the file was opened and confirmed when last checked. Tap a company for every document, notices and exchange filings.</p>
     </Card>
   );
 }

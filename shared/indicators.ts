@@ -30,7 +30,7 @@ export function ema(values: number[], period: number): Series {
 }
 
 /** Wilder's smoothing (RMA), used by RSI, ATR and ADX. */
-function rma(values: number[], period: number, start = 0): Series {
+export function rma(values: number[], period: number, start = 0): Series {
   const out = nulls(values.length);
   if (values.length - start < period) return out;
   let prev = 0;
