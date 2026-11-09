@@ -5,14 +5,13 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.15.0";
+export const VERSION = "0.16.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "Tax updated to the Finance Act 2083 (FY 2083/84, from IRD's official handbook): capital gains tax on listed shares is now 10% (held ≤ 365 days) and 7.5% (longer), up from 7.5% / 5%. Sales before 17 July 2026 keep the old rates. All profit, holdings and signal figures now use the new rates.",
-  "Money Calculators page: income tax 2083/84 (new single table: 1% to Rs. 10 lakh, then 10/20/27/29%; SSF, CIT/EPF, insurance, children's school fees, women's rebate), share sale tax & fees, dividend/interest/property tax, step-up SIP, lump sum vs monthly, goal saving, retirement fund, real return, CAGR, average price, bonus/right price, debenture yield, rent vs buy, loan affordability and gold buying cost. Sliders and instant results.",
-  "Which is best?: compare savings, FD, T-bills, mutual funds/NEPSE, gold and silver for your amount and years — after tax, after inflation, with each one's worst historical fall.",
-  "Wealth roadmap (My Growth): the 10 steps from budgeting to investing, ticked off automatically from your own data, with a button for each next step.",
-  "More ways to grow money: rental income, commercial farming & livestock, freelancing/online work for foreign clients, and government savings & foreign employment bonds, with official links.",
+  "NEPSE Market Mood (new Discover page): a 0–100 fear & greed gauge built from six market readings (rising vs falling stocks, stocks above their 50-day average, 52-week highs vs lows, NEPSE vs its 125-day average, turnover and RSI), with its history and what it means for you.",
+  "Stock baskets: ready-made themes — quality compounders, steady dividend payers, value picks, momentum leaders, strong banks, hydropower leaders and low-volatility shares — with members, 3-month and 1-year returns vs NEPSE, and one tap to add them to your watchlist.",
+  "Stock scorecard in the ⚡ signal: a six-point shape (value, growth, profitability, financial health, dividends, momentum) and the likely price range for next week and next month from recent price swings.",
+  "Your true yearly return (XIRR) in My Growth → Holdings plan: counts when you invested, fees, sales and dividends.",
 ];
 
 declare const __BUILD__: string;

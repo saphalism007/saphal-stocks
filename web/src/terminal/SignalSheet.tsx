@@ -2,6 +2,7 @@
 // support and resistance, technical readings, fundamentals, the reasons, the risks and how past
 // signals on this stock worked out. Everything comes from the same analysis as the AI panel.
 import { useEffect } from "react";
+import { useApi } from "../lib/api.ts";
 import type { ChartAnalysis } from "../../../shared/analyst.ts";
 import { num, nptDate } from "../lib/format.ts";
 import { Orders } from "./AiPanel.tsx";
@@ -11,12 +12,29 @@ const rs = (v: number | null | undefined) => (v == null ? "—" : `Rs. ${num(v)}
 const VC: Record<string, string> = { "STRONG BUY": "sg-sbuy", BUY: "sg-buy", WAIT: "sg-wait", HOLD: "sg-hold", SELL: "sg-sell", "STRONG SELL": "sg-ssell", "NO SIGNAL": "sg-none" };
 const TD: Record<string, string> = { bull: "up", bear: "down", neutral: "warn" };
 
+function Radar({ axes }: { axes: { label: string; score: number | null }[] }) {
+  const S = 150, c = S / 2, R = S * 0.38, n = axes.length;
+  const pt = (i: number, v: number) => { const ang = -Math.PI / 2 + (i * 2 * Math.PI) / n; return [c + R * (v / 100) * Math.cos(ang), c + R * (v / 100) * Math.sin(ang)]; };
+  const poly = axes.map((x, i) => pt(i, x.score ?? 0).join(",")).join(" ");
+  const avg = axes.filter((x) => x.score != null).reduce((s, x, _, arr) => s + (x.score as number) / arr.length, 0);
+  const col = avg >= 60 ? "#16a34a" : avg >= 40 ? "#d97706" : "#dc2626";
+  return (
+    <svg viewBox={`0 0 ${S} ${S}`} width={S} height={S} role="img" aria-label="Stock scorecard">
+      {[25, 50, 75, 100].map((g) => <polygon key={g} points={axes.map((_, i) => pt(i, g).join(",")).join(" ")} fill="none" stroke="var(--border)" />)}
+      {axes.map((x, i) => { const [x2, y2] = pt(i, 100); return <line key={i} x1={c} y1={c} x2={x2} y2={y2} stroke="var(--border)" />; })}
+      <polygon points={poly} fill={col} fillOpacity={0.3} stroke={col} strokeWidth={2} />
+      {axes.map((x, i) => { const [lx, ly] = pt(i, 122); return <text key={i} x={lx} y={ly} fontSize={8.5} textAnchor="middle" dominantBaseline="middle" fill="var(--text-2)">{x.label.split(" ")[0]}</text>; })}
+    </svg>
+  );
+}
+
 function Row({ k, v, note, tone }: { k: string; v: React.ReactNode; note?: React.ReactNode; tone?: string }) {
   return <div className="sg-row"><span className="sg-k">{k}</span><span className={`sg-v ${tone ?? ""}`}>{v}</span>{note != null && <span className="sg-n">{note}</span>}</div>;
 }
 
 export default function SignalSheet({ a, onClose, onRemove }: { a: ChartAnalysis; onClose: () => void; onRemove: () => void }) {
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [onClose]);
+  const card = useApi<any>(`/stocks/${a.symbol}/card`, [a.symbol]); // eslint-disable-line @typescript-eslint/no-explicit-any
   const p = a.plan, c = a.price ?? 0, ind = a.indicators, f = a.fund;
   const d = (x: number | null | undefined) => (x == null || !c ? null : ((x - c) / c) * 100);
   const sup = a.levels.filter((l) => l.side === "support" && l.price < c).slice(0, 3);
@@ -49,6 +67,9 @@ export default function SignalSheet({ a, onClose, onRemove }: { a: ChartAnalysis
             <div className="sg-cell"><span>Risk : reward</span><b className={planRR != null ? (planRR >= 2 ? "up" : planRR < 1 ? "down" : "") : ""}>{planRR != null ? `1 : ${planRR}` : "—"}</b><em>{p.netRiskReward != null ? `${p.netRiskReward} after fees` : p.riskReward == null && planRR != null ? "if bought in the zone" : ""}</em></div>
             <div className="sg-cell"><span>Hold for</span><b>{p.holding ?? (p.targets.length ? "until T1 / stop" : "—")}</b><em>{p.reviewBy ? `review ${nptDate(p.reviewBy)}` : ""}</em></div>
           </div>
+
+          {card.data?.scorecard && <div className="sg-card"><Radar axes={card.data.scorecard} /><div className="sg-axes">{card.data.scorecard.map((x: { key: string; label: string; score: number | null }) => <div key={x.key}><span>{x.label}</span><b className={x.score == null ? "" : x.score >= 60 ? "up" : x.score < 40 ? "down" : "warn"}>{x.score ?? "—"}</b></div>)}</div></div>}
+          {card.data?.range && <div className="sg-range"><b>Likely price range</b><span>Next week: <b>{num(card.data.range.week.likely.low)} – {num(card.data.range.week.likely.high)}</b> (about 2 in 3 chance) · wider {num(card.data.range.week.wide.low)}–{num(card.data.range.week.wide.high)}</span><span>Next month: <b>{num(card.data.range.month.likely.low)} – {num(card.data.range.month.likely.high)}</b> · wider {num(card.data.range.month.wide.low)}–{num(card.data.range.month.wide.high)}</span><em className="tiny faint">From the last 60 days' price swings ({card.data.range.dailyVolPct}% a day). Statistics, not a forecast.</em></div>}
 
           {a.orders && <Orders o={a.orders} />}
 

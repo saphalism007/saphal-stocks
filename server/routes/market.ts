@@ -8,6 +8,7 @@ import { patternTrackRecord } from "../../shared/patterns.ts";
 import { syncCompanyDetail, syncHistory, marketStatus } from "../ingest/jobs.ts";
 import { buildStockReport } from "../ai/offline.ts";
 import * as MON from "../lib/money.ts";
+import * as DS from "../lib/discover.ts";
 import { searchStocks, searchSectors, splitIntent } from "../../shared/search.ts";
 import * as TR from "../lib/trading.ts";
 import * as INS from "../lib/insights.ts";
@@ -458,6 +459,9 @@ marketRouter.get("/chart/:symbol/analysis", (req, res) => {
   if (!a) return res.status(404).json({ error: "Unknown symbol" });
   res.json({ ...a, priceInfo: priceInfo() });
 });
+marketRouter.get("/market/mood", (_req, res) => res.json(DS.marketMood()));
+marketRouter.get("/baskets", (_req, res) => res.json(DS.baskets()));
+marketRouter.get("/stocks/:symbol/card", (req, res) => res.json(DS.stockCard(SYM.parse(req.params.symbol))));
 marketRouter.get("/market/scanner", (_req, res) => res.json(CH.scanner()));
 marketRouter.get("/trading/track", (_req, res) => res.json({ ...TR.track(), log: TR.signalLog(200) }));
 marketRouter.get("/trading/stock/:symbol", (req, res) => {

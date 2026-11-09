@@ -7,6 +7,8 @@ import { analysisFor } from "./chart.ts";
 import { readVault } from "./vault.ts";
 import { habitReport, preTrade, holdingAction, wealthRoadmap, type JournalTrade } from "../../shared/coach.ts";
 import { moneyOverview } from "./money.ts";
+import { xirr } from "../../shared/discover.ts";
+import { buyCost, sellCost } from "../../shared/costs.ts";
 
 const todayNpt = () => new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 10);
 const daysTo = (d: string, from = todayNpt()) => Math.round((Date.parse(d) - Date.parse(from)) / 86_400_000);
@@ -22,12 +24,23 @@ function myStocks(userId: number) {
 export function holdingsPlan(userId: number) {
   const { ports } = myStocks(userId);
   const rows: Record<string, unknown>[] = [];
+  const flows: { date: string; amount: number }[] = [];
   const sectorTotals = new Map<string, number>();
   let total = 0;
   for (const p of ports) {
     const d = portfolioSummary(p.id);
     const mv = d.summary.marketValue || 0;
-    if (p.kind !== "paper") total += mv;
+    if (p.kind !== "paper") {
+      total += mv;
+      // Cash flows for the money-weighted return: buys out, sells and dividends in, today's value at the end.
+      const fz = M.fees();
+      for (const t of d.transactions) {
+        if (t.type === "buy") flows.push({ date: t.date, amount: -(t.commission != null || t.otherCharges != null ? t.quantity * t.price + (t.commission ?? 0) + (t.otherCharges ?? 0) : buyCost(t.quantity, t.price, fz).net) });
+        else if (t.type === "sell") flows.push({ date: t.date, amount: (t.commission != null || t.otherCharges != null ? t.quantity * t.price - (t.commission ?? 0) - (t.otherCharges ?? 0) : sellCost(t.quantity, t.price, fz).net) - (t.tax ?? 0) });
+        else if (t.type === "ipo" || t.type === "right") flows.push({ date: t.date, amount: -(t.quantity * t.price) });
+        else if (t.type === "cash_dividend") flows.push({ date: t.date, amount: t.price - (t.tax ?? t.price * 0.05) });
+      }
+    }
     const open = d.summary.holdings.filter((x) => x.quantity > 0);
     for (const h of open) {
       const a = analysisFor(h.symbol);
@@ -53,7 +66,8 @@ export function holdingsPlan(userId: number) {
   const sectors = [...sectorTotals.entries()].map(([sector, v]) => ({ sector, pct: total ? r2((v / total) * 100) : 0 })).sort((a, b) => b.pct - a.pct);
   const real = rows.filter((r) => !r.paper);
   const expIncome = real.reduce((s, r) => s + Number(r.expDividend ?? 0), 0);
-  return { total: Math.round(total), sectors, rows, expectedDividends: expIncome, asOf: M.latestTradingDate() };
+  if (total > 0) flows.push({ date: todayNpt(), amount: total });
+  return { total: Math.round(total), sectors, rows, expectedDividends: expIncome, asOf: M.latestTradingDate(), xirrPct: xirr(flows) };
 }
 
 /** Upcoming book closures, open/upcoming issues, recent AGM and book-closure notices; yours first. */

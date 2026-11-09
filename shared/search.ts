@@ -111,6 +111,8 @@ export const FEATURES: { label: string; to: string; words: string }[] = [
   { label: "Watchlist", to: "/watchlist", words: "watchlist favourites follow" },
   { label: "Trading journal", to: "/journal", words: "journal thesis diary trades log" },
   { label: "Wealth management (income, spending, net worth)", to: "/money", words: "money budget expense income net worth emergency fund spending salary" },
+  { label: "Market mood (fear & greed)", to: "/discover", words: "mood fear greed sentiment market mood emotion panic euphoria" },
+  { label: "Stock baskets (ready-made portfolios)", to: "/discover?tab=baskets", words: "basket baskets smallcase theme portfolio ready made dividend payers momentum value banks hydropower quality" },
   { label: "Money calculators", to: "/calculators", words: "calculator calculators tax income tax salary tds sip step up lumpsum goal retirement cagr real return average wacc bonus right debenture yield rent buy home loan emi affordability gold making charge" },
   { label: "Income tax calculator 2083/84", to: "/calculators#income-tax", words: "income tax salary tax tds ssf cit slab 2083 84 rebate" },
   { label: "Which investment is best?", to: "/invest?tab=best", words: "best return compare which investment highest return safe" },

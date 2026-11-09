@@ -792,3 +792,17 @@ a.gr-item:hover { text-decoration: none; background: var(--panel-2); }
 .rm-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; } .rm-body span { color: var(--text-2); font-size: 12.5px; }
 .rm li .btn { flex: none; }
 @media (max-width: 760px) { .rm li { flex-wrap: wrap; } .rm li .btn { margin-left: 36px; } }
+.gr-stats { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+/* v0.16: discover, scorecard */
+.mood-top { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.mood-txt { flex: 1 1 200px; display: flex; flex-direction: column; gap: 2px; }
+.mood-l { font-size: 22px; } .mood-l.s0 { color: #dc2626; } .mood-l.s1 { color: #f97316; } .mood-l.s2 { color: var(--text-2); } .mood-l.s3 { color: #65a30d; } .mood-l.s4 { color: #16a34a; }
+.mood-part { padding: 5px 0; } .mood-bar { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin-top: 3px; } .mood-bar i { display: block; height: 100%; border-radius: 3px; }
+.bk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+.bk { border: 1px solid var(--border); border-radius: 14px; background: var(--panel); padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bk-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; font-size: 11px; color: var(--text-3); } .bk-kv b { display: block; font-size: 13.5px; color: var(--text); }
+.bk-chips { display: flex; flex-wrap: wrap; gap: 4px; } .bk-chips .chip { padding: 3px 8px; font-size: 11.5px; text-decoration: none; }
+.sg-card { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 8px; }
+.sg-axes { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12px; } .sg-axes div { display: flex; justify-content: space-between; gap: 6px; } .sg-axes span { color: var(--text-2); }
+.sg-range { display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 10px; font-size: 12.5px; }
+@media (max-width: 760px) { .bk-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sg-card { flex-direction: column; } .sg-axes { width: 100%; } }

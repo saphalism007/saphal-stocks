@@ -83,8 +83,9 @@ function Holdings() {
   const urgent = rows.filter((r: Any) => r.level === "urgent" || r.level === "act").length;
   return (
     <div className="col">
-      <div className="grid g4">
+      <div className="grid g4 gr-stats">
         <Stat label="Portfolio value" value={compact(h.total)} sub={`prices of ${h.asOf ? nptDate(h.asOf) : "—"}`} />
+        <Stat label="Your yearly return (XIRR)" value={h.xirrPct != null ? `${h.xirrPct > 0 ? "+" : ""}${num(h.xirrPct, 1)}%` : "—"} tone={tone(h.xirrPct)} sub="money-weighted, after fees, incl. dividends" />
         <Stat label="Need action" value={urgent} tone={urgent ? "down" : "up"} sub={urgent ? "see the top of the list" : "all holdings fine"} />
         <Stat label="Biggest sector" value={h.sectors[0] ? `${num(h.sectors[0].pct, 0)}%` : "—"} sub={h.sectors[0]?.sector ?? ""} tone={h.sectors[0]?.pct > 40 ? "down" : ""} />
         <Stat label="Dividend income (est.)" value={h.expectedDividends ? rs(h.expectedDividends, 0) : "—"} sub="if last year's cash dividend repeats, after 5% tax" />
