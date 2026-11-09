@@ -47,7 +47,13 @@ export interface ChartAnalysis {
   tags: string[]; tagNotes: Record<string, string>;
   history: TrackSummary | null; setupHistory: { trades: number; winRatePct: number | null; avgNetPct: number | null } | null;
   dataNotes: string[];
+  orders?: TradeOrders;
+  signals?: PastSignal[];
 }
+export interface OrderStep { kind: "buy" | "sell" | "stop" | "wait" | "hold" | "avoid"; title: string; text: string; price?: number | null; low?: number | null; high?: number | null }
+export interface TradeOrders { action: string; summary: string; session: string; forBuyers: OrderStep[]; forHolders: OrderStep[]; validUntil: string; note: string }
+/** A past buy signal from the same rules (back-test), with how it ended. */
+export interface PastSignal { date: string; entryDate: string; entry: number; stop: number; t1: number; exitDate: string; exit: number; outcome: string; netPct: number }
 
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const rs = (x: number | null | undefined) => (x == null ? "—" : `Rs. ${r2(x).toLocaleString("en-IN")}`);
@@ -200,7 +206,7 @@ export function analyzeChart(inp: AnalystInput): ChartAnalysis {
   const stopWhy = opp.stop != null ? (opp.action === "SELL" ? "Exit if price closes below this level." : `Placed below the ${opp.setupType?.toLowerCase().includes("breakout") ? "breakout level" : "support that defines the setup"} with an ATR buffer (ATR ${rs(A)}) so normal daily noise doesn't trigger it.`)
     : stop != null ? `Half an ATR below the nearest support (${rs(sup[0]?.price)}).` : null;
   const targets = opp.targets.map((t) => ({ ...t, pct: r2(((t.price - c) / c) * 100) }));
-  if (!targets.length && verdict !== "SELL" && verdict !== "STRONG SELL") for (const r of res.filter((x) => x.price > c * 1.01).slice(0, 3)) targets.push({ price: r2(r.price), basis: `Resistance (${r.reactions} reactions)`, pct: r2(((r.price - c) / c) * 100) });
+  if (!targets.length && verdict !== "SELL" && verdict !== "STRONG SELL") for (const r of res.filter((x) => x.price > c * 1.01).slice(0, 3)) targets.push({ price: r2(r.price), basis: `Resistance (${r.reactions} reaction${r.reactions === 1 ? "" : "s"})`, pct: r2(((r.price - c) / c) * 100) });
   const plan: ChartAnalysis["plan"] = {
     entryLow: opp.entryLow, entryHigh: opp.entryHigh, bestZone, breakout, stop, stopWhy, targets,
     riskReward: opp.riskReward, netRiskReward: opp.netRiskReward, riskPct: opp.riskPct, holding: opp.holdingPeriod,
@@ -214,7 +220,7 @@ export function analyzeChart(inp: AnalystInput): ChartAnalysis {
   reasons.push({ topic: "Trend", tone: snap.trend === "uptrend" ? "bull" : snap.trend === "downtrend" ? "bear" : "neutral", text: `${snap.trend === "uptrend" ? "Uptrend" : snap.trend === "downtrend" ? "Downtrend" : "Sideways"}. ${ma}${snap.adx != null ? ` ADX ${r2(snap.adx)} (${snap.adx >= 25 ? "a strong trend" : snap.adx >= 20 ? "a developing trend" : "weak or no trend"}).` : ""}` });
   reasons.push({ topic: "Market structure", tone: struct.tone, text: struct.label });
   if (sup[0]) reasons.push({ topic: "Support", tone: "neutral", text: `Nearest support ${rs(sup[0].price)} (${pc(sup[0].distancePct)} away, ${sup[0].strength}, ${sup[0].reactions} reactions, ${sup[0].tests} tests${sup[0].roleReversal ? ", old resistance turned support" : ""}).${strongSup && strongSup !== sup[0] ? ` Strongest support below: ${rs(strongSup.price)}.` : ""}` });
-  if (res[0]) reasons.push({ topic: "Resistance", tone: "neutral", text: `Nearest resistance ${rs(res[0].price)} (${pc(res[0].distancePct)} away, ${res[0].strength}, ${res[0].reactions} reactions).${strongRes && strongRes !== res[0] ? ` Strongest resistance above: ${rs(strongRes.price)}.` : ""}` });
+  if (res[0]) reasons.push({ topic: "Resistance", tone: "neutral", text: `Nearest resistance ${rs(res[0].price)} (${pc(res[0].distancePct)} away, ${res[0].strength}, ${res[0].reactions} reaction${res[0].reactions === 1 ? "" : "s"}).${strongRes && strongRes !== res[0] ? ` Strongest resistance above: ${rs(strongRes.price)}.` : ""}` });
   if (snap.rsi != null) { const r = snap.rsi; reasons.push({ topic: "RSI (14)", tone: r > 70 ? "bear" : r < 30 ? "bull" : r >= 55 ? "bull" : r <= 45 ? "bear" : "neutral", text: `RSI ${r2(r)}: ${r > 70 ? "overbought: strong buying, but late to chase; pullbacks are common from here" : r < 30 ? "oversold: selling is stretched; wait for a turn up before buying" : r >= 55 ? "bullish momentum zone (55–70)" : r <= 45 ? "weak momentum (below 45)" : "neutral (45–55)"}.${mfi != null ? ` Money Flow Index ${r2(mfi)}.` : ""}` }); }
   if (snap.macd.macd != null && snap.macd.signal != null) reasons.push({ topic: "MACD", tone: (h0 ?? 0) > 0 ? "bull" : "bear", text: `MACD ${r2(snap.macd.macd)} is ${snap.macd.macd > snap.macd.signal ? "above" : "below"} its signal ${r2(snap.macd.signal)}${snap.macd.cross ? ` (fresh ${snap.macd.cross} cross)` : ""}; histogram ${h0 != null ? r2(h0) : "—"} and ${h0 != null && h1 != null ? (h0 > h1 ? "rising (momentum improving)" : "falling (momentum fading)") : "flat"}. MACD is ${snap.macd.macd > 0 ? "above" : "below"} zero.` });
   const maTone: Tone = s50 != null && s200 != null ? (c > s50 && s50 > s200 ? "bull" : c < s50 && s50 < s200 ? "bear" : "neutral") : "neutral";
@@ -324,7 +330,7 @@ export function analyzeChart(inp: AnalystInput): ChartAnalysis {
   const tags: string[] = [], tagNotes: Record<string, string> = {};
   const tag = (k: string, note: string) => { tags.push(k); tagNotes[k] = note; };
   if (verdict === "BUY" || verdict === "STRONG BUY") tag("buy", `${verdict}: ${opp.setupType ?? "setup"}, R:R ${opp.riskReward ?? "—"} (${opp.netRiskReward ?? "—"} after costs).`);
-  if (sup[0] && Math.abs(sup[0].distancePct) <= 2.5 && sup[0].price < c && (sup[0].strength === "major" || sup[0].reactions >= 3)) tag("near-support", `${Math.abs(sup[0].distancePct)}% above support ${rs(sup[0].price)} (${sup[0].reactions} reactions).`);
+  if (sup[0] && Math.abs(sup[0].distancePct) <= 2.5 && sup[0].price < c && (sup[0].strength === "major" || sup[0].reactions >= 3)) tag("near-support", `${Math.abs(sup[0].distancePct)}% above support ${rs(sup[0].price)} (${sup[0].reactions} reaction${sup[0].reactions === 1 ? "" : "s"}).`);
   if (res[0] && res[0].distancePct <= 2.5 && (res[0].strength === "major" || res[0].reactions >= 3)) tag("near-resistance", `${res[0].distancePct}% below resistance ${rs(res[0].price)}.`);
   const bo = patterns.find((p) => p.name === "Breakout" && p.endDate >= bars[Math.max(0, n - 3)].date);
   if (bo) tag("breakout", `${bo.description}${(snap.volumeRatio ?? 0) >= 1.5 ? " Volume confirms." : " Volume not yet confirming."}`);
@@ -340,12 +346,93 @@ export function analyzeChart(inp: AnalystInput): ChartAnalysis {
   const gcEv = recentEvents(bars, snap, [], [], []).find((e) => /Golden cross|Death cross/.test(e.text));
   if (gcEv) tag(gcEv.text.startsWith("Golden") ? "golden-cross" : "death-cross", `${gcEv.text} (${gcEv.date})`);
 
-  return {
+  const out: ChartAnalysis = {
     ...base, verdict, tone, headline, confidence: opp.confidence, confidenceLabel: opp.confidenceLabel,
     plan, reasons, risks, invalidation, levels, zones, strategies, assessments,
     events: recentEvents(bars, snap, patterns, candles, divs).slice(0, 25),
     indicators: { rsi: snap.rsi, macd: snap.macd.macd, macdSignal: snap.macd.signal, macdHist: snap.macd.histogram, adx: snap.adx, atr: snap.atr, atrPct: snap.atrPct, volumeRatio: snap.volumeRatio, sma20: s20, sma50: s50, sma200: s200, ema20: e20, ema9, mfi, stochK: snap.stochastic.k, percentB: snap.bollinger.percentB, high52: snap.high52, low52: snap.low52, return1m: snap.return1m, return3m: snap.return3m, return1y: snap.return1y, upDownVolume: updown },
     scores: { technical: tech, fundamental: fund?.score ?? null }, tags, tagNotes,
+  };
+  out.orders = tradeOrders(out, sup[0]?.price ?? null, res.filter((r) => r.price > c)[0]?.price ?? null, tradingWeekdays(bars.map((b) => b.date)));
+  return out;
+}
+
+const DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const wd = (d: string) => new Date(`${d}T00:00:00Z`).getUTCDay();
+/** The weekdays NEPSE actually traded on recently (the week changed from Sun–Thu to Mon–Fri in 2026), read from the price data. */
+export function tradingWeekdays(dates: string[]) {
+  const recent = dates.slice(-40), n = new Map<number, number>();
+  for (const d of recent) n.set(wd(d), (n.get(wd(d)) ?? 0) + 1);
+  const days = [...n.entries()].filter(([, k]) => k >= 3).map(([w]) => w).sort();
+  return days.length >= 4 ? days : [0, 1, 2, 3, 4];
+}
+/** Next trading session after a date (11:00 to 15:00 Nepal time; public holidays aside). */
+export function nextSession(asOf: string, days: number[] = [0, 1, 2, 3, 4]) {
+  let d = addDays(asOf, 1);
+  for (let i = 0; i < 7 && !days.includes(wd(d)); i++) d = addDays(d, 1);
+  return d;
+}
+const closedDays = (days: number[]) => DOW.filter((_, i) => !days.includes(i)).map((x) => `${x}s`).join(" and ");
+export const sessionLabel = (d: string) => `${DOW[new Date(`${d}T00:00:00Z`).getUTCDay()]} ${d}, 11:00 AM–3:00 PM`;
+const pct = (from: number, to: number) => `${to >= from ? "+" : ""}${(((to - from) / from) * 100).toFixed(1)}%`;
+
+/** Plain, exact instructions: what to buy or sell, at which prices, and when. Built only from the plan above. */
+export function tradeOrders(a: ChartAnalysis, nearSup: number | null, nearRes: number | null, days: number[] = [0, 1, 2, 3, 4]): TradeOrders | undefined {
+  const p = a.plan, c = a.price;
+  if (!a.asOf || c == null) return undefined;
+  const next = nextSession(a.asOf, days), when = sessionLabel(next);
+  const t = p.targets, stop = p.stop;
+  const sellSteps = (ref: number): OrderStep[] => [
+    ...(t[0] ? [{ kind: "sell" as const, title: `SELL half at Rs. ${r2(t[0].price)}`, text: `Place a sell order for half your shares at Rs. ${r2(t[0].price)} (${pct(ref, t[0].price)} from Rs. ${r2(ref)}). ${t[0].basis}.`, price: t[0].price }] : []),
+    ...(t[1] ? [{ kind: "sell" as const, title: `SELL the rest at Rs. ${r2(t[1].price)}`, text: `Sell the remaining shares at Rs. ${r2(t[1].price)} (${pct(ref, t[1].price)}). After the first sale, move your stop up to your buy price so the trade can't turn into a loss.`, price: t[1].price }] : []),
+    ...(stop != null ? [{ kind: "stop" as const, title: `STOP-LOSS: sell everything if a day closes below Rs. ${r2(stop)}`, text: `If any trading day closes below Rs. ${r2(stop)} (${pct(ref, stop)}), sell all shares at the next session's open. ${p.stopWhy ?? ""}`.trim(), price: stop }] : []),
+  ];
+  const validUntil = `${p.reviewBy ?? addDays(a.asOf, 7)} (based on the close of ${a.asOf})`;
+  const v = a.verdict;
+  if ((v === "BUY" || v === "STRONG BUY") && p.entryLow != null && p.entryHigh != null) {
+    const mid = (p.entryLow + p.entryHigh) / 2;
+    return {
+      action: v, session: when, validUntil,
+      summary: `${v}: buy ${a.symbol} between Rs. ${r2(p.entryLow)} and Rs. ${r2(p.entryHigh)} on ${when}. Do not pay more than Rs. ${r2(p.entryHigh)}.`,
+      forBuyers: [
+        { kind: "buy", title: `BUY between Rs. ${r2(p.entryLow)} and Rs. ${r2(p.entryHigh)}`, text: `On ${when}, place a limit buy order at or below Rs. ${r2(p.entryHigh)}${c > p.entryHigh ? ` (today's close Rs. ${r2(c)} is above it, so wait for the price to come back)` : ""}. If it opens above Rs. ${r2(p.entryHigh * 1.01)}, skip the trade: chasing ruins the risk/reward.`, low: p.entryLow, high: p.entryHigh },
+        ...sellSteps(mid),
+        { kind: "wait", title: `TIME LIMIT: ${p.holding ?? "review weekly"}`, text: `If neither the target nor the stop is reached by ${p.reviewBy ?? addDays(a.asOf, 7)}, re-check the chart; sell if the reason for the trade has gone.` },
+      ],
+      forHolders: [{ kind: "hold", title: "HOLD", text: `Keep holding while the price stays above Rs. ${stop != null ? r2(stop) : "the stop"}; take profit with the sell steps above.` }],
+      note: `Orders are for the next trading session; NEPSE is closed on ${closedDays(days)} and public holidays.`,
+    };
+  }
+  if (v === "SELL" || v === "STRONG SELL") {
+    const reb = nearRes ?? (c * 1.03);
+    return {
+      action: v, session: when, validUntil,
+      summary: `${v}: don't buy ${a.symbol}. If you own it, sell on ${when} near Rs. ${r2(c)}, or on a bounce up to Rs. ${r2(reb)}.`,
+      forBuyers: [{ kind: "avoid", title: "DON'T BUY", text: `The trend is down. Don't buy until a day closes above Rs. ${r2(p.breakout?.price ?? reb)} with strong volume.`, price: p.breakout?.price ?? reb }],
+      forHolders: [
+        { kind: "sell", title: `SELL at Rs. ${r2(c)} or on a bounce to Rs. ${r2(reb)}`, text: `On ${when}, sell at or above Rs. ${r2(c * 0.99)}; or place a sell order at Rs. ${r2(reb)} (${pct(c, reb)}, the nearest resistance) for this week.`, price: reb },
+        ...(nearSup != null ? [{ kind: "stop" as const, title: `Sell everything if a day closes below Rs. ${r2(nearSup)}`, text: `Below the nearest support (Rs. ${r2(nearSup)}, ${pct(c, nearSup)}) the fall can speed up.`, price: nearSup }] : []),
+      ],
+      note: "A sell view is for people who own the stock; this app never suggests short selling.",
+    };
+  }
+  // WAIT / HOLD / NO SIGNAL: exact conditions that would turn into a buy.
+  const z = p.bestZone, br = p.breakout;
+  const forBuyers: OrderStep[] = [{ kind: "wait", title: `DON'T BUY NOW at Rs. ${r2(c)}`, text: `${a.headline} There is no good entry at today's price.` }];
+  if (z && c <= z.high && c >= z.low) {
+    const top = r2(Math.min(z.high, c));
+    forBuyers.push({ kind: "buy", title: `BUY ZONE: Rs. ${r2(z.low)}–${top} (price is in it now)`, text: `Today's close is inside the buy zone. Only buy with a limit order between Rs. ${r2(z.low)} and Rs. ${top}, and only while days close above Rs. ${r2(z.low)} (the support is holding).${stop != null && stop < z.low ? ` Stop-loss: sell if a day closes below Rs. ${r2(stop)} (${pct(top, stop)}).` : ""}${t[0] && t[0].price > top ? ` First target Rs. ${r2(t[0].price)} (${pct(top, t[0].price)}).` : ""} The verdict is still ${v} because: ${a.headline.replace(/\.$/, "")}.`, low: z.low, high: top });
+  } else if (z && z.high < c) forBuyers.push({ kind: "buy", title: `BUY ON A DIP: Rs. ${r2(z.low)}–${r2(z.high)}`, text: `If the price falls to Rs. ${r2(z.low)}–${r2(z.high)} (${pct(c, z.high)} from today) and a day closes back above Rs. ${r2(z.low)}, buy at the next session up to Rs. ${r2(z.high)}.${stop != null && stop < z.low ? ` Stop-loss: sell if a day closes below Rs. ${r2(stop)} (${pct(z.high, stop)}).` : ""}${t[0] && t[0].price > z.high ? ` First target Rs. ${r2(t[0].price)} (${pct(z.high, t[0].price)}).` : ""}`, low: z.low, high: z.high });
+  if (br) forBuyers.push({ kind: "buy", title: `BUY ON A BREAKOUT: close above Rs. ${r2(br.price)}`, text: `If a day closes above Rs. ${r2(br.price)} (${pct(c, br.price)}) on at least 1.5× average volume, buy at the next session up to Rs. ${r2(br.price * 1.02)}. Stop-loss: a close back below Rs. ${r2(br.price * 0.97)}.${t.find((x) => x.price > br.price * 1.02) ? ` Target Rs. ${r2(t.find((x) => x.price > br.price * 1.02)!.price)}.` : ""}`, price: br.price });
+  const forHolders: OrderStep[] = [
+    { kind: "hold", title: stop != null ? `HOLD while above Rs. ${r2(stop)}` : "HOLD", text: `Keep the shares while daily closes stay above Rs. ${stop != null ? r2(stop) : r2(nearSup ?? c * 0.93)}.` },
+    ...(t[0] ? [{ kind: "sell" as const, title: `TAKE PROFIT on part at Rs. ${r2(t[0].price)}`, text: `Sell part of your holding at Rs. ${r2(t[0].price)} (${pct(c, t[0].price)}), the next resistance.`, price: t[0].price }] : []),
+    ...(stop != null ? [{ kind: "stop" as const, title: `SELL if a day closes below Rs. ${r2(stop)}`, text: `Sell at the next session's open if a day closes below Rs. ${r2(stop)} (${pct(c, stop)}).`, price: stop }] : []),
+  ];
+  return {
+    action: v === "NO SIGNAL" ? "NO SIGNAL" : v, session: when, validUntil, forBuyers, forHolders,
+    summary: `${v === "HOLD" ? "HOLD" : "WAIT"}: don't buy ${a.symbol} at Rs. ${r2(c)} now.${z ? (c <= z.high ? ` Buy only between Rs. ${r2(z.low)} and Rs. ${r2(Math.min(z.high, c))} while support holds` : ` Buy on a dip to Rs. ${r2(z.low)}–${r2(z.high)}`) : ""}${z && br ? " or" : ""}${br ? ` after a close above Rs. ${r2(br.price)}` : ""}${z || br ? "." : ""}`,
+    note: "Check again after each trading day: the conditions are judged on closing prices.",
   };
 }
 

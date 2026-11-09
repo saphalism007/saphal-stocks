@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Markdown, Notice, Loading, Badge } from "../components/ui.tsx";
+import { Markdown, Notice, Loading, Badge, Seg } from "../components/ui.tsx";
 import { TradePlanner } from "../components/TradePlanner.tsx";
 import { num, rs, todayNpt, nptDate } from "../lib/format.ts";
 import { roundTrip } from "../../../shared/costs.ts";
@@ -34,6 +34,20 @@ export default function AiPanel({ symbol, analysis, loading, error, bars, tab, s
   );
 }
 
+const OK: Record<string, string> = { buy: "o-buy", sell: "o-sell", stop: "o-stop", wait: "o-wait", hold: "o-hold", avoid: "o-stop" };
+function Orders({ o }: { o: NonNullable<ChartAnalysis["orders"]> }) {
+  const [who, setWho] = useState<"buy" | "own">("buy");
+  const steps = who === "buy" ? o.forBuyers : o.forHolders;
+  return (
+    <div className="orders">
+      <div className="row between" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}><strong>What to do</strong><Seg value={who} onChange={setWho} options={[{ key: "buy", label: "I want to buy" }, { key: "own", label: "I own it" }]} /></div>
+      <p className="o-sum">{o.summary}</p>
+      <ol className="o-steps">{steps.map((st, i) => <li key={i} className={OK[st.kind]}><b>{st.title}</b><span>{st.text}</span></li>)}</ol>
+      <div className="tiny faint">Next session: {o.session} (Nepal time). Valid until {o.validUntil}. {o.note}</div>
+    </div>
+  );
+}
+
 function Analysis({ a, priceInfo }: { a: ChartAnalysis; priceInfo: Any }) {
   const [open, setOpen] = useState<string | null>(null);
   const p = a.plan;
@@ -44,6 +58,7 @@ function Analysis({ a, priceInfo }: { a: ChartAnalysis; priceInfo: Any }) {
         <div className="conf"><i style={{ width: `${a.confidence}%` }} /></div>
         <p className="small" style={{ margin: "6px 0 0" }}>{a.headline}</p>
       </div>
+      {a.orders && <Orders o={a.orders} />}
       <div className="tiny faint">Analysis of {a.symbol} on the close of {a.asOf ? nptDate(a.asOf) : "—"} · {priceInfo?.kind === "delayed" ? "delayed intraday prices" : "end-of-day prices"} · source: NEPSE prices via ShareSansar, stored statements. {a.dataNotes.join(" ")}</div>
       <div className="plan-grid ai">
         <div><span>Market price</span><strong>{rs(a.price)}</strong><em className={a.changePct != null && a.changePct >= 0 ? "up" : "down"}>{pctS(a.changePct)}</em></div>
@@ -60,6 +75,11 @@ function Analysis({ a, priceInfo }: { a: ChartAnalysis; priceInfo: Any }) {
       {p.bestZone && <p className="tiny muted" style={{ margin: 0 }}><strong>Best zone:</strong> {p.bestZone.why} {p.breakout ? <><strong>Breakout:</strong> {p.breakout.why}</> : null} {p.stopWhy ? <><strong>Stop:</strong> {p.stopWhy}</> : null}</p>}
       <p className="tiny faint" style={{ margin: 0 }}>{p.expiry}</p>
 
+      {a.signals && a.signals.length > 0 && <Sec title={`Past buy signals on this chart (${a.signals.length})`}>
+        <p className="tiny muted" style={{ margin: "0 0 6px" }}>The same rules run on past prices: B = buy at the next open, S = where it was sold (target, stop or time limit). Shown as arrows on the chart. Results include fees.</p>
+        <div className="table-scroll"><table className="t small"><thead><tr><th>Bought</th><th className="num">Price</th><th>Sold</th><th className="num">Price</th><th className="num">Result</th></tr></thead>
+          <tbody>{[...a.signals].reverse().slice(0, 12).map((g) => <tr key={g.date}><td>{nptDate(g.entryDate)}</td><td className="num">{num(g.entry)}</td><td>{nptDate(g.exitDate)} <span className="tiny faint">{g.outcome === "target" ? "target" : g.outcome === "stop" ? "stop-loss" : "time limit"}</span></td><td className="num">{num(g.exit)}</td><td className={`num ${g.netPct >= 0 ? "up" : "down"}`}>{pctS(g.netPct)}</td></tr>)}</tbody></table></div>
+      </Sec>}
       <Sec title="Why — the evidence">
         {a.reasons.map((r, i) => <div key={i} className="reason">{dot(r.tone)}<div><strong>{r.topic}</strong><span>{r.text}</span></div></div>)}
       </Sec>

@@ -642,3 +642,21 @@ img, svg, video, canvas { max-width: 100%; }
 .month-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 8px 0 4px; }
 .month-grid .field { min-width: 0; font-size: 12px; }
 @media (max-width: 760px) { .month-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* v0.12.1: exact orders */
+.orders { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel-2); display: flex; flex-direction: column; gap: 8px; }
+.o-sum { margin: 0; font-weight: 600; font-size: 14px; line-height: 1.4; }
+.o-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.o-steps li { border-left: 4px solid var(--border-2); padding: 6px 10px; background: var(--panel); border-radius: 6px; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+.o-steps li b { font-size: 13.5px; }
+.o-steps li span { color: var(--text-2); line-height: 1.4; }
+.o-steps li.o-buy { border-left-color: var(--up); } .o-steps li.o-buy b { color: var(--up); }
+.o-steps li.o-sell { border-left-color: #2962ff; } .o-steps li.o-sell b { color: #2962ff; }
+.o-steps li.o-stop { border-left-color: var(--down); } .o-steps li.o-stop b { color: var(--down); }
+.o-steps li.o-wait, .o-steps li.o-hold { border-left-color: var(--warn); } .o-steps li.o-wait b, .o-steps li.o-hold b { color: var(--warn); }
+.t-tools > * { flex: none; }
+.term-legend { background: color-mix(in srgb, var(--panel) 82%, transparent); border-radius: 8px; padding: 3px 6px; }
+.term-legend .leg-row { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+.leg-toggle { pointer-events: all; align-self: flex-start; border: 1px solid var(--border); background: var(--panel-2); color: var(--text-2); border-radius: 6px; font-size: 11px; padding: 2px 8px; cursor: pointer; }
+@media (hover: none) { .leg-btns { opacity: 1; } .leg-btns button { font-size: 12px; padding: 3px 7px; } }
+.term-legend .leg-row > span:not(.leg-btns) { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.term-legend .leg-btns { flex: none; }

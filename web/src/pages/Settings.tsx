@@ -80,6 +80,8 @@ function DataTab() {
           <li><strong>Daily price history</strong>: the open nepse-data dataset on GitHub (MIT licence), one CSV per company, history back to the 1990s for older companies.</li>
           <li><strong>Latest prices, sectors, indices, company profiles, dividends, announcements and quarterly statements</strong>: ShareSansar public pages (robots.txt allows crawling). Requests are rate-limited to about one per 1.2 seconds and cached in the local database.</li>
           <li><strong>Exchange rates</strong>: the official Nepal Rastra Bank forex API.</li>
+          <li><strong>Gold and silver</strong>: official daily rates published by FENEGOSIDA (Federation of Nepal Gold &amp; Silver Dealers' Association).</li>
+          <li><strong>Charts</strong>: drawn with <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">TradingView</a> Lightweight Charts™ (Apache 2.0 licence).</li>
           <li>The official NEPSE website API requires an authentication token that is not publicly offered, so it is not used. If an official API is opened, a new provider can be added without changing the rest of the app.</li>
           <li>Automatic refresh runs daily at 15:45 NPT (after the market closes) and on start-up if data is older than 12 hours. Alerts are evaluated after each refresh.</li>
         </ul>

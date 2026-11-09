@@ -4,7 +4,7 @@ import { all } from "../db.ts";
 import * as M from "./market.ts";
 import * as TR from "./trading.ts";
 import { evaluate, trackRecord, summarizeTrack } from "../../shared/opportunities.ts";
-import { analyzeChart, type ChartAnalysis, type FundSummary, type TrackSummary } from "../../shared/analyst.ts";
+import { analyzeChart, type ChartAnalysis, type FundSummary, type TrackSummary, type PastSignal } from "../../shared/analyst.ts";
 
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : null; };
 
@@ -36,12 +36,16 @@ export function analysisFor(symbol: string, opts: { history?: boolean } = {}): C
   const fa = TR.fundamentalInput(symbol);
   const opp = TR.withTrack([evaluate({ symbol, name: c.name || symbol, sector, bars: bars.slice(-420), fundamentals: fa, avgTurnover20: f?.avgTurnover20 ?? null, latestMarketDate: M.latestTradingDate() ?? "", fees: M.fees() })])[0];
   let stockTrack: TrackSummary | null = null;
+  let signals: PastSignal[] | undefined;
   if (opts.history && bars.length >= 200) {
-    const trades = trackRecord(symbol, bars, fa, { step: 5, lookback: 400, fees: M.fees() });
+    const trades = trackRecord(symbol, bars, fa, { step: 2, lookback: 580, fees: M.fees() });
     const s = summarizeTrack(trades);
+    signals = trades.map((t) => ({ date: t.date, entryDate: bars[bars.findIndex((b) => b.date === t.date) + 1]?.date ?? t.date, entry: t.entry, stop: t.stop, t1: t.t1, exitDate: t.exitDate, exit: t.exit, outcome: t.outcome, netPct: t.netPct }));
     stockTrack = { trades: s.trades, winRatePct: s.winRatePct, avgNetPct: s.avgNetPct, targetHitPct: s.targetHitPct, stopHitPct: s.stopHitPct, recent: trades.slice(-6).reverse().map((t) => ({ date: t.date, type: t.type, outcome: t.outcome, netPct: t.netPct })) };
   }
-  return analyzeChart({ symbol, name: c.name || symbol, sector, bars, opp, fund: fundSummary(symbol, sector), fees: M.fees(), stockTrack, avgTurnover20: f?.avgTurnover20 ?? null, provisional: provisional(bars[bars.length - 1]?.date) });
+  const a = analyzeChart({ symbol, name: c.name || symbol, sector, bars, opp, fund: fundSummary(symbol, sector), fees: M.fees(), stockTrack, avgTurnover20: f?.avgTurnover20 ?? null, provisional: provisional(bars[bars.length - 1]?.date) });
+  if (signals) a.signals = signals;
+  return a;
 }
 
 export interface ScanRow { symbol: string; name: string; sector: string; close: number | null; changePct: number | null; verdict: string; confidence: number; tags: string[]; notes: Record<string, string>; rsi: number | null; volumeRatio: number | null }

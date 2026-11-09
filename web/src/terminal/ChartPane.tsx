@@ -89,10 +89,10 @@ export default function ChartPane(p: PaneProps) {
     if (!host.current || shown.length < 2) return;
     const up = css("--up") || "#16a34a", down = css("--down") || "#dc2626", text = css("--text-2") || "#888", grid = css("--border") || "#333", accent = css("--accent") || "#10b981";
     const chart = createChart(host.current, {
-      autoSize: true, layout: { background: { color: "transparent" }, textColor: text, fontSize: 11, panes: { separatorColor: grid, enableResize: true } },
+      autoSize: true, layout: { attributionLogo: false, background: { color: "transparent" }, textColor: text, fontSize: 11, panes: { separatorColor: grid, enableResize: true } },
       grid: { vertLines: { color: p.grid ? grid + "44" : "transparent" }, horzLines: { color: p.grid ? grid + "44" : "transparent" } },
       rightPriceScale: { borderColor: grid, mode: p.scaleMode === 1 ? PriceScaleMode.Logarithmic : p.scaleMode === 2 ? PriceScaleMode.Percentage : PriceScaleMode.Normal },
-      timeScale: { borderColor: grid, rightOffset: 10, minBarSpacing: 0.5 }, crosshair: { mode: CrosshairMode.Normal },
+      timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5 }, crosshair: { mode: CrosshairMode.Normal },
     });
     chartRef.current = chart;
     const T = (d: string) => d as Time;
@@ -128,26 +128,55 @@ export default function ChartPane(p: PaneProps) {
           s = chart.addSeries(HistogramSeries, { color, priceLineVisible: false, lastValueVisible: false, priceFormat: def.id === "volume" || def.id === "turnover" ? { type: "volume" } : undefined }, pane);
           s.setData(pts.map((q, i) => (q.value == null ? q : { ...q, color: def.id === "volume" ? ((data[i]?.close ?? 0) >= (data[i]?.open ?? 0) ? up : down) + "88" : q.value >= 0 ? (o.key === "bear" ? color : up + "aa") : down + "aa" })) as never);
         } else {
-          s = chart.addSeries(LineSeries, { color, lineWidth: (o.width ?? 1) as 1, lineStyle: o.dashed ? LineStyle.Dashed : LineStyle.Solid, lineType: o.kind === "step" ? LineType.WithSteps : LineType.Simple, lineVisible: o.kind !== "dots", pointMarkersVisible: o.kind === "dots", pointMarkersRadius: 1.5, priceLineVisible: false, lastValueVisible: !def.overlay, crosshairMarkerVisible: false }, pane);
+          s = chart.addSeries(LineSeries, { color, lineWidth: (o.width ?? 1) as 1, lineStyle: o.dashed ? LineStyle.Dashed : LineStyle.Solid, lineType: o.kind === "step" ? LineType.WithSteps : LineType.Simple, lineVisible: o.kind !== "dots", pointMarkersVisible: o.kind === "dots", pointMarkersRadius: 1.5, priceLineVisible: false, lastValueVisible: !def.overlay, crosshairMarkerVisible: false, ...(def.overlay ? { autoscaleInfoProvider: () => null } : {}) }, pane);
           s.setData(pts as never);
         }
         first = first ?? s;
       }
       if (first && def.levels) for (const lv of def.levels) first.createPriceLine({ price: lv, color: grid, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
     }
-    // AI levels on the price pane
+    // AI levels on the price pane: only the levels that matter for a decision, merged when they sit close together.
+    const markers: { time: Time; position: "belowBar" | "aboveBar"; color: string; shape: "arrowUp" | "arrowDown" | "circle"; text: string }[] = [];
     if (p.showAi && p.analysis) {
-      const a = p.analysis;
-      const col = (k: string) => (k.includes("support") ? up : k.includes("resistance") ? down : k.includes("Breakout") ? "#2962ff" : k.includes("Breakdown") ? "#f97316" : "#94a3b8");
-      for (const l of a.levels.filter((x) => x.side !== "support" || /support/i.test(x.kind)).filter((x) => !/average|EMA|SMA|VWAP|Supertrend|SAR|Kijun/i.test(x.kind)))
-        main.createPriceLine({ price: l.price, color: col(l.kind), lineWidth: /Strong|Break/.test(l.kind) ? 2 : 1, lineStyle: /Break/.test(l.kind) ? LineStyle.Dotted : LineStyle.Dashed, axisLabelVisible: true, title: l.kind.replace("Immediate ", "").replace(" level", "") });
-      if (a.plan.stop != null) main.createPriceLine({ price: a.plan.stop, color: down, lineWidth: 2, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: "AI stop" });
-      a.plan.targets.forEach((t, i) => main.createPriceLine({ price: t.price, color: up, lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: `T${i + 1}` }));
+      const a = p.analysis, c = a.price ?? shown[shown.length - 1].close;
+      const pl = a.plan;
+      type L = { price: number; title: string; color: string; pri: number; width: 1 | 2; style: LineStyle };
+      const cand: L[] = [];
+      if (pl.stop != null) cand.push({ price: pl.stop, title: "Stop", color: down, pri: 10, width: 2, style: LineStyle.Solid });
+      const bz = pl.entryLow != null && pl.entryHigh != null ? { lo: pl.entryLow, hi: pl.entryHigh } : pl.bestZone ? { lo: pl.bestZone.low, hi: pl.bestZone.high } : null;
+      if (bz) cand.push({ price: bz.hi, title: /BUY/.test(a.verdict) ? "BUY zone" : "Buy on dip", color: "#16a34a", pri: 9.5, width: 2, style: LineStyle.Solid });
+      pl.targets.slice(0, 3).forEach((t, i) => cand.push({ price: t.price, title: `T${i + 1}`, color: "#2962ff", pri: 9 - i, width: 1, style: LineStyle.Solid }));
+      if (pl.breakout) cand.push({ price: pl.breakout.price, title: "Breakout", color: "#f59e0b", pri: 8, width: 1, style: LineStyle.Dotted });
+      const sup = a.levels.find((l) => l.side === "support" && l.price < c), res = a.levels.find((l) => l.side === "resistance" && l.price > c);
+      if (sup) cand.push({ price: sup.price, title: "Support", color: up, pri: 7, width: 1, style: LineStyle.Dashed });
+      if (res) cand.push({ price: res.price, title: "Resistance", color: down, pri: 6, width: 1, style: LineStyle.Dashed });
+      const kept: L[] = [];
+      for (const l of cand.sort((x, y) => y.pri - x.pri)) {
+        const twin = kept.find((k) => Math.abs(k.price - l.price) / c < 0.006);
+        if (twin) { if (!twin.title.includes(l.title)) twin.title += ` / ${l.title}`; continue; }
+        kept.push({ ...l });
+      }
+      for (const l of kept) main.createPriceLine({ price: l.price, color: l.color, lineWidth: l.width, lineStyle: l.style, axisLabelVisible: true, title: l.title });
+      // Today's action on the last bar.
+      const lastD = shown[shown.length - 1].date;
+      if (/BUY/.test(a.verdict) && bz) markers.push({ time: T(lastD), position: "belowBar", color: up, shape: "arrowUp", text: `${a.verdict} ${bz.lo}–${bz.hi}` });
+      else if (/SELL/.test(a.verdict)) markers.push({ time: T(lastD), position: "aboveBar", color: down, shape: "arrowDown", text: a.verdict });
+      else markers.push({ time: T(lastD), position: "aboveBar", color: "#f59e0b", shape: "circle", text: a.verdict });
+      // Past buy signals from the same rules: B at the entry, S at the exit (snapped to the bar that contains the date).
+      const snap = (d: string) => { const b = shown.find((x) => x.date >= d); return b ? b.date : null; };
+      for (const g0 of a.signals ?? []) {
+        const ed = snap(g0.entryDate), xd = snap(g0.exitDate);
+        if (!ed || !xd) continue;
+        const g = { ...g0, entryDate: ed, exitDate: xd };
+        markers.push({ time: T(g.entryDate), position: "belowBar", color: up, shape: "arrowUp", text: `B ${g.entry}` });
+        markers.push({ time: T(g.exitDate), position: "aboveBar", color: g.netPct >= 0 ? "#2962ff" : down, shape: "arrowDown", text: `S ${g.exit} ${g.netPct >= 0 ? "+" : ""}${g.netPct.toFixed(1)}%` });
+      }
     }
     if (p.showPatterns) {
       const cs = allCandles(data, Math.max(0, data.length - 300));
-      createSeriesMarkers(main, cs.map((c) => ({ time: T(c.date), position: c.dir === "bullish" ? "belowBar" : "aboveBar", color: c.dir === "bullish" ? up : down, shape: c.dir === "bullish" ? "arrowUp" : "arrowDown", text: c.name.replace(/Bullish |Bearish /, "").split(" ").map((w) => w[0]).join("").toUpperCase() })) as never);
+      for (const c of cs) markers.push({ time: T(c.date), position: c.dir === "bullish" ? "belowBar" : "aboveBar", color: (c.dir === "bullish" ? up : down) + "99", shape: "circle", text: c.name.replace(/Bullish |Bearish /, "").split(" ").map((w) => w[0]).join("").toUpperCase() });
     }
+    if (markers.length) createSeriesMarkers(main, markers.sort((x, y) => String(x.time).localeCompare(String(y.time))) as never);
     // Pane heights
     const H = host.current.clientHeight, sub = paneNo ? Math.max(70, Math.min(130, (H * 0.45) / paneNo)) : 0;
     chart.panes().forEach((pn, i) => { if (i > 0) pn.setHeight(sub); });
@@ -183,7 +212,7 @@ export default function ChartPane(p: PaneProps) {
     } else {
       const per = p.tf === "W" ? 5 : p.tf === "M" ? 21 : 1;
       const k = Math.ceil(p.range / per);
-      chart.timeScale().setVisibleLogicalRange({ from: Math.max(-2, n - k), to: n + 6 });
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(-2, n - k), to: n + 3 });
     }
   }
   useEffect(() => { keepRange.current = null; applyRange(); }, [p.range, p.from, p.to]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -315,13 +344,15 @@ export default function ChartPane(p: PaneProps) {
   };
 
   // AI zones, divergences and chart patterns as evidence on the chart
+  const [legOpen, setLegOpen] = useState(false);
   const aiLayer = () => {
     if (!p.showAi || !p.analysis || !mapper) return null;
-    const a = p.analysis, out: React.ReactElement[] = [];
-    a.zones.slice(0, 4).forEach((z, i) => { const y1 = mapper.y(z.high), y2 = mapper.y(z.low); if (y1 == null || y2 == null) return; const c = z.kind === "demand" ? "#22c55e" : "#ef4444"; out.push(<g key={`z${i}`}><rect x={w * 0.55} y={y1} width={w * 0.45} height={Math.max(2, y2 - y1)} fill={c} opacity={0.1} /><text x={w - 6} y={y1 + 11} fontSize={10} textAnchor="end" fill={c}>{z.kind === "demand" ? "Demand" : "Supply"} zone{z.fresh ? " (fresh)" : ""}</text></g>); });
-    if (a.plan.entryLow != null && a.plan.entryHigh != null) { const y1 = mapper.y(a.plan.entryHigh), y2 = mapper.y(a.plan.entryLow); if (y1 != null && y2 != null) out.push(<g key="entry"><rect x={w * 0.7} y={y1} width={w * 0.3} height={Math.max(3, y2 - y1)} fill="#2962ff" opacity={0.16} /><text x={w * 0.7 + 4} y={y1 - 3} fontSize={10} fill="#2962ff" fontWeight={600}>AI entry zone</text></g>); }
-    a.divergences.forEach((dv, i) => { const x1 = mapper.x(dv.from), x2 = mapper.x(dv.to), y1 = mapper.y(dv.fromPrice), y2 = mapper.y(dv.toPrice); if ([x1, x2, y1, y2].some((v) => v == null)) return; const c = dv.dir === "bullish" ? "#22c55e" : "#ef4444"; out.push(<g key={`d${i}`}><path d={`M${x1},${y1}L${x2},${y2}`} stroke={c} strokeWidth={2} strokeDasharray="4 3" /><text x={x2! + 4} y={y2! + (dv.dir === "bullish" ? 14 : -6)} fontSize={10} fill={c}>{dv.indicator} {dv.dir} div.</text></g>); });
-    a.patterns.slice(0, 2).forEach((pt, i) => { const xy = pt.points.map((q) => [mapper.x(q.date), mapper.y(q.price)]); if (xy.length < 2 || xy.some((q) => q[0] == null || q[1] == null)) return; const c = pt.direction === "bullish" ? "#22c55e" : pt.direction === "bearish" ? "#ef4444" : "#a855f7"; out.push(<g key={`p${i}`}><path d={"M" + xy.map((q) => `${q[0]},${q[1]}`).join("L")} fill="none" stroke={c} strokeWidth={1.5} opacity={0.9} /><text x={xy[xy.length - 1][0]! + 4} y={xy[xy.length - 1][1]! - 6} fontSize={10} fill={c} fontWeight={600}>{pt.name}</text></g>); });
+    const a = p.analysis, out: React.ReactElement[] = [], wide = w >= 640;
+    a.zones.slice(0, 2).forEach((z, i) => { const y1 = mapper.y(z.high), y2 = mapper.y(z.low); if (y1 == null || y2 == null) return; const c = z.kind === "demand" ? "#22c55e" : "#ef4444"; out.push(<g key={`z${i}`}><rect x={w * 0.6} y={y1} width={w * 0.4} height={Math.max(2, y2 - y1)} fill={c} opacity={0.08} />{wide && <text x={w * 0.6 + 4} y={y2 - 3} fontSize={10} fill={c}>{z.kind === "demand" ? "Demand" : "Supply"} zone</text>}</g>); });
+    const z = a.plan.entryLow != null && a.plan.entryHigh != null ? { lo: a.plan.entryLow, hi: a.plan.entryHigh as number } : a.plan.bestZone ? { lo: a.plan.bestZone.low, hi: a.plan.bestZone.high } : null;
+    if (z) { const y1 = mapper.y(z.hi), y2 = mapper.y(z.lo); if (y1 != null && y2 != null) out.push(<g key="entry"><rect x={w * 0.6} y={y1} width={w * 0.4} height={Math.max(3, y2 - y1)} fill="#22c55e" opacity={0.18} stroke="#22c55e" strokeOpacity={0.5} strokeDasharray="3 3" /></g>); }
+    if (wide) a.divergences.slice(0, 1).forEach((dv, i) => { const x1 = mapper.x(dv.from), x2 = mapper.x(dv.to), y1 = mapper.y(dv.fromPrice), y2 = mapper.y(dv.toPrice); if ([x1, x2, y1, y2].some((v) => v == null)) return; const c = dv.dir === "bullish" ? "#22c55e" : "#ef4444"; out.push(<path key={`d${i}`} d={`M${x1},${y1}L${x2},${y2}`} stroke={c} strokeWidth={1.5} strokeDasharray="4 3" opacity={0.8} />); });
+    a.patterns.slice(0, 1).forEach((pt, i) => { const xy = pt.points.map((q) => [mapper.x(q.date), mapper.y(q.price)]); if (xy.length < 2 || xy.some((q) => q[0] == null || q[1] == null)) return; const c = pt.direction === "bullish" ? "#22c55e" : pt.direction === "bearish" ? "#ef4444" : "#a855f7"; const top = Math.min(...xy.map((q) => q[1]!)); const cx = xy.reduce((s, q) => s + q[0]!, 0) / xy.length; out.push(<g key={`p${i}`}><path d={"M" + xy.map((q) => `${q[0]},${q[1]}`).join("L")} fill="none" stroke={c} strokeWidth={1.2} opacity={0.7} />{wide && <text x={cx} y={top - 8} fontSize={10} fill={c} textAnchor="middle" fontWeight={600}>{pt.name}</text>}</g>); });
     return <g style={{ pointerEvents: "none" }}>{out}</g>;
   };
 
@@ -350,7 +381,8 @@ export default function ChartPane(p: PaneProps) {
             <span className={bar.close >= bar.open ? "up" : "down"} style={{ fontVariantNumeric: "tabular-nums" }}>O {fmtP(bar.open)} H {fmtP(bar.high)} L {fmtP(bar.low)} C {fmtP(bar.close)} {chg != null ? `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%` : ""}</span>
             <span className="faint">Vol {fmtP(bar.volume)}</span>
           </div>
-          {comp.filter((c) => c.def.overlay).map(({ inst, def, vals }) => (
+          {comp.some((c) => c.def.overlay) && w < 640 && <button className="leg-toggle" onClick={(e) => { e.stopPropagation(); setLegOpen(!legOpen); }}>{comp.filter((c) => c.def.overlay).length} indicator{comp.filter((c) => c.def.overlay).length === 1 ? "" : "s"} {legOpen ? "▴" : "▾"}</button>}
+          {(w >= 640 || legOpen) && comp.filter((c) => c.def.overlay).map(({ inst, def, vals }) => (
             <div key={inst.uid} className="leg-row"><span style={{ opacity: inst.hidden ? 0.4 : 1 }}>{def.short}{def.params.length ? ` (${def.params.map((x) => inst.params[x.key] ?? x.def).join(", ")})` : ""}</span>
               {!inst.hidden && def.outputs.map((o) => <span key={o.key} style={{ color: inst.colors[o.key] || o.color }}>{val(vals[o.key] ?? [])}</span>)}
               <LegBtns inst={inst} p={p} /></div>
