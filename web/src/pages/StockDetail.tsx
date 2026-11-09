@@ -2,11 +2,12 @@ import { Fragment } from "react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
+import { BROWSER_BACKEND } from "../lib/backend.ts";
 import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score, ScoreBar, Tabs, DataTable, Disclaimer, Modal } from "../components/ui.tsx";
 import { PriceChart, LineChart, type Overlay, type Lower, type ChartLevel } from "../components/PriceChart.tsx";
 import { num, pct, tone, compact, int, nptDate, isNum } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
-import { useTheme } from "../App.tsx";
+import { useTheme, usePrefs } from "../App.tsx";
 import { grahamNumber, dividendDiscount } from "../../../shared/fundamentals.ts";
 import type { Bar } from "../../../shared/types.ts";
 
@@ -55,12 +56,12 @@ export default function StockDetail() {
           <button className="btn" onClick={() => setShowAlert(true)}><I.alerts /> Alert</button>
           <button className="btn" onClick={() => nav(`/compare?s=${sym}`)}>Compare</button>
           <button className="btn" onClick={() => nav(`/analyst?q=${encodeURIComponent(`Analyse ${sym}: is it a good investment at the current price, and is there a good trade setup?`)}`)}><I.ai /> Ask AI</button>
-          <button className="btn" onClick={refresh} disabled={busy} title="Fetch latest profile, dividends, announcements and quarterly report">{busy ? <span className="spinner" /> : <I.refresh />} Update</button>
+          {!BROWSER_BACKEND && <button className="btn" onClick={refresh} disabled={busy} title="Fetch latest profile, dividends, announcements and quarterly report">{busy ? <span className="spinner" /> : <I.refresh />} Update</button>}
         </div>
       </div>
       {msg && <Notice>{msg}</Notice>}
       {d.dataFreshness?.provisional && <Notice tone="warn">Today's price bar is provisional: the market is open or the official close hasn't been loaded yet, so today's indicators, levels and setups can still change.</Notice>}
-      {!fa?.latestPeriod && <Notice tone="warn">No quarterly statements stored for {sym} yet, so fundamental scores are unavailable. Click <strong>Update</strong> to fetch the latest report.</Notice>}
+      {!fa?.latestPeriod && <Notice tone="warn">No quarterly statements stored for {sym} yet, so fundamental scores are unavailable. {BROWSER_BACKEND ? "The cloud data job fetches statements for all companies; this company has none published at the source yet." : <>Click <strong>Update</strong> to fetch the latest report.</>}</Notice>}
 
       <div className="grid g6">
         <Stat label="52W range" value={<span style={{ fontSize: 15 }}>{num(t?.low52)} – {num(t?.high52)}</span>} sub={t && lastClose ? `${pct(((lastClose - t.high52) / t.high52) * 100, 1)} from high` : ""} />
@@ -181,11 +182,12 @@ const OVERLAYS: { key: Overlay; label: string }[] = [
 
 function ChartTab({ d, bars }: { d: Any; bars: { bars: Bar[]; adjustments: Any[]; skipped: Any[] } | null }) {
   const { theme } = useTheme();
-  const [ov, setOv] = useState<Overlay[]>(["sma50", "sma200"]);
-  const [lower, setLower] = useState<Lower>("rsi");
+  const { prefs } = usePrefs();
+  const [ov, setOv] = useState<Overlay[]>(prefs.chartOverlays as Overlay[]);
+  const [lower, setLower] = useState<Lower>(prefs.chartLower as Lower);
   const [showLevels, setShowLevels] = useState(true);
   const [showSetup, setShowSetup] = useState(true);
-  const [kind, setKind] = useState<"candles" | "line">("candles");
+  const [kind, setKind] = useState<"candles" | "line">(prefs.chartKind);
   const t = d.technical;
   const hist = useApi<Any>(`/stocks/${d.symbol}/pattern-history`, [d.symbol]);
   const best = d.setups?.find((s: Any) => s.side === "buy");

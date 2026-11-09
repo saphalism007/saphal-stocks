@@ -77,6 +77,17 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 - ✅ macOS desktop notifications for alerts and reminders (toggle + test on the Alerts page)
 - ⬜ Email/phone push notifications
 
+## Web app for iPhone, iPad and Mac (v0.6)
+- ✅ Installable web app (PWA): home-screen/Dock icon, full-screen, works offline (service worker precaches every file; data in IndexedDB)
+- ✅ In-browser backend: the same server routes and engines run in a Web Worker on sql.js, so numbers match the local server exactly
+- ✅ Market snapshot (prices from 2008, statements, dividends, issues, funds, news) downloaded once and refreshed when a newer one is published; near-live quotes overlay during market hours
+- ✅ Encrypted sync between devices through a secret GitHub Gist (AES-256-GCM, passphrase never leaves the device), with conflict choice
+- ✅ Device backup download/restore (AI key excluded)
+- ✅ Appearance settings per device: theme, accent, text size, density, number style, start page, menu items, phone tab bar, sidebar rail, chart defaults
+- ✅ Layouts checked at iPhone Pro Max (440×956), iPad Pro 13" (1032×1376) and MacBook Air 13" sizes: phone tab bar and bottom-sheet dialogs, tablet rail, safe areas, 16 px inputs (no iOS zoom), larger touch targets
+- ✅ GitHub Actions pipeline: daily full refresh, 15-minute price refresh in market hours, tests, build, deploy to GitHub Pages
+- ⬜ Background alerts on iOS (web apps cannot run in the background; alerts are checked when the app opens)
+
 ## Running it
 - ✅ Double-click launcher (`Start Saphal Stocks.command`) that installs, builds when needed and opens the browser; `Start on Wi-Fi.command` for phone access on a home network
 - ✅ Production mode serves the web app and API from one port with CSP and security headers
@@ -91,4 +102,5 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 3. Historical valuation bands (P/E and P/B over time) as quarterly history accumulates.
 4. Open-ended mutual fund NAVs (needs a source; managers publish on their own sites).
 5. Interest rates and other NRB macro indicators (needs a verified source).
-6. Push to a new private GitHub repository.
+6. Create the GitHub repository, turn on Pages (source: GitHub Actions) and install on all three devices.
+7. Precompute setups and data-quality results in the snapshot so those pages open instantly on the phone.

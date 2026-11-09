@@ -130,3 +130,5 @@ systemRouter.get("/market/status", (_req, res) => res.json(marketStatus()));
 systemRouter.get("/settings/notifications", (_req, res) => res.json({ supported: desktopSupported(), enabled: desktopEnabled() }));
 systemRouter.put("/settings/notifications", (req, res) => { const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body); setSetting("desktopNotifications", enabled); res.json({ ok: true, enabled: desktopEnabled() }); });
 systemRouter.post("/settings/notifications/test", async (_req, res) => res.json({ sent: await desktopNotify("Test notification", "Alerts will appear like this when their conditions are met.", true) }));
+systemRouter.get("/settings/appearance", (_req, res) => res.json(getSetting("appearance", {})));
+systemRouter.put("/settings/appearance", (req, res) => { setSetting("appearance", z.record(z.unknown()).parse(req.body)); res.json({ ok: true }); });

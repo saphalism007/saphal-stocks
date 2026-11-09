@@ -3,6 +3,8 @@ import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-d
 import { api, useApi } from "./lib/api.ts";
 import { I } from "./components/icons.tsx";
 import { Loading, Notice } from "./components/ui.tsx";
+import { BROWSER_BACKEND, backendState, onBackendEvent } from "./lib/backend.ts";
+import { DEFAULT_PREFS, applyPrefs, cachePrefs, cachedPrefs, onSystemThemeChange, resolveTheme, type Prefs } from "./lib/prefs.ts";
 
 const Overview = lazy(() => import("./pages/Overview.tsx"));
 const Market = lazy(() => import("./pages/Market.tsx"));
@@ -27,6 +29,9 @@ const Settings = lazy(() => import("./pages/Settings.tsx"));
 interface User { id: number; username: string }
 const ThemeCtx = createContext<{ theme: string; toggle: () => void }>({ theme: "dark", toggle: () => {} });
 export const useTheme = () => useContext(ThemeCtx);
+const PrefsCtx = createContext<{ prefs: Prefs; save: (p: Prefs) => void }>({ prefs: DEFAULT_PREFS, save: () => {} });
+export const usePrefs = () => useContext(PrefsCtx);
+export { NAV };
 
 const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }[] = [
   { to: "/", label: "Overview", icon: "overview" },
@@ -49,23 +54,47 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/settings", label: "Settings", icon: "settings" },
 ];
 
+function BootScreen({ children }: { children: React.ReactNode }) {
+  const [st, setSt] = useState(backendState);
+  useEffect(() => onBackendEvent(() => setSt({ ...backendState })), []);
+  if (!BROWSER_BACKEND || st.status === "ready") return <>{children}</>;
+  return (
+    <div className="auth-wrap">
+      <div className="card" style={{ width: "min(420px, 100%)", padding: 28, textAlign: "center" }}>
+        <div className="brand" style={{ padding: 0, justifyContent: "center", marginBottom: 16 }}><div className="brand-mark">SS</div><div style={{ textAlign: "left" }}>Saphal Stocks<small>NEPSE intelligence & wealth planning</small></div></div>
+        {st.status === "error" ? (
+          <><Notice tone="warn">{st.message}</Notice><button className="btn primary" style={{ marginTop: 12 }} onClick={() => location.reload()}>Try again</button></>
+        ) : (
+          <><div className="row" style={{ justifyContent: "center" }}><span className="spinner" /> <span className="muted">{st.message}</span></div>
+            <p className="tiny faint" style={{ marginTop: 12 }}>The first start downloads about 13 MB of market data. After that the app opens instantly and works offline; new data downloads in the background.</p></>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function App() {
+  return <BootScreen><AppInner /></BootScreen>;
+}
+
+function AppInner() {
   const [status, setStatus] = useState<{ setupRequired: boolean; user: User | null } | null>(null);
-  const [theme, setTheme] = useState(document.documentElement.dataset.theme || "dark");
+  const [prefs, setPrefs] = useState<Prefs>(cachedPrefs);
+  const [theme, setTheme] = useState(resolveTheme(prefs.theme));
   const [down, setDown] = useState(false);
   const refresh = () => api<{ setupRequired: boolean; user: User | null }>("/auth/status").then((s) => { setDown(false); setStatus(s); }).catch(() => { setDown(true); setTimeout(() => void refresh(), 2500); });
   useEffect(() => { void refresh(); const h = () => setStatus((s) => (s ? { ...s, user: null } : s)); window.addEventListener("ss:unauthorized", h); return () => window.removeEventListener("ss:unauthorized", h); }, []);
-  const toggle = () => {
-    const t = theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = t;
-    try { localStorage.setItem("ss-theme", t); } catch { /* ignore */ }
-    setTheme(t);
-  };
+  const save = (p: Prefs) => { setPrefs(p); setTheme(applyPrefs(p)); cachePrefs(p); void api("/settings/appearance", { method: "PUT", body: p }).catch(() => {}); };
+  useEffect(() => { api<Partial<Prefs>>("/settings/appearance").then((r) => { if (r && Object.keys(r).length) { const p = { ...DEFAULT_PREFS, ...r }; setPrefs(p); setTheme(applyPrefs(p)); cachePrefs(p); } }).catch(() => {}); }, []);
+  useEffect(() => onSystemThemeChange(() => { if (prefs.theme === "auto") setTheme(applyPrefs(prefs)); }), [prefs]);
+  const toggle = () => save({ ...prefs, theme: theme === "dark" ? "light" : "dark" });
   if (!status) return down ? <div className="auth-wrap"><Notice tone="warn">Cannot reach the Saphal Stocks server. Make sure it is running (<code>npm run dev</code>); retrying automatically…</Notice></div> : <Loading label="Starting Saphal Stocks" />;
   return (
-    <ThemeCtx.Provider value={{ theme, toggle }}>
-      {!status.user ? <Auth setup={status.setupRequired} onDone={refresh} /> : <Shell user={status.user} onLogout={refresh} />}
-    </ThemeCtx.Provider>
+    <PrefsCtx.Provider value={{ prefs, save }}>
+      <ThemeCtx.Provider value={{ theme, toggle }}>
+        {!status.user ? <Auth setup={status.setupRequired} onDone={refresh} /> : <Shell user={status.user} onLogout={refresh} />}
+      </ThemeCtx.Provider>
+    </PrefsCtx.Provider>
   );
 }
 
@@ -103,27 +132,48 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   const { theme, toggle } = useTheme();
+  const { prefs } = usePrefs();
+  const navigate = useNavigate();
   const notes = useApi<{ read: number }[]>("/notifications", [loc.pathname]);
   const unread = notes.data?.filter((n) => !n.read).length ?? 0;
   useEffect(() => setOpen(false), [loc.pathname]);
+  // Open on the chosen start page once per launch.
+  useEffect(() => {
+    if (prefs.landing && prefs.landing !== "/" && loc.pathname === "/" && !sessionStorage.getItem("ss-landed")) navigate(prefs.landing, { replace: true });
+    try { sessionStorage.setItem("ss-landed", "1"); } catch { /* ignore */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Encrypted sync: catch up when the app opens or comes back to the foreground.
+  useEffect(() => {
+    if (!BROWSER_BACKEND) return;
+    let off = () => {};
+    import("./lib/sync.ts").then((m) => {
+      m.onSyncPulled(() => location.reload());
+      m.scheduleAutoSync(1500);
+      const vis = () => { if (document.visibilityState === "visible") m.scheduleAutoSync(1000); };
+      document.addEventListener("visibilitychange", vis);
+      off = () => document.removeEventListener("visibilitychange", vis);
+    });
+    return () => off();
+  }, []);
+  const nav = NAV.filter((n) => n.to === "/" || n.to === "/settings" || !prefs.hiddenNav.includes(n.to));
   return (
     <div className="app">
       <aside className={`sidebar ${open ? "open" : ""}`}>
-        <div className="brand"><div className="brand-mark">SS</div><div>Saphal Stocks<small>Financial command center</small></div></div>
+        <div className="brand"><div className="brand-mark">SS</div><div className="nav-label">Saphal Stocks<small>Financial command center</small></div></div>
         <nav className="nav">
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const Icon = I[n.icon];
             return (
               <div key={n.to} style={{ display: "contents" }}>
                 {n.section && <div className="nav-section">{n.section}</div>}
-                <NavLink to={n.to} end={n.to === "/"}><Icon />{n.label}{n.to === "/alerts" && unread > 0 && <span className="badge down">{unread}</span>}</NavLink>
+                <NavLink to={n.to} end={n.to === "/"} title={n.label}><Icon /><span className="nav-label">{n.label}</span>{n.to === "/alerts" && unread > 0 && <span className="badge down">{unread}</span>}</NavLink>
               </div>
             );
           })}
         </nav>
         <div style={{ marginTop: "auto", padding: 14, borderTop: "1px solid var(--border)" }} className="row between">
-          <span className="small muted">{user.username}</span>
-          <button className="btn ghost sm" onClick={async () => { await api("/auth/logout", { body: {} }); onLogout(); }} title="Sign out"><I.logout /></button>
+          <span className="small muted nav-label">{BROWSER_BACKEND ? "On this device" : user.username}</span>
+          {!BROWSER_BACKEND && <button className="btn ghost sm" onClick={async () => { await api("/auth/logout", { body: {} }); onLogout(); }} title="Sign out"><I.logout /></button>}
         </div>
       </aside>
       <div className="main">
@@ -132,10 +182,12 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           <GlobalSearch />
           <div style={{ marginLeft: "auto" }} className="row">
             <MarketBadge />
-            <span className="small faint" title="Asia/Kathmandu">{new Date().toLocaleString("en-GB", { timeZone: "Asia/Kathmandu", weekday: "short", hour: "2-digit", minute: "2-digit" })} NPT</span>
+            <span className="small faint clock" title="Asia/Kathmandu">{new Date().toLocaleString("en-GB", { timeZone: "Asia/Kathmandu", weekday: "short", hour: "2-digit", minute: "2-digit" })} NPT</span>
             <button className="btn ghost" onClick={toggle} aria-label="Toggle theme">{theme === "dark" ? <I.sun /> : <I.moon />}</button>
           </div>
         </header>
+        {open && <div className="scrim" onClick={() => setOpen(false)} />}
+        <DataUpdateBanner />
         <main className="content">
           <Suspense fallback={<Loading />}>
             <Routes>
@@ -164,6 +216,13 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           </Suspense>
         </main>
       </div>
+      <nav className="bottombar" aria-label="Main">
+        {prefs.bottomBar.slice(0, 4).map((to) => NAV.find((n) => n.to === to)).filter(Boolean).map((n) => {
+          const Icon = I[n!.icon];
+          return <NavLink key={n!.to} to={n!.to} end={n!.to === "/"}><Icon /><span>{n!.label.replace(" Analysis", "").replace("AI Stock Analyst", "AI Analyst").replace("NEPSE Market", "Market").replace("Investment Opportunities", "Invest")}</span></NavLink>;
+        })}
+        <button onClick={() => setOpen(!open)} className={open ? "active" : ""}><I.menu /><span>More{unread > 0 ? ` (${unread})` : ""}</span></button>
+      </nav>
     </div>
   );
 }
@@ -208,7 +267,7 @@ function GlobalSearch() {
   return (
     <div className="search" ref={box}>
       <I.search />
-      <input className="input" placeholder="Search stocks, pages or actions (Ctrl/⌘ K)" value={q} onChange={(e) => setQ(e.target.value)}
+      <input className="input" placeholder={typeof window !== "undefined" && window.innerWidth < 600 ? "Search stocks or pages" : "Search stocks, pages or actions (⌘ K)"} value={q} onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); } if (e.key === "Enter" && items[sel]) go(items[sel]); if (e.key === "Escape") setQ(""); }} />
       {items.length > 0 && (
         <div className="search-results">
@@ -237,5 +296,17 @@ function MarketBadge() {
       <span className="dot" style={{ background: d.session === "open" ? "var(--up)" : d.session === "pre-open" ? "var(--warn)" : "var(--text-3)" }} />
       {label}{d.session === "open" && mins != null ? ` · ${mins} min ago` : ""}
     </span>
+  );
+}
+
+function DataUpdateBanner() {
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => onBackendEvent((e) => { if (e.type === "data-updated") setMsg(e.message ?? "New market data loaded."); }), []);
+  if (!msg) return null;
+  return (
+    <div style={{ position: "sticky", top: 0, zIndex: 40, padding: "8px 16px", background: "var(--accent-soft)", borderBottom: "1px solid var(--border)" }} className="row between small">
+      <span>{msg}</span>
+      <span className="row"><button className="btn sm primary" onClick={() => location.reload()}>Show latest</button><button className="btn sm ghost" onClick={() => setMsg(null)}>Later</button></span>
+    </div>
   );
 }

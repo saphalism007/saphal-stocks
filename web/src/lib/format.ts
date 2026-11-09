@@ -2,14 +2,19 @@
 
 export const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 
+// "nepali" = lakh/crore grouping (12,50,000 · 1.25 Cr); "international" = millions/billions (1,250,000 · 1.25 M).
+let style: "nepali" | "international" = "nepali";
+export function setNumberStyle(s: "nepali" | "international") { style = s; }
+const LOCALE = () => (style === "nepali" ? "en-IN" : "en-US");
+
 export function num(x: unknown, digits = 2): string {
   if (!isNum(x)) return "—";
-  return x.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return x.toLocaleString(LOCALE(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 export function int(x: unknown): string {
   if (!isNum(x)) return "—";
-  return Math.round(x).toLocaleString("en-IN");
+  return Math.round(x).toLocaleString(LOCALE());
 }
 
 export function rs(x: unknown, digits = 2): string {
@@ -22,6 +27,14 @@ export function compact(x: unknown, prefix = "Rs. "): string {
   if (!isNum(x)) return "—";
   const a = Math.abs(x);
   const sign = x < 0 ? "-" : "";
+  if (style === "international") {
+    const f = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    if (a >= 1e12) return `${sign}${prefix}${f(a / 1e12)} T`;
+    if (a >= 1e9) return `${sign}${prefix}${f(a / 1e9)} B`;
+    if (a >= 1e6) return `${sign}${prefix}${f(a / 1e6)} M`;
+    if (a >= 1e3) return `${sign}${prefix}${f(a / 1e3)} K`;
+    return `${sign}${prefix}${f(a)}`;
+  }
   if (a >= 1e9) return `${sign}${prefix}${(a / 1e9).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Arba`;
   if (a >= 1e7) return `${sign}${prefix}${(a / 1e7).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Cr`;
   if (a >= 1e5) return `${sign}${prefix}${(a / 1e5).toLocaleString("en-IN", { maximumFractionDigits: 2 })} L`;

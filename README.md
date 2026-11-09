@@ -2,21 +2,70 @@
 
 A personal financial intelligence platform for Nepal: NEPSE market data and research, technical and fundamental analysis engines, stock comparison, a multi-stock Strategy Lab, an AI stock analyst that reasons over the platform's own data, portfolio management with Nepal fees and taxes, a trading journal and thesis tracker, an IPO and mutual fund tracker, and a wealth planner.
 
-Everything runs on your own computer. Market data comes from public sources (see [DATA_SOURCES.md](DATA_SOURCES.md)); your portfolio and financial profile stay in a local, encrypted database.
+It runs in two ways:
 
-## Easiest way to start
+- **Web app (main way, v0.6+)**: an installable app on GitHub Pages for iPhone, iPad and Mac. All calculations run on the device; your personal data is stored on the device and can be synced between your devices, encrypted, through your own GitHub account. Market data is refreshed by GitHub Actions and downloaded by the app.
+- **Local server**: the original Node.js version on your Mac (below), which fetches data itself.
+
+Market data comes from public sources (see [DATA_SOURCES.md](DATA_SOURCES.md)).
+
+## Use it on iPhone, iPad and Mac
+
+Once the repository is on GitHub with Pages turned on, the app lives at `https://<your-github-name>.github.io/saphal-stocks/`.
+
+| Device | Install |
+|---|---|
+| iPhone / iPad (Safari) | Open the address → Share button → **Add to Home Screen** → Add. Open it from the home-screen icon. |
+| Mac (Safari) | Open the address → File → **Add to Dock**. |
+| Mac (Chrome/Edge) | Open the address → install icon in the address bar. |
+
+The first start downloads the market snapshot (about 13 MB), then the app works offline. When a newer snapshot exists, a banner offers to load it (**Settings → Data → Check for new data**).
+
+Tips:
+
+- Use the home-screen/Dock app, not a normal Safari tab. Safari can clear data of websites you have not visited for a while; installed apps keep it.
+- **Settings → Appearance** has theme, accent colour, text size, density, number style (lakh/crore or million), start page, which menu items show, the phone tab bar and chart defaults. Each device keeps its own appearance.
+- **Settings → Sync & devices** syncs portfolios, transactions, watchlists, journal, goals, alerts and settings between iPhone, iPad and Mac. It needs a GitHub token with only the `gist` permission and a passphrase you choose; data is encrypted on the device (AES-256-GCM, PBKDF2 310,000 rounds) and stored in a secret Gist. Use the same token and passphrase on each device.
+- **Settings → Security & privacy → Download backup** saves a file of your personal data; keep one now and then.
+- The AI analyst needs your Anthropic API key in **Settings → AI** on each device. The key stays on that device and is never synced or put in backups. Without a key, the analyst works in data-report mode.
+- Alerts are checked while the app is open (iOS does not let web apps run in the background).
+
+### How the data gets updated
+
+`.github/workflows/data-and-deploy.yml` runs on GitHub's servers:
+
+| When (Nepal time) | What |
+|---|---|
+| Trading days (Mon–Fri) about 16:00 | Full refresh (prices, history, indices, company details in rotation, news, issues, funds, forex), tests, build, deploy |
+| Every 15 minutes, about 10:45–15:45 on trading days | Latest prices only (`live.json`), so the app shows near-live quotes |
+| Push to `main`, or **Actions → Run workflow** | Build and deploy (choose `daily`, `intraday` or `build`) |
+
+The database is kept between runs in the Actions cache. Your personal data never goes to the repository.
+
+### Developer commands for the web app
+
+```bash
+npm run dev            # web app with the in-browser backend (needs web/public/data, see below)
+npm run export-data    # make web/public/data/market.db.bin + manifest.json from data/saphal.db
+npm run build          # production build in dist/ (set BASE_PATH=/saphal-stocks/ for GitHub Pages)
+npm run serve:pages    # serve dist/ like GitHub Pages at http://localhost:5186/saphal-stocks/
+```
+
+## Local server (Mac only)
+
+### Easiest way to start
 
 Double-click **Start Saphal Stocks.command** in this folder. The first time it installs and builds (a few minutes), then it opens the app in your browser at http://127.0.0.1:5181. Keep the Terminal window open while you use it; close it to stop.
 
 To use it from your phone on the same home Wi-Fi, double-click **Start on Wi-Fi.command** instead and open the address it prints. Only do this on a trusted network.
 
-## Run it (developer mode)
+### Run it (developer mode)
 
 Needs Node.js 22.13 or newer (it uses Node's built-in SQLite).
 
 ```bash
 npm install
-npm run dev
+npm run dev:server
 ```
 
 Open http://localhost:5180. The first visit asks you to create your private account. The API runs on 127.0.0.1:5181 and the web app on 5180.
@@ -32,7 +81,7 @@ Other commands:
 | `npm run ingest -- all` | Refresh all data from the command line (`listing`, `history`, `indices`, `details`, `news`, `forex`, or `detail NABIL EBL`) |
 | `npm run build` then `npm start` | Production build; the API then also serves the web app on 127.0.0.1:5181 |
 
-## Configuration (`.env`)
+### Configuration (`.env`, local server only)
 
 Created automatically on first run. Never commit it.
 
@@ -68,12 +117,17 @@ shared/      Pure, tested engines used by both server and web
   adjust.ts       Bonus-share price adjustment (only where the gap is visible in the data)
 server/      Express API, SQLite (node:sqlite), auth, ingestion, alerts, AI agent
 web/         React app (Vite), TradingView lightweight-charts
+  src/backend/  In-browser backend: the server's routes run in a Web Worker on sql.js (WebAssembly SQLite)
+  public/       PWA manifest, service worker, icons
+scripts/     Snapshot export, live-price export, icon renderer, service-worker precache, Pages preview server
+.github/     Data refresh and GitHub Pages deploy workflow
 tests/       Vitest suites
 ```
 
 ## Security
 
-- Local only by default: the server binds to 127.0.0.1 (set `HOST=0.0.0.0` only on a trusted network).
+- Web app: personal data stays on the device (IndexedDB); sync data is encrypted before it leaves the device; the API key, GitHub token and sync passphrase are never uploaded.
+- Local server: local only by default; the server binds to 127.0.0.1 (set `HOST=0.0.0.0` only on a trusted network).
 - Passwords hashed with scrypt; HTTP-only, SameSite=Strict session cookies; login rate limiting; origin checks on state-changing requests.
 - Sensitive personal data encrypted with AES-256-GCM.
 - Input validation on every endpoint (zod). Security headers set; CSP in production.

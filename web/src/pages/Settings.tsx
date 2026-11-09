@@ -1,18 +1,25 @@
 import { useEffect, useState } from "react";
 import { api, useApi } from "../lib/api.ts";
+import { downloadFromApi, BROWSER_BACKEND, flushBackend } from "../lib/backend.ts";
+import { Link } from "react-router-dom";
+import { usePrefs, NAV } from "../App.tsx";
+import { DEFAULT_PREFS, type Prefs } from "../lib/prefs.ts";
+import { SyncTab } from "./SyncTab.tsx";
 import { Card, Loading, Badge, Notice, Tabs, DataTable } from "../components/ui.tsx";
 import { nptDate, ago, int } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type Tab = "data" | "quality" | "ai" | "fees" | "security";
+type Tab = "appearance" | "data" | "quality" | "ai" | "fees" | "security" | "sync";
 
 export default function Settings() {
-  const [tab, setTab] = useState<Tab>("data");
+  const [tab, setTab] = useState<Tab>("appearance");
   return (
     <div className="page">
       <div className="page-head"><div><h1>Settings</h1><p>Data sources and refresh, AI provider, Nepal fees and taxes, security, export and deletion.</p></div></div>
-      <Tabs value={tab} onChange={setTab} tabs={[{ key: "data", label: "Data" }, { key: "quality", label: "Data quality" }, { key: "ai", label: "AI" }, { key: "fees", label: "Fees & taxes" }, { key: "security", label: "Security & privacy" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ key: "appearance", label: "Appearance" }, { key: "sync", label: "Sync & devices" }, { key: "data", label: "Data" }, { key: "quality", label: "Data quality" }, { key: "ai", label: "AI" }, { key: "fees", label: "Fees & taxes" }, { key: "security", label: "Security & privacy" }]} />
+      {tab === "appearance" && <AppearanceTab />}
+      {tab === "sync" && <SyncTab />}
       {tab === "data" && <DataTab />}
       {tab === "quality" && <QualityTab />}
       {tab === "ai" && <AiTab />}
@@ -27,18 +34,28 @@ const DATASETS: Record<string, string> = { prices_latest: "Latest prices & quote
 function DataTab() {
   const s = useApi<any>("/data/status");
   useEffect(() => { const id = setInterval(() => s.reload(), 4000); return () => clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const refresh = async (job: string) => { await api("/data/refresh", { body: { job } }); s.reload(); };
+  const refresh = async (job: string) => { const r = await api<any>("/data/refresh", { body: { job } }); if (r?.message) setNote(r.message); s.reload(); snap.reload(); };
+  const [note, setNote] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const snap = useApi<any>(BROWSER_BACKEND ? "/data/snapshot" : null);
   if (!s.data) return <Loading />;
   const c = s.data.counts;
   return (
     <div className="col">
+      {BROWSER_BACKEND && (
+        <Card title="Market data on this device" actions={<button className="btn primary" disabled={checking} onClick={async () => { setChecking(true); try { await refresh("all"); } finally { setChecking(false); } }}>{checking ? <span className="spinner" /> : <I.refresh />} Check for new data</button>}>
+          <div className="row small"><span>Data as of <strong>{nptDate(snap.data?.asOf)}</strong></span><span className="faint">· published {snap.data?.generatedAt ? `${nptDate(snap.data.generatedAt, true)} (${ago(snap.data.generatedAt)})` : "—"}</span><span className="faint">· {snap.data?.bytes ? `${(snap.data.bytes / 1e6).toFixed(0)} MB` : ""} {snap.data?.source === "device" ? "(saved on this device)" : ""}</span></div>
+          {note && <div style={{ marginTop: 8 }}><Notice>{note}</Notice></div>}
+          <p className="tiny faint" style={{ marginTop: 8 }}>A cloud job collects market data after each trading day (and every ~15 minutes during market hours) and publishes it with the app. This device checks for new data every time you open the app; the app keeps working offline with the last data it downloaded.</p>
+        </Card>
+      )}
       <div className="grid g4">
         <Card title="Companies"><div className="mono" style={{ fontSize: 20 }}>{int(c.companies)}</div><div className="small muted">{c.withSector} with sector · {c.companiesWithDetails} with full profile</div></Card>
         <Card title="Price history"><div className="mono" style={{ fontSize: 20 }}>{int(c.priceRows)}</div><div className="small muted">{c.symbolsWithHistory} symbols · {nptDate(c.firstPriceDate)} → {nptDate(c.lastPriceDate)}</div></Card>
         <Card title="Financial statements"><div className="mono" style={{ fontSize: 20 }}>{int(c.reports)}</div><div className="small muted">quarterly reports for {c.companiesWithReports} companies · {int(c.dividends)} dividend records</div></Card>
         <Card title="Indices & news"><div className="mono" style={{ fontSize: 20 }}>{int(c.indexRows)}</div><div className="small muted">index rows · {int(c.announcements)} announcements</div></Card>
       </div>
-      <Card title="Datasets & freshness" actions={<button className="btn primary" onClick={() => refresh("all")}><I.refresh /> Refresh everything</button>} flush>
+      <Card title="Datasets & freshness" actions={BROWSER_BACKEND ? undefined : <button className="btn primary" onClick={() => refresh("all")}><I.refresh /> Refresh everything</button>} flush>
         <table className="t"><thead><tr><th>Dataset</th><th>Source</th><th>Data as of</th><th>Last success</th><th>Rows</th><th>Last error</th><th /></tr></thead><tbody>
           {Object.entries(DATASETS).map(([k, label]) => {
             const f = s.data.freshness.find((x: any) => x.dataset === k);
@@ -48,7 +65,7 @@ function DataTab() {
               <tr key={k}><td><strong>{label}</strong></td><td className="small">{f?.source_url ? <a href={f.source_url} target="_blank" rel="noopener noreferrer">{f.source}</a> : f?.source ?? "—"}</td>
                 <td>{f?.as_of ? nptDate(f.as_of) : <span className="warn">Data unavailable</span>}</td><td className="small">{f?.last_success_at ? `${nptDate(f.last_success_at, true)} (${ago(f.last_success_at)})` : "never"}</td>
                 <td className="num">{f?.rows ?? "—"}</td><td className="small down">{f?.last_error ? `${f.last_error.slice(0, 80)} (${ago(f.last_error_at)})` : ""}</td>
-                <td>{st && (st.status === "running" || st.status === "queued") ? <span className="row small"><span className="spinner" />{st.message}</span> : <button className="btn sm" onClick={() => refresh(job)}>Refresh</button>}</td></tr>
+                <td>{st && (st.status === "running" || st.status === "queued") ? <span className="row small"><span className="spinner" />{st.message}</span> : (BROWSER_BACKEND ? null : <button className="btn sm" onClick={() => refresh(job)}>Refresh</button>)}</td></tr>
             );
           })}
         </tbody></table>
@@ -80,7 +97,7 @@ function AiTab() {
   };
   return (
     <div className="grid g2">
-      <Card title="AI provider" sub="Settings are written to the local .env file (never committed to git)">
+      <Card title="AI provider" sub={BROWSER_BACKEND ? "Stored only on this device (set it on each device you use). Never uploaded to GitHub or included in sync." : "Settings are written to the local .env file (never committed to git)"}>
         <div className="col">
           <label className="field">Provider<select className="input" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })}><option value="anthropic">Anthropic Claude</option><option value="none">None (rule-based data reports only)</option></select></label>
           <label className="field">Model<input className="input" value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} /></label>
@@ -94,7 +111,8 @@ function AiTab() {
         <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
           <li>The analyst does not guess. It calls tools that read the database and run the deterministic engines (indicators, levels, patterns, fundamentals, rankings, backtests, portfolio, document search), then explains the results.</li>
           <li>It is instructed to cite data dates, separate facts from calculations, assumptions and predictions, and to say "data unavailable" when it is.</li>
-          <li>Questions and the data it reads are sent to the AI provider you choose. Without a key, nothing leaves your computer and the analyst answers with rule-based reports.</li>
+          <li>Questions and the data it reads are sent directly from this device to the AI provider you choose. Without a key, nothing leaves your device and the analyst answers with rule-based reports.</li>
+          {BROWSER_BACKEND && <li>Get a key at console.anthropic.com. You pay the provider directly for usage; set a monthly spending limit there.</li>}
           <li>Effort: higher effort = more thorough reasoning and higher cost. Medium suits most questions.</li>
         </ul>
       </Card>
@@ -148,7 +166,7 @@ function SecurityTab() {
   const change = async () => { try { await api("/auth/password", { body: pw }); setMsg("Password changed. Other sessions were signed out."); setPw({ current: "", next: "" }); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); } };
   return (
     <div className="grid g2">
-      <Card title="Password">
+      {BROWSER_BACKEND ? <DeviceBackup onMsg={setMsg} msg={msg} /> : <Card title="Password">
         <div className="col">
           <label className="field">Current password<input className="input" type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} autoComplete="current-password" /></label>
           <label className="field">New password (10+ characters)<input className="input" type="password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} autoComplete="new-password" /></label>
@@ -158,24 +176,56 @@ function SecurityTab() {
         <div className="sep" />
         <div className="small" style={{ fontWeight: 600 }}>Active sessions</div>
         {sessions.data?.map((x, i) => <div key={i} className="tiny faint">{nptDate(x.created_at, true)} · {x.user_agent?.slice(0, 60)}</div>)}
-      </Card>
+      </Card>}
       <Card title="Your data">
-        <ul className="small" style={{ margin: "0 0 10px", paddingLeft: 18 }}>
+        {BROWSER_BACKEND ? <ul className="small" style={{ margin: "0 0 10px", paddingLeft: 18 }}>
+          <li>Your portfolios, journal, goals and settings are stored only on this device, in the browser's private storage for this app. iPhone, iPad and Mac encrypt this storage with your device passcode.</li>
+          <li>Nothing personal is uploaded unless you turn on encrypted sync (Settings → Sync).</li>
+          <li>Safari may clear website data you haven't used for weeks; adding the app to your Home Screen / Dock prevents that. Keep a backup file or sync turned on.</li>
+        </ul> : <ul className="small" style={{ margin: "0 0 10px", paddingLeft: 18 }}>
           <li>Everything is stored locally in <code>data/saphal-stocks.db</code>. The server listens only on this computer (127.0.0.1).</li>
           <li>Financial profile, goals, net worth and journal entries are encrypted with AES-256-GCM using the key in your local <code>.env</code>. Keep a copy of that key with your backups.</li>
           <li>Passwords are hashed with scrypt; sessions use HTTP-only, same-site cookies.</li>
-        </ul>
+        </ul>}
         <div className="row">
-          <a className="btn" href="/api/account/export"><I.download /> Export my data (JSON)</a>
-          <button className="btn" onClick={async () => { const r = await api<any>("/backup", { body: {} }); setMsg(`Backup written to ${r.file}`); backups.reload(); }}>Back up database</button>
+          <button className="btn" onClick={() => downloadFromApi("/api/account/export")}><I.download /> Export my data (JSON)</button>
+          {!BROWSER_BACKEND && <button className="btn" onClick={async () => { const r = await api<any>("/backup", { body: {} }); setMsg(`Backup written to ${r.file}`); backups.reload(); }}>Back up database</button>}
         </div>
-        {backups.data && <p className="tiny faint" style={{ marginTop: 8 }}>Automatic daily backups (last {backups.data.keepDays} kept) in <code>{backups.data.dir}</code>: {backups.data.files.slice(0, 8).join(", ") || "none yet"}. Copy this folder and your <code>.env</code> key somewhere safe (e.g. an external drive).</p>}
+        {!BROWSER_BACKEND && backups.data && <p className="tiny faint" style={{ marginTop: 8 }}>Automatic daily backups (last {backups.data.keepDays} kept) in <code>{backups.data.dir}</code>: {backups.data.files.slice(0, 8).join(", ") || "none yet"}. Copy this folder and your <code>.env</code> key somewhere safe (e.g. an external drive).</p>}
         <div className="sep" />
         <div className="small" style={{ fontWeight: 600 }} >Delete personal data</div>
         <p className="small muted">Deletes portfolios, watchlists, alerts, notifications, financial profile, goals, documents and AI conversations. Market data is kept. This cannot be undone.</p>
         <div className="row"><input className="input" placeholder="Type DELETE MY DATA" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} /><button className="btn danger" disabled={confirmText !== "DELETE MY DATA"} onClick={async () => { await api("/account/delete-personal-data", { body: { confirm: confirmText } }); setMsg("Personal data deleted."); setConfirmText(""); }}>Delete</button></div>
       </Card>
     </div>
+  );
+}
+
+function DeviceBackup({ onMsg, msg }: { onMsg: (m: string) => void; msg: string | null }) {
+  const download = async () => {
+    flushBackend();
+    const r = await api<{ filename: string; base64: string }>("/backup/file");
+    const bytes = Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([bytes], { type: "application/x-sqlite3" }));
+    a.download = r.filename; document.body.appendChild(a); a.click(); a.remove();
+    onMsg("Backup downloaded. On iPhone/iPad choose “Save to Files” (e.g. iCloud Drive).");
+  };
+  const restore = async (file: File) => {
+    if (!confirm("Replace all personal data on this device with this backup?")) return;
+    const buf = new Uint8Array(await file.arrayBuffer());
+    let s = ""; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+    try { await api("/backup/restore", { body: { base64: btoa(s) } }); onMsg("Backup restored."); setTimeout(() => location.reload(), 800); } catch (e) { onMsg(e instanceof Error ? e.message : String(e)); }
+  };
+  return (
+    <Card title="Backup file">
+      <p className="small muted">A single file with all your personal data on this device (portfolios, transactions, journal, goals, watchlists, alerts, documents, settings). Save it to iCloud Drive; restore it on any device.</p>
+      <div className="row">
+        <button className="btn primary" onClick={download}><I.download /> Download backup file</button>
+        <label className="btn"><I.upload /> Restore from file<input type="file" accept=".sqlite,.db,application/octet-stream" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void restore(f); }} /></label>
+      </div>
+      {msg && <div style={{ marginTop: 8 }}><Notice>{msg}</Notice></div>}
+    </Card>
   );
 }
 
@@ -202,12 +252,72 @@ function QualityTab() {
         <DataTable rows={rows} empty="No issues found" cols={[
           { key: "severity", label: "Severity", render: (f: any) => <Badge tone={f.severity === "error" ? "down" : f.severity === "warning" ? "warn" : ""}>{f.severity}</Badge> },
           { key: "check", label: "Check" },
-          { key: "symbol", label: "Stock", render: (f: any) => f.symbol ? <a href={`/stocks/${f.symbol}`} className="sym">{f.symbol}</a> : "—" },
+          { key: "symbol", label: "Stock", render: (f: any) => f.symbol ? <Link to={`/stocks/${f.symbol}`} className="sym">{f.symbol}</Link> : "—" },
           { key: "date", label: "Date / period", render: (f: any) => <span className="small">{f.date ?? "—"}</span> },
           { key: "detail", label: "Detail", render: (f: any) => <span className="small muted">{f.detail}</span> },
         ]} />
       </Card>
       <p className="tiny faint">Checks: impossible OHLC values, stocks without trades for 30+ days, single-session moves beyond NEPSE's daily band after bonus and right adjustments, balance sheets that don't balance, statements 2+ quarters out of date, companies without statements, and prices vs index date mismatch.</p>
+    </div>
+  );
+}
+
+function AppearanceTab() {
+  const { prefs, save } = usePrefs();
+  const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => save({ ...prefs, [k]: v });
+  const Choice = <K extends keyof Prefs>({ k, options }: { k: K; options: { v: Prefs[K]; label: string }[] }) => (
+    <div className="seg" style={{ flexWrap: "wrap" }}>{options.map((o) => <button key={String(o.v)} className={prefs[k] === o.v ? "on" : ""} onClick={() => set(k, o.v)}>{o.label}</button>)}</div>
+  );
+  const pages = NAV.filter((n) => n.to !== "/settings");
+  const OVERLAYS = [["sma20", "SMA 20"], ["sma50", "SMA 50"], ["sma200", "SMA 200"], ["ema20", "EMA 20"], ["bb", "Bollinger"], ["vwap", "VWAP"], ["supertrend", "Supertrend"], ["ichimoku", "Ichimoku"]];
+  return (
+    <div className="grid g2">
+      <Card title="Look and feel" sub="Applies instantly; saved with your data and synced to your other devices if sync is on">
+        <div className="col" style={{ gap: 14 }}>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Theme</div><Choice k="theme" options={[{ v: "auto", label: "Match device" }, { v: "light", label: "Light" }, { v: "dark", label: "Dark" }]} /></div>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Accent colour</div>
+            <div className="row">{(["emerald", "blue", "violet", "amber", "rose"] as const).map((a) => (
+              <button key={a} onClick={() => set("accent", a)} aria-label={a} title={a} style={{ width: 34, height: 34, borderRadius: "50%", cursor: "pointer", border: prefs.accent === a ? "3px solid var(--text)" : "2px solid var(--border-2)", background: { emerald: "#34d399", blue: "#60a5fa", violet: "#a78bfa", amber: "#fbbf24", rose: "#fb7185" }[a] }} />
+            ))}</div>
+          </div>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Interface size</div><Choice k="scale" options={[{ v: 0.9, label: "Small" }, { v: 1, label: "Default" }, { v: 1.1, label: "Large" }, { v: 1.2, label: "Larger" }]} /></div>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Density</div><Choice k="density" options={[{ v: "comfortable", label: "Comfortable" }, { v: "compact", label: "Compact (more on screen)" }]} /></div>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Number style</div><Choice k="numbers" options={[{ v: "nepali", label: "Nepali: 12,50,000 · 1.25 Cr" }, { v: "international", label: "International: 1,250,000 · 1.25 M" }]} /></div>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Sidebar on Mac and iPad</div><Choice k="sidebar" options={[{ v: "full", label: "Full" }, { v: "rail", label: "Icons only" }]} /></div>
+          <label className="chk"><input type="checkbox" checked={prefs.reduceMotion} onChange={(e) => set("reduceMotion", e.target.checked)} /> Reduce motion</label>
+        </div>
+      </Card>
+      <Card title="Navigation">
+        <div className="col" style={{ gap: 14 }}>
+          <label className="field">Start page<select className="input" value={prefs.landing} onChange={(e) => set("landing", e.target.value)}>{pages.map((n) => <option key={n.to} value={n.to}>{n.label}</option>)}</select></label>
+          <div>
+            <div className="small muted" style={{ marginBottom: 6 }}>iPhone tab bar (pick up to 4; “More” is always last)</div>
+            <div className="row">{pages.map((n) => { const on = prefs.bottomBar.includes(n.to); return (
+              <button key={n.to} className="chip" style={on ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
+                onClick={() => set("bottomBar", on ? prefs.bottomBar.filter((x) => x !== n.to) : prefs.bottomBar.length >= 4 ? prefs.bottomBar : [...prefs.bottomBar, n.to])}>{n.label}</button>
+            ); })}</div>
+          </div>
+          <div>
+            <div className="small muted" style={{ marginBottom: 6 }}>Show in menu</div>
+            <div className="form-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 6 }}>{pages.filter((n) => n.to !== "/").map((n) => (
+              <label key={n.to} className="chk"><input type="checkbox" checked={!prefs.hiddenNav.includes(n.to)} onChange={(e) => set("hiddenNav", e.target.checked ? prefs.hiddenNav.filter((x) => x !== n.to) : [...prefs.hiddenNav, n.to])} />{n.label}</label>
+            ))}</div>
+          </div>
+        </div>
+      </Card>
+      <Card title="Charts">
+        <div className="col" style={{ gap: 12 }}>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Default chart type</div><Choice k="chartKind" options={[{ v: "candles", label: "Candles" }, { v: "line", label: "Line" }]} /></div>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Default overlays</div>
+            <div className="row">{OVERLAYS.map(([k, l]) => <label key={k} className="chk"><input type="checkbox" checked={prefs.chartOverlays.includes(k)} onChange={(e) => set("chartOverlays", e.target.checked ? [...prefs.chartOverlays, k] : prefs.chartOverlays.filter((x) => x !== k))} />{l}</label>)}</div>
+          </div>
+          <label className="field">Default lower panel<select className="input" value={prefs.chartLower} onChange={(e) => set("chartLower", e.target.value)}>{["volume", "rsi", "macd", "stoch", "adx", "obv", "atr"].map((x) => <option key={x} value={x}>{x === "volume" ? "Volume only" : x.toUpperCase()}</option>)}</select></label>
+        </div>
+      </Card>
+      <Card title="Reset">
+        <p className="small muted">Restore the default look, navigation and chart settings on all your synced devices.</p>
+        <button className="btn" onClick={() => save(DEFAULT_PREFS)}>Reset appearance</button>
+      </Card>
     </div>
   );
 }

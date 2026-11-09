@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
+import { downloadFromApi } from "../lib/backend.ts";
 import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, DataTable, Score, Modal, Fresh, Tabs } from "../components/ui.tsx";
 import { MultiLineChart, LineChart } from "../components/PriceChart.tsx";
 import { useTheme } from "../App.tsx";
@@ -63,8 +64,8 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
         <div className="row">
           {p.kind === "paper" ? <button className="btn primary" onClick={() => setAdding("paper")}><I.plus /> Paper order</button> : <button className="btn primary" onClick={() => setAdding("tx")}><I.plus /> Add transaction</button>}
           <button className="btn" onClick={() => setAdding("import")}><I.upload /> Import CSV</button>
-          <a className="btn" href={`/api/portfolios/${id}/export/holdings.csv`}><I.download /> Holdings</a>
-          <a className="btn" href={`/api/portfolios/${id}/export/transactions.csv`}><I.download /> Transactions</a>
+          <button className="btn" onClick={() => downloadFromApi(`/api/portfolios/${id}/export/holdings.csv`)}><I.download /> Holdings</button>
+          <button className="btn" onClick={() => downloadFromApi(`/api/portfolios/${id}/export/transactions.csv`)}><I.download /> Transactions</button>
           <Link className="btn" to={`/analyst?q=${encodeURIComponent(`Analyze my portfolio "${p.name}" (id ${id}): health, concentration, holdings with deteriorating fundamentals, what to hold, trim or review, and how to rebalance.`)}`}><I.ai /> AI review</Link>
           <button className="btn ghost danger" onClick={del} aria-label="Delete portfolio"><I.trash /></button>
         </div>
@@ -270,7 +271,7 @@ function TaxReport({ id }: { id: number }) {
     <div className="col">
       <div className="row between">
         <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>Fiscal year starts (MM-DD)<input className="input" style={{ width: 90 }} defaultValue={d.fyStart} onBlur={(e) => /^\d{2}-\d{2}$/.test(e.target.value) && setFyStart(e.target.value)} /></label>
-        <a className="btn" href={`/api/portfolios/${id}/export/tax.csv`}><I.download /> Download tax CSV</a>
+        <button className="btn" onClick={() => downloadFromApi(`/api/portfolios/${id}/export/tax.csv`)}><I.download /> Download tax CSV</button>
       </div>
       <Card title="By fiscal year" flush>
         <DataTable rows={d.years} empty="No sales or dividends recorded" cols={[

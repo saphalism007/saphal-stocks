@@ -13,9 +13,12 @@ export interface ChartLevel { price: number; kind: "support" | "resistance" | "e
 const cssVar = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const OV_COLORS: Record<string, string> = { sma20: "#f59e0b", sma50: "#60a5fa", sma200: "#a78bfa", ema9: "#f472b6", ema20: "#34d399", ema50: "#38bdf8", vwap: "#fbbf24" };
 
-export function PriceChart({ bars, overlays = [], lower = "volume", levels = [], markers = [], height = 460, kind = "candles", theme }: { bars: Bar[]; overlays?: Overlay[]; lower?: Lower; levels?: ChartLevel[]; markers?: { date: string; position: "above" | "below"; color?: string; text: string; shape?: "arrowUp" | "arrowDown" | "circle" }[]; height?: number; kind?: "candles" | "line"; theme?: string }) {
+const fitHeight = (h: number) => (typeof window !== "undefined" && window.innerWidth < 600 ? Math.round(h * 0.68) : typeof window !== "undefined" && window.innerWidth < 1100 ? Math.round(h * 0.85) : h);
+
+export function PriceChart({ bars, overlays = [], lower = "volume", levels = [], markers = [], height: heightProp = 460, kind = "candles", theme }: { bars: Bar[]; overlays?: Overlay[]; lower?: Lower; levels?: ChartLevel[]; markers?: { date: string; position: "above" | "below"; color?: string; text: string; shape?: "arrowUp" | "arrowDown" | "circle" }[]; height?: number; kind?: "candles" | "line"; theme?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const height = fitHeight(heightProp);
 
   useEffect(() => {
     if (!ref.current || !bars.length) return;

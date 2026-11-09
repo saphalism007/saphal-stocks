@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
+import { BROWSER_BACKEND, enableNotifications } from "../lib/backend.ts";
 import { Card, Loading, Badge, Empty, DataTable } from "../components/ui.tsx";
 import { nptDate } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
@@ -48,9 +49,9 @@ export default function Alerts() {
         </Card>
       </div>
       {desk.data?.supported && (
-        <Card title="Desktop notifications" actions={<button className="btn sm" onClick={() => api("/settings/notifications/test", { body: {} })}>Send test</button>}>
+        <Card title={BROWSER_BACKEND ? "Notifications on this device" : "Desktop notifications"} actions={<>{BROWSER_BACKEND && <button className="btn sm" onClick={async () => alert(await enableNotifications())}>Allow on this device</button>}<button className="btn sm" onClick={() => api("/settings/notifications/test", { body: {} })}>Send test</button></>}>
           <label className="chk"><input type="checkbox" checked={desk.data.enabled} onChange={async (e) => { await api("/settings/notifications", { method: "PUT", body: { enabled: e.target.checked } }); desk.reload(); }} /> Show a macOS notification when an alert or reminder fires (while the server is running)</label>
-          <p className="tiny faint" style={{ marginTop: 6 }}>If nothing appears, allow notifications for "Script Editor" / your terminal in System Settings → Notifications.</p>
+          <p className="tiny faint" style={{ marginTop: 6 }}>{BROWSER_BACKEND ? "Alerts are checked whenever the app opens or new data arrives. On iPhone and iPad, notifications work only for the Home Screen app (Share → Add to Home Screen)." : 'If nothing appears, allow notifications for "Script Editor" / your terminal in System Settings → Notifications.'}</p>
         </Card>
       )}
       <Card title="Daily market briefing">

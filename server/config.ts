@@ -36,6 +36,7 @@ export const config = {
     get provider() { return (process.env.AI_PROVIDER || "anthropic").toLowerCase(); },
     get model() { return process.env.AI_MODEL || "claude-opus-5-5"; },
     get effort() { return (process.env.AI_EFFORT || "medium") as "low" | "medium" | "high" | "xhigh" | "max"; },
+    get apiKey() { return process.env.ANTHROPIC_API_KEY || ""; },
     get hasKey() { return !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN); },
   },
   ingestDailyAt: process.env.INGEST_DAILY_AT || "15:45",

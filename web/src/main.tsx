@@ -3,16 +3,21 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./styles.css";
 import { App } from "./App.tsx";
+import { startBackend } from "./lib/backend.ts";
+import { applyPrefs, cachedPrefs } from "./lib/prefs.ts";
+import { api } from "./lib/api.ts";
 
-try {
-  const t = localStorage.getItem("ss-theme");
-  if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
-  else if (window.matchMedia("(prefers-color-scheme: light)").matches) document.documentElement.dataset.theme = "light";
-} catch { /* storage unavailable */ }
+startBackend();
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => {}); });
+}
+if (import.meta.env.DEV) (window as unknown as { saphalApi: typeof api }).saphalApi = api;
+
+applyPrefs(cachedPrefs());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "") || undefined}>
       <App />
     </BrowserRouter>
   </StrictMode>,

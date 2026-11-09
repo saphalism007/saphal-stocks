@@ -10,3 +10,4 @@ data/backups/
 *.log
 .DS_Store
 data/test-credentials.local
+web/public/data/

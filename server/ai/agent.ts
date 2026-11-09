@@ -33,7 +33,8 @@ export function aiAvailable() {
 }
 
 export async function runAgent(history: Anthropic.MessageParam[], userId: number, emit: (e: AgentEvent) => void): Promise<{ messages: Anthropic.MessageParam[]; finalText: string; toolsUsed: string[] }> {
-  const client = new Anthropic();
+  const key = (config.ai as { apiKey?: string }).apiKey;
+  const client = key ? new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true }) : new Anthropic();
   const messages = [...history];
   const toolsUsed: string[] = [];
   const ctx = dataContext();

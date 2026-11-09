@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { BROWSER_BACKEND, backendFetch } from "./backend.ts";
+
+const doFetch = (url: string, init: RequestInit) => (BROWSER_BACKEND ? backendFetch(url, init) : fetch(url, init));
 
 export class ApiError extends Error { status: number; constructor(msg: string, status: number) { super(msg); this.status = status; } }
 
 export async function api<T = unknown>(path: string, opts: { method?: string; body?: unknown; form?: FormData } = {}): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await doFetch(`/api${path}`, {
     method: opts.method || (opts.body || opts.form ? "POST" : "GET"),
     headers: opts.form ? undefined : opts.body ? { "Content-Type": "application/json" } : undefined,
     body: opts.form ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
@@ -44,7 +47,7 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
 
 /** POST that streams server-sent events (used by the AI analyst). */
 export async function streamPost(path: string, body: unknown, onEvent: (event: string, data: unknown) => void) {
-  const res = await fetch(`/api${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" });
+  const res = await doFetch(`/api${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin" });
   if (!res.ok || !res.body) {
     let msg = `Request failed (${res.status})`;
     try { msg = (await res.json()).error || msg; } catch { /* ignore */ }

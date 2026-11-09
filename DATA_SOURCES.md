@@ -35,9 +35,13 @@ Checked on 8 November 2026. Every stored record carries its source, and every da
 | NepseAlpha | Returns 403 to automated requests. |
 | Merolagani | Reachable, but redundant with the sources above. |
 
+## Where the web app gets data
+
+The web app does not contact the sources above from your phone. GitHub Actions (`.github/workflows/data-and-deploy.yml`) runs the same ingestion jobs on a schedule, exports a market snapshot (`data/market.db.bin`, gzip-compressed SQLite) and a small `data/live.json` with the latest quotes, and publishes them with the app on GitHub Pages. The same rate limits apply. The app shows the snapshot's data date and source on Settings → Data.
+
 ## Known limitations
 
-- **End-of-day only.** There is no free, permitted intraday feed; signals and alerts use daily closes.
+- **Near-live, not real-time.** ShareSansar's latest-price page is refreshed about every 15 minutes during market hours (5 minutes on the local server). Signals and setups use daily bars; the current day's bar is marked provisional until the close.
 - **Quarterly statement history** starts from what is fetched; older quarters are not offered by the source. Year-over-year growth appears once last year's same quarter has been stored. PDFs of older reports can be uploaded under Reports for AI document analysis.
 - **Bonus and right-share adjustments** use dividend and issue records and apply only when the expected ex-date price gap is found in the data. Remaining unexplained gaps are listed on Settings → Data quality.
 - **Investment product rates** (FD rates, bond coupons, fund returns) change constantly and are not scraped. The directory links to official sources and lets you record a verified rate and date.

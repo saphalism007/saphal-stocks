@@ -235,3 +235,6 @@ function computeSetups() {
   }
   return out.sort((a, b) => b.quality - a.quality);
 }
+
+/** Drops cached market-wide computations (used when new data is loaded in the browser). */
+export function resetMarketCaches() { factorCache = null; setupCache = null; }
