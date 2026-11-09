@@ -5,6 +5,7 @@ import * as P from "./providers.ts";
 import { parsePeriod } from "../../shared/fundamentals.ts";
 import { fetchJson } from "../lib/fetcher.ts";
 import { GUIDE_URLS } from "../../shared/guide.ts";
+import { metalItem } from "../../shared/money.ts";
 
 export type JobName = "listing" | "history" | "indices" | "details" | "news" | "forex" | "alerts";
 
@@ -549,4 +550,30 @@ export function startIntradayPoller(intervalMin = Number(process.env.INTRADAY_RE
     if (f && n.minutes > OPEN + 45 && f.as_of !== n.date && Date.now() - Date.parse(f.last_success_at) < 20 * 60_000) { holidayDate = n.date; console.log(`[intraday] no trading detected on ${n.date}; polling paused for today`); return; }
     enqueue("listing", (s) => syncListing(s));
   }, 60_000);
+}
+
+// ---------- Gold and silver: official daily rates from FENEGOSIDA (Federation of Nepal Gold & Silver Dealers' Association) ----------
+const METAL_API = "https://api.fenegosida.org/api/website/v1/Dashboard";
+export async function syncMetals(): Promise<number> {
+  const last = get<{ d: string | null }>("SELECT MAX(date) d FROM metal_prices")?.d;
+  const start = last ? new Date(Date.parse(last) - 40 * 86_400_000) : new Date("2013-01-15");
+  const now = new Date();
+  let n = 0, empty = 0;
+  const ins = db.prepare("INSERT INTO metal_prices (date, item, price) VALUES (?, ?, ?) ON CONFLICT(date, item) DO UPDATE SET price = excluded.price");
+  try {
+    for (let y = start.getUTCFullYear(), m = start.getUTCMonth(); y < now.getUTCFullYear() || (y === now.getUTCFullYear() && m <= now.getUTCMonth()); m === 11 ? (y++, m = 0) : m++) {
+      const d = `${y}-${String(m + 1).padStart(2, "0")}-15`;
+      const rows = await fetchJson<{ todayDate: string; rateType: string; baseRatePerGram: number }[]>(`${METAL_API}/monthwisehistory?date=${d}`).catch(() => null);
+      if (!Array.isArray(rows) || !rows.length) { empty++; continue; }
+      tx(() => { for (const r of rows) { const item = metalItem(r.rateType); if (item && r.baseRatePerGram > 0 && /^\d{4}-\d{2}-\d{2}/.test(r.todayDate)) { ins.run(r.todayDate.slice(0, 10), item, r.baseRatePerGram); n++; } } });
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+    // Today's rate (published each morning).
+    const today = await fetchJson<{ todayDate: string; rateType: string; todayBaseRatePerGram: number }[]>(`${METAL_API}/today`).catch(() => null);
+    if (Array.isArray(today)) tx(() => { for (const r of today) { const item = metalItem(r.rateType); if (item && r.todayBaseRatePerGram > 0) { ins.run(r.todayDate.slice(0, 10), item, r.todayBaseRatePerGram); n++; } } });
+    const asOf = get<{ d: string | null }>("SELECT MAX(date) d FROM metal_prices")?.d ?? null;
+    fresh("metals", { name: "FENEGOSIDA", url: "https://fenegosida.org" }, asOf, n);
+  } catch (e) { freshError("metals", e instanceof Error ? e.message : String(e)); throw e; }
+  if (empty > 30 && n === 0) throw new Error("FENEGOSIDA returned no rates");
+  return n;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from "react";
 import { I } from "./icons.tsx";
 import { scoreColor, isNum, nptDate, ago, numberLocale } from "../lib/format.ts";
 
@@ -63,7 +63,10 @@ export function Fresh({ date, fetched, source }: { date?: string | null; fetched
 }
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { key: T; label: ReactNode }[]; value: T; onChange: (k: T) => void }) {
-  return <div className="tabs">{tabs.map((t) => <button key={t.key} className={value === t.key ? "on" : ""} onClick={() => onChange(t.key)}>{t.label}</button>)}</div>;
+  const ref = useRef<HTMLDivElement>(null);
+  // Keep the selected tab visible when the row scrolls sideways (phones).
+  useEffect(() => { const el = ref.current, on = el?.querySelector<HTMLElement>("button.on"); if (el && on && el.scrollWidth > el.clientWidth) el.scrollTo({ left: Math.max(0, on.offsetLeft - (el.clientWidth - on.offsetWidth) / 2), behavior: "smooth" }); }, [value]);
+  return <div className="tabs" ref={ref}>{tabs.map((t) => <button key={t.key} className={value === t.key ? "on" : ""} onClick={() => onChange(t.key)}>{t.label}</button>)}</div>;
 }
 
 export function Seg<T extends string>({ options, value, onChange }: { options: { key: T; label: ReactNode }[]; value: T; onChange: (k: T) => void }) {

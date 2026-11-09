@@ -43,3 +43,17 @@ describe("flexible plan", () => {
     expect(b.totalIn).toBeGreaterThan(a.totalIn);
   });
 });
+
+describe("gold and silver in the mix", () => {
+  const withMetals = { ...rates, goldPct: 13, silverPct: 11 };
+  it("adds gold for medium risk and gold + silver for high risk, still totalling 100", () => {
+    const med = channelMix("medium", 7, withMetals), hi = channelMix("high", 10, withMetals);
+    expect(med.mix.find((c) => c.key === "gold")?.pct).toBe(10);
+    expect(hi.mix.some((c) => c.key === "silver")).toBe(true);
+    for (const m of [med, hi]) expect(Math.round(m.mix.reduce((s, c) => s + c.pct, 0))).toBe(100);
+  });
+  it("leaves metals out without price history or for very short horizons", () => {
+    expect(channelMix("medium", 7, rates).mix.some((c) => c.key === "gold")).toBe(false);
+    expect(channelMix("high", 1, withMetals).mix.some((c) => c.key === "gold")).toBe(false);
+  });
+});

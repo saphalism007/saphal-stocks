@@ -76,3 +76,12 @@ describe("fiscal year from Nepali dates", () => {
 describe("governance audits are not financial audits", () => {
   it("corporate governance audit report", () => { expect(classifyDoc({ url: "https://x.com/a.pdf", title: "Corporate Governance Audit report 77/78", context: "" }).type).toBe("disclosure"); });
 });
+import { metalItem } from "../shared/money.ts";
+describe("FENEGOSIDA rate names", () => {
+  it("maps gold and silver units", () => {
+    expect(metalItem("छापावाल सुन (१ तोला)")).toBe("gold_tola");
+    expect(metalItem("छापावाल सुन (१० ग्राम)")).toBe("gold_10g");
+    expect(metalItem("असली चाँदी दर (१ तोला)")).toBe("silver_tola");
+    expect(metalItem("Something else")).toBeNull();
+  });
+});

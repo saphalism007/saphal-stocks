@@ -5,12 +5,11 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.11.1";
+export const VERSION = "0.12.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "Phone layout fixed: no more text running off the screen on iPhone; long labels wrap neatly and wide tables scroll inside their card.",
-  "New investment plan builder: start with Rs. 0 today and invest monthly, set different amounts for each month (any month can be 0), and raise them each year. The plan covers costly debt and the emergency fund first, then spreads money across deposits, debentures and bonds, CIT, mutual fund SIPs, close-ended funds, stocks and IPOs, with a year-by-year outlook.",
-  "Links to every investment channel in Nepal (NEPSE, MeroShare, SEBON, NRB, PDMO, CIT, EPF, SSF, insurance), each checked daily.",
+  "Gold & silver: official FENEGOSIDA daily rates since 2013 with a price chart, 1-year and 10-year returns and the worst falls. Gold (and a little silver for high risk) is now part of your diversified plan.",
+  "More ways to grow money in Nepal: land and property, specialised investment funds, your own business, skills; cooperatives listed with clear warnings, and what to avoid (crypto, unapproved foreign investing, MLM schemes).",
 ];
 
 declare const __BUILD__: string;

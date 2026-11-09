@@ -6,10 +6,11 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { Card, Stat, Loading, ErrorBox, Tabs, Badge, Notice, Empty, DataTable, Seg, NumInput } from "../components/ui.tsx";
 import { I } from "../components/icons.tsx";
+import { LineChart } from "../components/PriceChart.tsx";
 import { compact, num, nptDate, rs, tone } from "../lib/format.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
-type Tab = "advisor" | "deposits" | "rates" | "funds" | "loan";
+type Tab = "advisor" | "deposits" | "rates" | "metals" | "funds" | "loan";
 
 export default function Invest() {
   const [sp, setSp] = useSearchParams();
@@ -17,10 +18,11 @@ export default function Invest() {
   return (
     <div className="page">
       <div className="page-head"><div><h1>Investment Planner</h1><p className="muted">Compare real options in Nepal and get a split that fits your risk, goals and the latest official rates. Guaranteed (contractual) and market-linked returns are always shown separately.</p></div></div>
-      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "advisor", label: "Where should I invest?" }, { key: "deposits", label: "Deposit rates" }, { key: "rates", label: "Rates & inflation" }, { key: "funds", label: "Funds, debentures, bonds" }, { key: "loan", label: "Prepay or invest?" }]} />
+      <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "advisor", label: "Where should I invest?" }, { key: "deposits", label: "Deposit rates" }, { key: "rates", label: "Rates & inflation" }, { key: "metals", label: "Gold & silver" }, { key: "funds", label: "Funds, debentures, bonds" }, { key: "loan", label: "Prepay or invest?" }]} />
       {tab === "advisor" && <Advisor />}
       {tab === "deposits" && <Deposits />}
       {tab === "rates" && <Rates />}
+      {tab === "metals" && <Metals />}
       {tab === "funds" && <FundsBonds />}
       {tab === "loan" && <LoanVsInvest />}
       <p className="tiny faint" style={{ marginTop: 16 }}>Decision support, not licensed financial advice. Confirm rates and terms with the institution before investing.</p>
@@ -29,7 +31,7 @@ export default function Invest() {
 }
 
 const MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashwin", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
-const CH_COL: Record<string, string> = { fd: "var(--blue)", debenture: "#0ea5e9", cit: "#14b8a6", sip: "var(--violet)", closed: "#a855f7", stocks: "var(--accent)", ipo: "var(--warn)" };
+const CH_COL: Record<string, string> = { fd: "var(--blue)", debenture: "#0ea5e9", cit: "#14b8a6", sip: "var(--violet)", closed: "#a855f7", stocks: "var(--accent)", ipo: "var(--warn)", gold: "#d4a017", silver: "#94a3b8" };
 
 function Advisor() {
   const money = useApi<Any>("/money");
@@ -95,7 +97,7 @@ function Advisor() {
             <Stat label="You put in" value={compact(r.totalIn)} sub={`${v(lump) > 0 ? `${compact(v(lump))} now` : "Nothing now"}${r.avgMonthly ? ` + avg ${compact(r.avgMonthly)}/month` : ""} over ${num(r.months / 12, 0)} yr`} />
             <Stat label={`Expected in ${num(r.months / 12, 0)} years`} value={compact(finalYear.mid)} sub={`Weak ${compact(finalYear.low)} · strong ${compact(finalYear.high)}`} />
             <Stat label="Guaranteed / contractual" value={`${num(r.guaranteedPct, 0)}%`} sub="Deposits, bonds, CIT, debt repaid, emergency fund" />
-            <Stat label="Market-linked" value={`${r.equityCapPct}%`} sub={`of long-term money · ${r.inputs.risk} risk, ${r.inputs.horizonYears}-yr horizon`} />
+            <Stat label="Market-linked" value={`${r.equityCapPct}%`} sub={`Shares & funds ${r.equityPart}%${r.metalsPct ? ` · gold/silver ${r.metalsPct}%` : ""} · ${r.inputs.risk} risk, ${r.inputs.horizonYears}-yr`} />
           </div>
           {r.priorities.length > 0 && (
             <Card title="First, protect yourself" sub="New money fills these before anything is invested">
@@ -144,6 +146,47 @@ function Advisor() {
   );
 }
 
+function Metals() {
+  const m = useApi<Any>("/metals");
+  const [metal, setMetal] = useState<"gold" | "silver">("gold");
+  const [range, setRange] = useState<"1" | "5" | "all">("5");
+  if (m.error) return <ErrorBox error={m.error} onRetry={m.reload} />;
+  if (!m.data) return <Loading />;
+  const x = m.data[metal];
+  if (!x) return <Empty title="Gold and silver rates are not loaded yet">They are collected with the daily market data.</Empty>;
+  const cut = range === "all" ? "" : new Date(Date.now() - Number(range) * 365.25 * 86_400_000).toISOString().slice(0, 10);
+  const data = x.history.filter(([d]: [string, number]) => d >= cut).map(([date, value]: [string, number]) => ({ date, value }));
+  const pct = (v: Any) => (v == null ? "—" : `${v > 0 ? "+" : ""}${num(v, 1)}%`);
+  return (
+    <div className="col">
+      <div className="grid g4">
+        <Stat label={`${metal === "gold" ? "Fine gold" : "Silver"} per tola`} value={rs(x.latest, 0)} sub={<span>{nptDate(x.latestDate)} {x.changePct != null && <span className={tone(x.changePct)}>{pct(x.changePct)} vs previous day</span>}</span>} />
+        <Stat label="1 year" value={<span className={tone(x.y1?.pct)}>{pct(x.y1?.pct)}</span>} sub={x.y1 ? `from ${rs(x.y1.fromPrice, 0)}` : undefined} />
+        <Stat label="10 years, per year" value={<span className={tone(x.y10?.pct)}>{pct(x.y10?.pct)}</span>} sub={`Since ${x.full.from.slice(0, 4)}: ${pct(x.full.pct)} a year`} />
+        <Stat label="Worst fall" value={<span className="down">{num(x.worstFall.pct, 1)}%</span>} sub={`${nptDate(x.worstFall.from)} to ${nptDate(x.worstFall.to)}${x.worstFall.recoveredBy ? `; recovered ${nptDate(x.worstFall.recoveredBy)}` : "; not yet recovered"}`} />
+      </div>
+      <Card title={`${metal === "gold" ? "Gold" : "Silver"} price history (Rs. per tola)`} sub="Official FENEGOSIDA daily rate" actions={<><Seg value={metal} onChange={setMetal} options={[{ key: "gold", label: "Gold" }, { key: "silver", label: "Silver" }]} /><Seg value={range} onChange={setRange} options={[{ key: "1", label: "1Y" }, { key: "5", label: "5Y" }, { key: "all", label: "All" }]} /></>}>
+        <LineChart data={data} height={260} color={metal === "gold" ? "#d4a017" : "#94a3b8"} />
+        <p className="tiny faint" style={{ marginTop: 8 }}>All-time high {rs(x.high.price, 0)} on {nptDate(x.high.date)} ({x.high.offPct}% from today). The plan uses {num(x.planPct, 1)}% a year for {metal}: the lower of its 10-year and full-history growth, so a recent boom isn't assumed to continue.</p>
+      </Card>
+      <Card title="Investing in gold and silver" sub="How to do it well">
+        <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+          <li>Keep it to about 5-15% of your money: it protects against inflation and a weaker rupee, but pays no interest or dividend.</li>
+          <li>Buy fine (chhapawal) gold bars or coins with a bill from a FENEGOSIDA-member dealer. Jewellery has making charges you lose when you sell.</li>
+          <li>Dealers buy back below their selling rate, so short-term trading loses money. Think 5+ years.</li>
+          <li>Silver swings far more than gold ({num(m.data.silver?.worstFall.pct ?? 0, 0)}% worst fall): keep it small.</li>
+          <li>Store it safely (a bank locker) and keep the bills.</li>
+        </ul>
+        <div className="row" style={{ marginTop: 10 }}>
+          <a className="btn sm" href={m.data.url} target="_blank" rel="noopener noreferrer"><I.external /> FENEGOSIDA official rates</a>
+          <Link className="btn sm ghost" to="/invest">Add gold to my plan</Link>
+        </div>
+        <p className="tiny faint" style={{ marginTop: 8 }}>Source: {m.data.source}. Rates are updated daily with the market data.</p>
+      </Card>
+    </div>
+  );
+}
+
 function ChannelsCard({ products }: { products?: Any[] }) {
   if (!products) return <Card title="All investment channels in Nepal"><Loading /></Card>;
   const cats = [...new Set(products.map((p) => p.category))] as string[];
@@ -166,6 +209,12 @@ function ChannelsCard({ products }: { products?: Any[] }) {
               </div>
             </div>))}</div>
         </div>))}</div>
+      <div className="sub-h" style={{ marginTop: 14 }}>Avoid</div>
+      <ul className="small muted" style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+        <li>Cryptocurrency trading and mining: declared illegal in Nepal by NRB.</li>
+        <li>Investing abroad (foreign shares, forex/crypto apps) without approval: residents are restricted by law, and money can be lost with no protection.</li>
+        <li>Network/multi-level marketing, "double your money" schemes, hundi and unlicensed lenders.</li>
+      </ul>
       <p className="tiny faint" style={{ marginTop: 8 }}>Some Nepal government sites block requests from outside Nepal, so a failed check does not always mean the link is broken. Full details for each channel are on <Link to="/future">Invest for the Future</Link>.</p>
     </Card>
   );

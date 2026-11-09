@@ -184,6 +184,10 @@ const MIGRATIONS: string[] = [
   CREATE TABLE company_docs (symbol TEXT NOT NULL, url TEXT NOT NULL, title TEXT, type TEXT, fiscal_year TEXT, quarter INTEGER, published TEXT, page_url TEXT, offsite INTEGER, verified INTEGER, content_type TEXT, reason TEXT, checked_at TEXT, PRIMARY KEY (symbol, url));
   CREATE INDEX company_docs_type ON company_docs(symbol, type);
   `,
+  // 15: official gold and silver rates (FENEGOSIDA), per tola and per 10 grams
+  `
+  CREATE TABLE metal_prices (date TEXT NOT NULL, item TEXT NOT NULL, price REAL NOT NULL, PRIMARY KEY (date, item)) WITHOUT ROWID;
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

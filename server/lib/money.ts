@@ -59,6 +59,35 @@ export interface DepositRateRow { id: number; institution: string; inst_type: st
 export const depositRates = () => safe(() => all<DepositRateRow>("SELECT * FROM deposit_rates ORDER BY rate DESC"), [] as DepositRateRow[]);
 
 /** The rates the advisor uses, each with where it came from. */
+/** Gold and silver per tola (FENEGOSIDA official rates): latest, change, returns over 1/5/10 years and the worst fall. */
+export function metalsLongRun() {
+  return safe(() => {
+    const one = (metal: "gold" | "silver") => {
+      const item = `${metal}_tola`;
+      const rows = all<{ date: string; price: number }>("SELECT date, price FROM metal_prices WHERE item = ? ORDER BY date", item);
+      if (rows.length < 30) return null;
+      const last = rows[rows.length - 1], prev = rows[rows.length - 2];
+      const at = (yearsBack: number) => { const cut = new Date(Date.parse(last.date) - yearsBack * 365.25 * 86_400_000).toISOString().slice(0, 10); let r: typeof last | null = null; for (const x of rows) { if (x.date <= cut) r = x; else break; } return r; };
+      const ret = (y: number) => { const b = at(y); if (!b) return null; const yrs = (Date.parse(last.date) - Date.parse(b.date)) / (365.25 * 86_400_000); return { from: b.date, fromPrice: b.price, pct: Math.round((y === 1 ? (last.price / b.price - 1) * 100 : (MO.cagr(b.price, last.price, yrs) ?? 0)) * 100) / 100 }; };
+      const first = rows[0];
+      const fullPct = Math.round((MO.cagr(first.price, last.price, (Date.parse(last.date) - Date.parse(first.date)) / (365.25 * 86_400_000)) ?? 0) * 100) / 100;
+      let peak = rows[0], worst = { pct: 0, from: rows[0].date, to: rows[0].date, recoveredBy: null as string | null };
+      let cur = { peak: rows[0], low: rows[0] };
+      for (const x of rows) { if (x.price > peak.price) peak = x; const dd = (x.price / peak.price - 1) * 100; if (dd < worst.pct) { worst = { pct: Math.round(dd * 10) / 10, from: peak.date, to: x.date, recoveredBy: null }; cur = { peak, low: x }; } }
+      const rec = rows.find((x) => x.date > cur.low.date && x.price >= cur.peak.price); worst.recoveredBy = rec?.date ?? null;
+      const high = rows.reduce((a, b) => (b.price > a.price ? b : a));
+      const y10 = ret(10);
+      // Planning rate: the lower of the 10-year and full-history growth, so a recent boom isn't projected forward.
+      const planPct = Math.min(y10?.pct ?? fullPct, fullPct);
+      return { item, unit: "tola (11.66 g)", latest: last.price, latestDate: last.date, changePct: prev ? Math.round((last.price / prev.price - 1) * 10000) / 100 : null,
+        y1: ret(1), y5: ret(5), y10, full: { from: first.date, fromPrice: first.price, pct: fullPct }, high: { date: high.date, price: high.price, offPct: Math.round((last.price / high.price - 1) * 1000) / 10 }, worstFall: worst, planPct,
+        history: rows.filter((_, i) => i % 7 === 0 || i === rows.length - 1).map((x) => [x.date, x.price] as [string, number]) };
+    };
+    const gold = one("gold"), silver = one("silver");
+    return gold || silver ? { gold, silver, source: "FENEGOSIDA (Federation of Nepal Gold & Silver Dealers' Association) official daily rate, fine gold (chhapawal) and silver", url: "https://fenegosida.org" } : null;
+  }, null);
+}
+
 export function marketRates(): MO.MarketRates & { sources: Record<string, string> } {
   const sources: Record<string, string> = {};
   const recent = depositRates().filter((d) => d.depositor !== "institutional" && (d.tenor_months == null || (d.tenor_months >= 6 && d.tenor_months <= 24)) && (!d.effective_from || Date.now() - Date.parse(d.effective_from) < 75 * 86_400_000));
@@ -74,7 +103,10 @@ export function marketRates(): MO.MarketRates & { sources: Record<string, string
   if (mac?.inflation != null) sources.inflation = `NRB CPI inflation (${mac.title}), published ${mac.published}`;
   const eq = nepseLongRun();
   if (eq) sources.equity = `NEPSE index ${eq.from} to ${eq.to} (${eq.fromValue} to ${eq.toValue}): ${eq.pricePct}% a year in price${eq.dividendYieldPct != null ? ` + ${eq.dividendYieldPct}% cash dividend yield (market-cap weighted)` : ""}. Not guaranteed; since ${eq.fullFrom.slice(0, 4)} it was ${eq.fullHistoryPct}% a year, over other periods negative`;
-  return { fdPct, savingPct: sav?.value ?? null, tbillPct: tb?.value ?? null, inflationPct: mac?.inflation ?? null, equityLongRunPct: eq?.pct ?? null, interestTaxPct: interestTaxPct(), sources };
+  const mt = metalsLongRun();
+  if (mt?.gold) sources.gold = `FENEGOSIDA fine gold per tola, ${mt.gold.full.from} to ${mt.gold.latestDate}: ${mt.gold.full.pct}% a year (10-year ${mt.gold.y10?.pct ?? "n/a"}%); worst fall ${mt.gold.worstFall.pct}%`;
+  if (mt?.silver) sources.silver = `FENEGOSIDA silver per tola, ${mt.silver.full.from} to ${mt.silver.latestDate}: ${mt.silver.full.pct}% a year; worst fall ${mt.silver.worstFall.pct}%`;
+  return { fdPct, savingPct: sav?.value ?? null, tbillPct: tb?.value ?? null, inflationPct: mac?.inflation ?? null, equityLongRunPct: eq?.pct ?? null, goldPct: mt?.gold?.planPct ?? null, silverPct: mt?.silver?.planPct ?? null, interestTaxPct: interestTaxPct(), sources };
 }
 
 export function moneyData(userId: number): { id: number | null; data: MO.MoneyData } {

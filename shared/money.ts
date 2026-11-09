@@ -29,6 +29,7 @@ export interface MarketRates {
   tbillPct: number | null; // 364-day T-bill
   inflationPct: number | null; // NRB CPI y-o-y
   equityLongRunPct: number | null; // NEPSE index long-run annual growth (price only)
+  goldPct?: number | null; silverPct?: number | null; // FENEGOSIDA long-run growth per tola (planning rate)
   interestTaxPct: number; // TDS on interest for individuals
 }
 
@@ -424,15 +425,22 @@ export function channelMix(risk: Risk, horizonYears: number, rates: MarketRates,
     sip: { key: "sip", name: "Mutual fund SIP (open-ended)", product: "mf-open", group: "market", ratePct: eq, rateNote: eqNote, liquidity: "Redeem in a few days", howTo: "Start a SIP with a fund manager (via their app, branch or C-ASBA); pick a diversified equity or balanced fund.", inApp: { label: "Mutual funds", to: "/invest?tab=funds" } },
     closed: { key: "closed", name: "Close-ended mutual funds", product: "mf-closed", group: "market", ratePct: eq, rateNote: eqNote, liquidity: "Buy/sell on NEPSE (T+2)", howTo: "Buy listed funds through your broker (TMS), preferably below NAV.", inApp: { label: "Fund NAV vs price", to: "/invest?tab=funds" } },
     stocks: { key: "stocks", name: "Strong NEPSE stocks (5+ across sectors)", product: "nepse-shares", group: "market", ratePct: eq, rateNote: eqNote, liquidity: "Sell on NEPSE (T+2 for liquid stocks)", howTo: "Open a demat (MeroShare) and broker (TMS) account; buy fundamentally strong companies in different sectors.", inApp: { label: "Strong stocks", to: "/opportunities" } },
+    gold: { key: "gold", name: "Gold (fine, hallmarked)", product: "gold-silver", group: "market", ratePct: rates.goldPct ?? null, rateNote: rates.goldPct != null ? `FENEGOSIDA official rate history, planned at ${rates.goldPct}%/yr (lower of 10-year and full-history growth); gold has fallen 20%+ before and pays no interest` : "No gold price history available", liquidity: "Sell to a dealer the same day (at the buying rate, below the selling rate)", howTo: "Buy fine (chhapawal) gold coins or bars with a bill from a FENEGOSIDA-member dealer; avoid jewellery for investing (making charges are lost when you sell).", inApp: { label: "Gold & silver prices", to: "/invest?tab=metals" } },
+    silver: { key: "silver", name: "Silver", product: "gold-silver", group: "market", ratePct: rates.silverPct ?? null, rateNote: rates.silverPct != null ? `FENEGOSIDA official rate history, planned at ${rates.silverPct}%/yr; swings more than gold` : "No silver price history available", liquidity: "Sell to a dealer (wider buy/sell gap than gold)", howTo: "Buy pure silver bars or coins with a bill; keep it small: silver swings far more than gold.", inApp: { label: "Gold & silver prices", to: "/invest?tab=metals" } },
     ipo: { key: "ipo", name: "IPOs / right shares (small amounts)", product: "ipo", group: "market", ratePct: eq, rateNote: "Allotment is a lottery; returns vary widely", liquidity: "After listing", howTo: "Apply for each IPO in MeroShare (usually 10 units).", inApp: { label: "IPO calendar", to: "/ipo" } },
   };
   const gW: [string, number][] = horizonYears < 2 ? [["fd", 1]] : horizonYears < 5 ? [["fd", 0.7], ["debenture", 0.3]] : [["fd", 0.5], ["debenture", 0.25], ["cit", 0.25]];
   const mW: [string, number][] = risk === "low" ? [["sip", 0.7], ["stocks", 0.3]] : risk === "medium" ? [["sip", 0.45], ["closed", 0.15], ["stocks", 0.35], ["ipo", 0.05]] : [["sip", 0.3], ["closed", 0.15], ["stocks", 0.5], ["ipo", 0.05]];
+  // Real assets: a small slice of gold (and silver for high risk) as a hedge against inflation and a weak rupee.
+  const metals: [string, number][] = horizonYears < 2 ? [] : risk === "low" ? [["gold", 5]] : risk === "medium" ? [["gold", 10]] : [["gold", 10], ["silver", 3]];
+  const usable = metals.filter(([k]) => C[k].ratePct != null);
+  const mPct = usable.reduce((a, [, w]) => a + w, 0), scale = (100 - mPct) / 100;
   const mix = [
-    ...gW.map(([k, w]) => ({ ...C[k], pct: r1((100 - cap) * w) })),
-    ...(cap > 0 ? mW.map(([k, w]) => ({ ...C[k], pct: r1(cap * w) })) : []),
+    ...gW.map(([k, w]) => ({ ...C[k], pct: r1((100 - cap) * w * scale) })),
+    ...(cap > 0 ? mW.map(([k, w]) => ({ ...C[k], pct: r1(cap * w * scale) })) : []),
+    ...usable.map(([k, w]) => ({ ...C[k], pct: w })),
   ].filter((c) => c.pct > 0);
-  return { cap, mix };
+  return { cap: r1(cap * scale + mPct), equityPart: r1(cap * scale), metalsPct: mPct, mix };
 }
 
 /** Builds the plan month by month with three outcomes for the market part. */
@@ -444,7 +452,7 @@ export function buildPlan(p: PlanInput) {
   const totalIn = p.lumpSum + sum(contrib);
   if (totalIn <= 0) return { ok: false as const, reason: "Enter an amount to invest now, a monthly amount, or both." };
 
-  const { cap, mix } = channelMix(p.risk, p.horizonYears, p.rates, p.existingEquityPct);
+  const { cap, mix, equityPart, metalsPct } = channelMix(p.risk, p.horizonYears, p.rates, p.existingEquityPct);
   const savNet = p.rates.savingPct != null ? p.rates.savingPct * (1 - p.rates.interestTaxPct / 100) : 0;
   // Priorities: costly debt, emergency fund, money needed within 3 years. Lump sum first, then monthly money.
   const prio: { name: string; kind: "debt" | "safety" | "goal"; need: number; ratePct: number; note: string }[] = [
@@ -480,7 +488,7 @@ export function buildPlan(p: PlanInput) {
   const avgMonthly = sum(contrib) / months;
   const guaranteedIn = sum(prioFilled) + sum(mix.map((c, j) => c.group === "guaranteed" ? lumpTo[j] + monthlyTo[j] : 0));
   return {
-    ok: true as const, equityCapPct: cap, months, totalIn: r0(totalIn), avgMonthly: r0(avgMonthly),
+    ok: true as const, equityCapPct: cap, equityPart, metalsPct, months, totalIn: r0(totalIn), avgMonthly: r0(avgMonthly),
     guaranteedPct: r1(guaranteedIn / totalIn * 100),
     priorities: prio.map((x, i) => ({ name: x.name, kind: x.kind, amount: r0(prioFilled[i]), need: r0(x.need), done: prioFilled[i] >= x.need - 0.5, monthDone: prioMonthDone[i], note: x.note })),
     channels: mix.map((c, j) => ({ ...c, lump: r0(lumpTo[j]), monthlyTotal: r0(monthlyTo[j]), monthlyAvg: r0(monthlyTo[j] / months), final: { low: r0(bal.low[j]), mid: r0(bal.mid[j]), high: r0(bal.high[j]) } })),
@@ -491,4 +499,12 @@ export function buildPlan(p: PlanInput) {
       ...(pattern.length > 1 ? [`Your ${pattern.length}-month pattern repeats every year (average Rs. ${fmt(sum(pattern) / pattern.length)} a month).`] : []),
     ],
   };
+}
+
+/** Maps FENEGOSIDA's Nepali rate names to our items: fine (chhapawal) gold and silver, per tola and per 10 grams. */
+export function metalItem(rateType: string): string | null {
+  const gold = /सुन/.test(rateType), silver = /चाँदी/.test(rateType);
+  const unit = /तोला/.test(rateType) ? "tola" : /१० ग्राम|10 ?g/i.test(rateType) ? "10g" : null;
+  if (!unit || gold === silver) return null;
+  return `${gold ? "gold" : "silver"}_${unit}`;
 }
