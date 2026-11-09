@@ -2,7 +2,7 @@
 import { all, get, run, nowIso } from "../db.ts";
 import { encrypt, decrypt } from "./security.ts";
 
-export type VaultKind = "profile" | "goal" | "networth" | "journal" | "thesis" | "money";
+export type VaultKind = "profile" | "goal" | "networth" | "journal" | "thesis" | "money" | "purchase";
 
 export function readVault<T = Record<string, unknown>>(userId: number, kind: VaultKind) {
   return all<{ id: number; data_enc: string; created_at: string; updated_at: string }>("SELECT * FROM vault WHERE user_id = ? AND kind = ? ORDER BY id", userId, kind).map((r) => ({

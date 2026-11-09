@@ -13,7 +13,7 @@ import { extractNoticeRates } from "../ai/extract.ts";
 import { nowIso } from "../db.ts";
 
 export const wealthRouter = Router();
-const KINDS = ["profile", "goal", "networth", "journal", "thesis", "money"] as const;
+const KINDS = ["profile", "goal", "networth", "journal", "thesis", "money", "purchase"] as const;
 const json = z.record(z.unknown()).refine((o) => JSON.stringify(o).length < 200_000, "Too large");
 
 wealthRouter.get("/vault/:kind", (req, res) => {

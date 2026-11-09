@@ -5,13 +5,12 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.16.0";
+export const VERSION = "0.17.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "NEPSE Market Mood (new Discover page): a 0–100 fear & greed gauge built from six market readings (rising vs falling stocks, stocks above their 50-day average, 52-week highs vs lows, NEPSE vs its 125-day average, turnover and RSI), with its history and what it means for you.",
-  "Stock baskets: ready-made themes — quality compounders, steady dividend payers, value picks, momentum leaders, strong banks, hydropower leaders and low-volatility shares — with members, 3-month and 1-year returns vs NEPSE, and one tap to add them to your watchlist.",
-  "Stock scorecard in the ⚡ signal: a six-point shape (value, growth, profitability, financial health, dividends, momentum) and the likely price range for next week and next month from recent price swings.",
-  "Your true yearly return (XIRR) in My Growth → Holdings plan: counts when you invested, fees, sales and dividends.",
+  "Invest or Trade? (new page): the fundamentally strongest stocks to invest in and the technically strongest to trade, ranked 0–100 with the reasons, plus stocks strong on both and the top picks in every sector. Each opens its ⚡ buy/sell signal.",
+  "Purchase Planner (new page): give every planned purchase its own pot (e.g. TV + PS5 Pro worth Rs. 3 lakh): the monthly amount to set aside, where to keep it, progress against the plan, a budget check, deposits and withdrawals, and a 'ready to buy' checklist. Templates for Dashain & Tihar, school fees, insurance, gadgets, bikes, travel, weddings and vehicle costs.",
+  "Buy on EMI or save first? See the real extra cost of an EMI and how soon you could pay cash by saving the same amount.",
 ];
 
 declare const __BUILD__: string;

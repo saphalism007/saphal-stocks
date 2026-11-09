@@ -84,3 +84,22 @@ export function stockCard(symbol: string) {
   const price = b[b.length - 1]?.close ?? null;
   return { symbol, scorecard: f ? scorecard(f) : null, range: price != null ? expectedRange(price, b.map((x) => x.close)) : null, price };
 }
+
+import { RANK_STRATEGIES, rankStocks, type RankedRow } from "../../shared/ranking.ts";
+/** Best stocks to invest in (fundamentals, "Long-term investment" ranking) and to trade (technicals, "Swing trading"
+ *  ranking), overall and by sector, plus the ones strong on both. Same scores as Stock Analysis → Rankings. */
+export function picks() {
+  const all = M.allFactors().filter((f) => f.price != null);
+  const inv = RANK_STRATEGIES.find((s) => s.key === "longterm")!, trd = RANK_STRATEGIES.find((s) => s.key === "swing")!, mom = RANK_STRATEGIES.find((s) => s.key === "momentum")!;
+  const slim = (r: RankedRow) => ({ rank: r.rank, symbol: r.symbol, name: r.name, sector: r.sector, score: Math.round(r.score), price: r.factors.price, liquid: (r.factors.avgTurnover20 ?? 0) >= 1_000_000,
+    why: r.contributions.filter((c) => c.raw != null).sort((a, b) => b.points - a.points).slice(0, 3).map((c) => c.label),
+    pe: r.factors.pe, roe: r.factors.roe, cashYield: r.factors.cashYield, fundamental: r.factors.fundamentalScore, technical: r.factors.technicalScore, rsi: r.factors.rsi, trend: r.factors.trend, setup: r.factors.setupType, return3m: r.factors.return3m, return1y: r.factors.return1y });
+  const invest = rankStocks(all, inv, undefined, 400).ranked.map(slim);
+  const tradeSw = rankStocks(all, trd, undefined, 400).ranked.map(slim);
+  const trade = tradeSw.length >= 10 ? tradeSw : rankStocks(all, mom, undefined, 400).ranked.map(slim);
+  const iTop = new Set(invest.slice(0, Math.ceil(invest.length * 0.3)).map((x) => x.symbol)), tTop = new Set(trade.slice(0, Math.ceil(trade.length * 0.3)).map((x) => x.symbol));
+  const both = invest.filter((x) => tTop.has(x.symbol)).map((x) => ({ ...x, tradeScore: trade.find((t) => t.symbol === x.symbol)?.score ?? null })).slice(0, 15);
+  const sectors = [...new Set(all.map((f) => f.sector))].filter((s) => !/Promoter|Debenture/i.test(s)).sort();
+  const bySector = sectors.map((s) => ({ sector: s, invest: invest.filter((x) => x.sector === s).slice(0, 3), trade: trade.filter((x) => x.sector === s).slice(0, 3) })).filter((x) => x.invest.length || x.trade.length);
+  return { asOf: M.latestTradingDate(), investHow: `${inv.name}: ${inv.description}`, tradeHow: `${(tradeSw.length >= 10 ? trd : mom).name}: ${(tradeSw.length >= 10 ? trd : mom).description}`, invest: invest.slice(0, 25), trade: trade.slice(0, 25), both, bySector, inBoth: [...iTop].filter((s) => tTop.has(s)).length };
+}

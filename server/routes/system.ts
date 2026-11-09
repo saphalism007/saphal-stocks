@@ -103,7 +103,7 @@ systemRouter.get("/account/export", (req, res) => {
     portfolios: ports.map((p) => ({ ...p, transactions: all("SELECT * FROM transactions WHERE portfolio_id = ?", p.id) })),
     watchlists: all<{ id: number }>("SELECT * FROM watchlists WHERE user_id = ?", uid).map((w) => ({ ...w, items: all("SELECT * FROM watchlist_items WHERE watchlist_id = ?", w.id) })),
     alerts: all("SELECT * FROM alerts WHERE user_id = ?", uid),
-    vault: Object.fromEntries((["profile", "goal", "networth", "journal", "thesis"] as const).map((k) => [k, readVault(uid, k)])),
+    vault: Object.fromEntries((["profile", "goal", "networth", "journal", "thesis", "money", "purchase"] as const).map((k) => [k, readVault(uid, k)])),
     documents: all("SELECT id, symbol, title, kind, period, filename, pages, uploaded_at FROM documents WHERE user_id = ?", uid),
     conversations: all<{ id: number }>("SELECT * FROM ai_conversations WHERE user_id = ?", uid).map((c) => ({ ...c, messages: all("SELECT role, display, created_at FROM ai_messages WHERE conversation_id = ? AND display IS NOT NULL", c.id) })),
   };

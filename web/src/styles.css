@@ -806,3 +806,23 @@ a.gr-item:hover { text-decoration: none; background: var(--panel-2); }
 .sg-axes { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12px; } .sg-axes div { display: flex; justify-content: space-between; gap: 6px; } .sg-axes span { color: var(--text-2); }
 .sg-range { display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 10px; font-size: 12.5px; }
 @media (max-width: 760px) { .bk-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sg-card { flex-direction: column; } .sg-axes { width: 100%; } }
+/* v0.17: picks & purchases */
+.pk-list { display: flex; flex-direction: column; gap: 6px; }
+.pk-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); margin-bottom: 6px; }
+.pk-rank { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); font-size: 11.5px; font-weight: 700; }
+.pk-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pk-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-score { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.pk-bar { display: block; width: 50px; height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; } .pk-bar i { display: block; height: 100%; border-radius: 3px; }
+.pk-bar i.f { background: var(--up); } .pk-bar i.t { background: #2962ff; }
+.pk-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 8px; font-size: 11px; color: var(--text-3); } .pk-kv b { display: block; color: var(--text); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-sector { border: 1px solid var(--border); border-radius: 14px; padding: 12px; background: var(--panel-2); } .pk-sector h3 { margin: 0 0 8px; }
+.pk-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pk-help { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .pk-help > div { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--panel); display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; } .pk-help span { color: var(--text-2); }
+.pp-templates { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+.pp-card { border: 1px solid var(--border); border-left-width: 4px; border-radius: 14px; background: var(--panel); padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pp-ahead, .pp-on-track, .pp-ready { border-left-color: var(--up); } .pp-behind { border-left-color: var(--warn); } .pp-overdue { border-left-color: var(--down); } .pp-bought { opacity: .65; }
+.pp-prog { position: relative; height: 10px; border-radius: 5px; background: var(--panel-2); } .pp-prog i { display: block; height: 100%; border-radius: 5px; background: var(--up); } .pp-prog span { position: absolute; top: -3px; width: 2px; height: 16px; background: var(--text-2); }
+.pp-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 8px; font-size: 11px; color: var(--text-3); } .pp-kv b { display: block; color: var(--text); font-size: 13px; } .pp-kv em { font-style: normal; font-size: 10.5px; }
+@media (max-width: 760px) { .pk-two, .pk-help { grid-template-columns: 1fr; } .pk-kv, .pp-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

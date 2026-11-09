@@ -20,6 +20,8 @@ const Journal = lazy(() => import("./pages/Journal.tsx"));
 const Growth = lazy(() => import("./pages/Growth.tsx"));
 const Calculators = lazy(() => import("./pages/Calculators.tsx"));
 const Discover = lazy(() => import("./pages/Discover.tsx"));
+const Picks = lazy(() => import("./pages/Picks.tsx"));
+const Purchases = lazy(() => import("./pages/Purchases.tsx"));
 const Fundamental = lazy(() => import("./pages/Fundamental.tsx"));
 const Technical = lazy(() => import("./pages/Technical.tsx"));
 const Analyst = lazy(() => import("./pages/Analyst.tsx"));
@@ -54,7 +56,8 @@ export { NAV };
 const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }[] = [
   { to: "/", label: "Dashboard", icon: "overview" },
   { to: "/growth", label: "My Growth", icon: "check" },
-  { section: "Trading", to: "/trading", label: "Trading Opportunities", icon: "technical" },
+  { section: "Trading", to: "/picks", label: "Invest or Trade?", icon: "fundamental" },
+  { to: "/trading", label: "Trading Opportunities", icon: "technical" },
   { to: "/stocks", label: "Stock Analysis", icon: "stocks" },
   { to: "/signals", label: "Technical Signals", icon: "market" },
   { to: "/terminal", label: "Chart Terminal", icon: "technical" },
@@ -71,6 +74,7 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/money", label: "Wealth Management", icon: "money" },
   { to: "/invest", label: "Investment Planner", icon: "invest" },
   { to: "/future", label: "Long-Term Investing", icon: "planner" },
+  { to: "/purchases", label: "Purchase Planner", icon: "money" },
   { to: "/calculators", label: "Money Calculators", icon: "planner" },
   { to: "/planner", label: "Goals & Planning", icon: "planner" },
   { to: "/opportunities", label: "Investment Directory", icon: "opportunities" },
@@ -246,6 +250,8 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
               <Route path="/growth" element={<Growth />} />
               <Route path="/calculators" element={<Calculators />} />
               <Route path="/discover" element={<Discover />} />
+              <Route path="/picks" element={<Picks />} />
+              <Route path="/purchases" element={<Purchases />} />
               <Route path="/fundamental" element={<Fundamental />} />
               <Route path="/technical" element={<Technical />} />
               <Route path="/analyst" element={<Analyst />} />
