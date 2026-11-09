@@ -47,6 +47,7 @@ export interface ChartAnalysis {
   tags: string[]; tagNotes: Record<string, string>;
   history: TrackSummary | null; setupHistory: { trades: number; winRatePct: number | null; avgNetPct: number | null } | null;
   dataNotes: string[];
+  fund?: FundSummary | null;
   orders?: TradeOrders;
   signals?: PastSignal[];
 }
@@ -163,7 +164,7 @@ export function analyzeChart(inp: AnalystInput): ChartAnalysis {
     plan: { entryLow: null, entryHigh: null, bestZone: null, breakout: null, stop: null, stopWhy: null, targets: [], riskReward: null, netRiskReward: null, riskPct: null, holding: null, buyNow: null, waitFor: null, reviewBy: null, expiry: "" },
     reasons: [], risks: [], invalidation: [], levels: [], zones: [], strategies: [], assessments: { short: assess(null, []), medium: assess(null, []), long: assess(null, []) },
     events: [], candles, patterns, divergences: divs, structure: struct, indicators: {}, scores: { technical: null, fundamental: fund?.score ?? null }, tags: [], tagNotes: {},
-    history: inp.stockTrack ?? null, setupHistory: opp.history ?? null, dataNotes,
+    history: inp.stockTrack ?? null, setupHistory: opp.history ?? null, dataNotes, fund: fund ?? null,
   };
   if (!last || !snap || !lv || n < 60) return base;
 

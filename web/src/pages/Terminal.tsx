@@ -10,6 +10,7 @@ import { onBackendEvent } from "../lib/backend.ts";
 import { num, pct, tone } from "../lib/format.ts";
 import ChartPane, { type ChartType, type IndInst, type PaneApi } from "../terminal/ChartPane.tsx";
 import AiPanel, { type PanelTab } from "../terminal/AiPanel.tsx";
+import SignalSheet from "../terminal/SignalSheet.tsx";
 import IndicatorPicker, { instFrom } from "../terminal/IndicatorPicker.tsx";
 import { TOOL_GROUPS, TOOLS, COLORS, migrate, type Drawing, type ToolId } from "../terminal/draw.ts";
 import type { ChartAnalysis } from "../../../shared/analyst.ts";
@@ -104,6 +105,7 @@ export default function Terminal() {
   const [selected, setSelected] = useState<string | null>(null);
   const [picker, setPicker] = useState<{ edit: string | null } | null>(null);
   const [full, setFull] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const [layers, setLayers] = useState(false);
   const [custom, setCustom] = useState(false);
   const apis = useRef<(PaneApi | null)[]>([]);
@@ -221,9 +223,11 @@ export default function Terminal() {
           <button className="t-btn" onClick={shot} title="Save a picture of the chart">📷</button>
           <button className="t-btn" onClick={toggleFull} title="Full screen">{full ? "⤡" : "⛶"}</button>
         </div>
+        <button className="t-btn strong sig-top" onClick={() => { setSt((s) => ({ ...s, ai: true, clean: false })); setSheet(true); }} disabled={!a}>⚡ Buy/Sell signal</button>
         <button className={`t-btn strong ai ${st.panel ? "on" : ""}`} onClick={() => setSt({ ...st, panel: !st.panel })}>✦ AI Analyst</button>
       </div>
 
+      {sheet && a && a.symbol === sym && <SignalSheet a={a} onClose={() => setSheet(false)} onRemove={() => { setSheet(false); setSt((s) => ({ ...s, ai: false })); }} />}
       {full && <button className="t-exit-full" onClick={toggleFull} aria-label="Exit full screen">✕ Exit full screen</button>}
       <div className="t-main">
         {/* left drawing toolbar */}
@@ -247,6 +251,9 @@ export default function Terminal() {
 
         {/* charts */}
         <div className={`t-charts l${st.layout}`}>
+          <button className={`sig-pill ${a ? (/BUY/.test(a.verdict) ? "buy" : /SELL/.test(a.verdict) ? "sell" : "wait") : ""} ${st.ai && !st.clean ? "on" : ""}`} onClick={() => { setSt((s) => ({ ...s, ai: true, clean: false })); setSheet(true); }} disabled={!a || a.symbol !== sym} title="Buy/sell signal: prices, stop-loss, targets, support/resistance, technical and fundamental reasons">
+            ⚡ Buy/Sell signal{a && a.symbol === sym ? ` · ${a.verdict === "NO SIGNAL" ? "none" : a.verdict}${a.plan.entryLow != null && /BUY/.test(a.verdict) ? ` ${num(a.plan.entryLow)}–${num(a.plan.entryHigh)}` : ""}` : "…"}
+          </button>
           {panes.slice(0, nPanes).map((pn, i) => (
             <PaneHost key={i} i={i} pn={pn} st={st} active={i === active} tool={i === active ? tool : "cursor"} themeKey={themeKey}
               drawings={draw.get(pn.symbol)} onDrawings={(d, c) => draw.set(pn.symbol, d, c)} selected={i === active ? selected : null} onSelect={setSelected}

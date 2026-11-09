@@ -100,6 +100,8 @@ export default function ChartPane(p: PaneProps) {
       grid: { vertLines: { color: p.grid ? grid + "44" : "transparent" }, horzLines: { color: p.grid ? grid + "44" : "transparent" } },
       rightPriceScale: { borderColor: grid, mode: p.scaleMode === 1 ? PriceScaleMode.Logarithmic : p.scaleMode === 2 ? PriceScaleMode.Percentage : PriceScaleMode.Normal },
       timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5 }, crosshair: { mode: CrosshairMode.Normal },
+      // On touch screens a stray drag on the price axis squashed the candles; keep the price scale automatic there.
+      ...(coarse ? { handleScale: { axisPressedMouseMove: { time: true, price: false }, axisDoubleClickReset: { time: true, price: true }, pinch: true, mouseWheel: true } } : {}),
     });
     chartRef.current = chart;
     const T = (d: string) => d as Time;

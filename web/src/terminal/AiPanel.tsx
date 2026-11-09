@@ -35,7 +35,7 @@ export default function AiPanel({ symbol, analysis, loading, error, bars, tab, s
 }
 
 const OK: Record<string, string> = { buy: "o-buy", sell: "o-sell", stop: "o-stop", wait: "o-wait", hold: "o-hold", avoid: "o-stop" };
-function Orders({ o }: { o: NonNullable<ChartAnalysis["orders"]> }) {
+export function Orders({ o }: { o: NonNullable<ChartAnalysis["orders"]> }) {
   const [who, setWho] = useState<"buy" | "own">("buy");
   const steps = who === "buy" ? o.forBuyers : o.forHolders;
   return (
