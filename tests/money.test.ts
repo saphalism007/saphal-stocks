@@ -1,0 +1,156 @@
+import { describe, expect, it } from "vitest";
+import { summarize, savingsAdvice, adviseAllocation, equityCap, loanVsInvest, compareDeposits, debentureYield, futureMonthly, cagr, EMPTY_MONEY, type MoneyData, type MarketRates } from "../shared/money.ts";
+import { parseNrbRates, parseMacroText } from "../server/ingest/providers.ts";
+
+const rates: MarketRates = { fdPct: 6, savingPct: 3, tbillPct: 1.1, inflationPct: 6.34, equityLongRunPct: 9, interestTaxPct: 6 };
+const me: MoneyData = {
+  ...EMPTY_MONEY,
+  income: [{ id: "1", label: "Salary", amount: 150_000 }],
+  expenses: [
+    { id: "a", label: "Rent", amount: 50_000, category: "housing", essential: true },
+    { id: "b", label: "Food", amount: 20_000, category: "food", essential: true },
+    { id: "c", label: "Restaurants", amount: 20_000, category: "dining", essential: false },
+  ],
+  accounts: [
+    { id: "s", name: "Savings", type: "bank", balance: 1_200_000 },
+    { id: "f", name: "FD", type: "fd", balance: 500_000, ratePct: 6 },
+    { id: "x", name: "Shares", type: "stocks", balance: 300_000 },
+  ],
+  liabilities: [{ id: "cc", name: "Credit card", type: "credit_card", balance: 100_000, ratePct: 18, emi: 10_000 }],
+  risk: "medium", horizonYears: 7, emergencyMonths: 6,
+};
+
+describe("money summary", () => {
+  const s = summarize(me);
+  it("computes cash flow, savings rate and net worth", () => {
+    expect(s.cashFlow).toBe(150_000 - 90_000 - 10_000);
+    expect(s.savingsRatePct).toBe(33.3);
+    expect(s.netWorth).toBe(2_000_000 - 100_000);
+    expect(s.debtServicePct).toBe(6.7);
+  });
+  it("sizes the emergency fund from essential costs plus EMIs", () => {
+    expect(s.emergencyTarget).toBe(70_000 * 6 + 10_000 * 3);
+    expect(s.emergencyGap).toBe(0);
+    expect(s.idleCash).toBe(Math.round(1_200_000 - 450_000 * 1.15));
+  });
+  it("splits guaranteed, cash and market money", () => {
+    expect(s.byKind.cash).toBe(1_200_000);
+    expect(s.byKind.guaranteed).toBe(500_000);
+    expect(s.equityPct).toBe(15);
+  });
+  it("adds Portfolio holdings when no shares account is entered", () => {
+    const t = summarize({ ...me, accounts: me.accounts.filter((a) => a.type !== "stocks") }, { portfolioValue: 250_000 });
+    expect(t.byKind.market).toBe(250_000);
+  });
+});
+
+describe("savings advice", () => {
+  const adv = savingsAdvice(me, summarize(me), rates);
+  it("puts expensive debt first", () => {
+    expect(adv[0].area).toBe("debt");
+    expect(adv[0].yearlyImpact).toBe(18_000);
+  });
+  it("flags spending above benchmarks with the rupee amount", () => {
+    const housing = adv.find((a) => a.title.startsWith("Rent"));
+    expect(housing?.amount).toBe(50_000 - 45_000);
+    const dining = adv.find((a) => a.title.startsWith("Eating out"));
+    expect(dining?.amount).toBe(20_000 - 12_000);
+  });
+  it("finds idle cash and the extra interest after tax", () => {
+    const idle = adv.find((a) => a.area === "idle cash");
+    expect(idle?.yearlyImpact).toBe(Math.round(682_500 * 0.03 * 0.94));
+  });
+  it("notes when deposits lose to inflation", () => {
+    expect(adv.some((a) => a.area === "inflation")).toBe(true);
+  });
+});
+
+describe("allocation", () => {
+  it("never puts everything in shares, even at high risk and long horizon", () => {
+    expect(equityCap("high", 30)).toBeLessThanOrEqual(70);
+    expect(equityCap("low", 1)).toBeLessThan(5);
+  });
+  it("repays expensive debt and fills the emergency fund before investing", () => {
+    const a = adviseAllocation({ amount: 500_000, risk: "medium", horizonYears: 7, emergencyGap: 100_000, expensiveDebt: [{ name: "Credit card", balance: 100_000, ratePct: 18 }], nearTermNeeds: [{ name: "Car down payment", amount: 100_000, years: 2 }], rates });
+    expect(a.buckets.map((b) => b.name)).toEqual(["Repay Credit card", "Emergency fund", "Car down payment (in 2 yr)", "Fixed income (stability)", "Long-term growth (market-linked)"]);
+    const total = a.buckets.reduce((s, b) => s + b.amount, 0);
+    expect(total).toBe(500_000);
+    const market = a.buckets.find((b) => b.kind === "market")!;
+    expect(market.amount).toBe(Math.round(200_000 * a.equityCapPct / 100));
+    expect(market.guaranteed).toBe(false);
+  });
+  it("leans new money to fixed income when shares are already overweight", () => {
+    const base = adviseAllocation({ amount: 100_000, risk: "medium", horizonYears: 7, emergencyGap: 0, expensiveDebt: [], nearTermNeeds: [], rates });
+    const heavy = adviseAllocation({ amount: 100_000, risk: "medium", horizonYears: 7, emergencyGap: 0, expensiveDebt: [], nearTermNeeds: [], rates, existingEquityPct: 80 });
+    expect(heavy.equityCapPct).toBeLessThan(base.equityCapPct);
+  });
+});
+
+describe("loans, deposits and debentures", () => {
+  it("prefers prepaying a loan that costs more than the investment earns", () => {
+    expect(loanVsInvest({ amount: 100_000, loanRatePct: 12, years: 3, investReturnPct: 5.6, investGuaranteed: true }).better).toBe("prepay");
+    expect(loanVsInvest({ amount: 100_000, loanRatePct: 4, years: 3, investReturnPct: 8, investGuaranteed: true }).better).toBe("invest");
+  });
+  it("ranks deposits by after-tax maturity and filters by term", () => {
+    const r = compareDeposits([{ institution: "A", ratePct: 5, tenorMonths: 12 }, { institution: "B", ratePct: 6, tenorMonths: 12 }, { institution: "C", ratePct: 9, tenorMonths: 60 }], 100_000, 12, 6, 6.34);
+    expect(r.map((x) => x.institution)).toEqual(["B", "A"]);
+    expect(r[0].interestNet).toBe(Math.round(100_000 * (Math.pow(1 + 0.015 * 0.94, 4) - 1)));
+    expect(r[0].realPct).toBeLessThan(0);
+  });
+  it("reads coupon and maturity from a debenture name", () => {
+    const d = debentureYield("10.50% Century Debenture 2088", 1050, "2026-11-09")!;
+    expect(d.couponPct).toBe(10.5);
+    expect(d.maturityBs).toBe(2088);
+    expect(d.currentYieldPct).toBe(10);
+    expect(d.approxYtmPct).toBeLessThan(10);
+  });
+  it("compounds monthly savings and annualises growth", () => {
+    expect(Math.round(futureMonthly(10_000, 0, 12))).toBe(120_000);
+    expect(cagr(100, 200, 10)!).toBeCloseTo(7.18, 1);
+  });
+});
+
+describe("NRB parsers", () => {
+  it("parses rate tables and skips unused instruments", () => {
+    const html = `<table><tr><th>Rate Type</th><th>Current Rate</th><th>Previous Rate</th></tr>
+      <tr><td>Policy Rate (Overnight Repo) <small>Last updated: December 2, 2025</small></td><td>4.2500 December 2, 2025</td><td>4.5000 July 17, 2025</td></tr>
+      <tr><td>Dormant</td><td>0.0000 January 1, 1970</td><td>0.0000 January 1, 1970</td></tr></table>`;
+    const r = parseNrbRates(html, "u", ["policy"]);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ key: "policy.policy_rate", value: 4.25, asOf: "2025-12-02", prevValue: 4.5, prevAsOf: "2025-07-17" });
+  });
+  it("reads inflation and headline points from the macro report text", () => {
+    const m = parseMacroText("Based on Two Months Data (Ending Mid-September) of 2026/27 ▪ CPI-based inflation remained at 6.34 percent on y-o-y basis. ▪ Remittances increased 23.9 percent in NPR terms. 2026 October 15 Current Macroeconomic Inflation Consumer Price Inflation (CPI) 1. more");
+    expect(m.inflation).toBe(6.34);
+    expect(m.published).toBe("2026-10-15");
+    expect(m.highlights[0]).toBe("CPI-based inflation remained at 6.34 percent on y-o-y basis.");
+  });
+});
+
+import { resample, trendlines } from "../shared/timeframe.ts";
+import type { Bar } from "../shared/types.ts";
+describe("timeframes and trendlines", () => {
+  const day = (i: number) => new Date(Date.UTC(2026, 0, 5) + i * 86_400_000).toISOString().slice(0, 10); // 2026-01-05 is a Monday
+  const bars: Bar[] = Array.from({ length: 60 }, (_, i) => ({ date: day(i), open: 100 + i, high: 102 + i, low: 98 + i, close: 101 + i, volume: 10 }));
+  it("builds weekly and monthly bars", () => {
+    const w = resample(bars, "W");
+    expect(w[0]).toMatchObject({ open: 100, high: 107, low: 98, close: 106, volume: 60, date: day(5) }); // Mon-Sat; Sunday starts the next NEPSE week
+    expect(w.length).toBe(9);
+    const m = resample(bars, "M");
+    expect(m.map((b) => b.date.slice(0, 7))).toEqual(["2026-01", "2026-02", "2026-03"]);
+    expect(m[0].open).toBe(100);
+  });
+  it("draws a rising support line through higher lows and flags a break", () => {
+    // Zig-zag uptrend: swing lows rise by 5 every 10 bars, then the last bar collapses.
+    const z: Bar[] = Array.from({ length: 80 }, (_, i) => { const base = 100 + i * 0.5 + (i % 10 < 5 ? (i % 10) : 10 - (i % 10)) * 2; return { date: day(i), open: base, high: base + 1, low: base - 1, close: base, volume: 10 }; });
+    const t1 = trendlines(z);
+    const sup = t1.find((t) => t.kind === "support");
+    expect(sup).toBeTruthy();
+    expect(sup!.slopePctPerBar).toBeGreaterThan(0);
+    expect(sup!.broken).toBe(false);
+    z[79] = { ...z[79], close: sup!.valueNow * 0.9, low: sup!.valueNow * 0.89, volume: 40 };
+    const t2 = trendlines(z).find((t) => t.kind === "support")!;
+    expect(t2.broken).toBe(true);
+    expect(t2.volumeConfirmed).toBe(true);
+  });
+});

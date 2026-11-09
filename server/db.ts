@@ -128,6 +128,21 @@ const MIGRATIONS: string[] = [
   );
   CREATE TABLE fund_nav_history (symbol TEXT, date TEXT, nav REAL, basis TEXT, PRIMARY KEY(symbol, date, basis)) WITHOUT ROWID;
   `,
+  // 5: official NRB rates and macro reports; your own verified deposit rates
+  `
+  CREATE TABLE rates (key TEXT PRIMARY KEY, grp TEXT, label TEXT, value REAL, as_of TEXT, prev_value REAL, prev_as_of TEXT, source_url TEXT, fetched_at TEXT);
+  CREATE TABLE rate_history (key TEXT, as_of TEXT, value REAL, PRIMARY KEY(key, as_of)) WITHOUT ROWID;
+  CREATE TABLE macro_reports (url TEXT PRIMARY KEY, pdf_url TEXT, title TEXT, published TEXT, inflation REAL, highlights TEXT, fetched_at TEXT);
+  CREATE TABLE deposit_rates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, institution TEXT NOT NULL, inst_type TEXT, product TEXT, depositor TEXT DEFAULT 'individual',
+    tenor_months INTEGER, rate REAL NOT NULL, effective_from TEXT, source_url TEXT, method TEXT DEFAULT 'manual', verified_on TEXT, notes TEXT, created_at TEXT
+  );
+  `,
+  // 6: official interest-rate notices of banks and finance companies (links to the notice images)
+  `
+  CREATE TABLE rate_notices (url TEXT PRIMARY KEY, symbol TEXT, institution TEXT, inst_type TEXT, title TEXT, published TEXT, image_url TEXT, effective TEXT, fetched_at TEXT);
+  CREATE INDEX rate_notices_symbol ON rate_notices(symbol, published);
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

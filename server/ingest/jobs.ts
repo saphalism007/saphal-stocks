@@ -319,6 +319,56 @@ export async function syncFunds(): Promise<number> {
   return rows.length;
 }
 
+// ---------- NRB official rates and macro report ----------
+export async function syncRates(): Promise<number> {
+  const rows = await P.nrbRates();
+  if (!rows.length) throw new Error("No rates found on the NRB pages (layout changed?)");
+  const now = nowIso();
+  tx(() => {
+    for (const r of rows) {
+      run(`INSERT INTO rates (key, grp, label, value, as_of, prev_value, prev_as_of, source_url, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET grp = excluded.grp, label = excluded.label, value = excluded.value, as_of = excluded.as_of, prev_value = excluded.prev_value, prev_as_of = excluded.prev_as_of, source_url = excluded.source_url, fetched_at = excluded.fetched_at`,
+        r.key, r.grp, r.label, r.value, r.asOf, r.prevValue, r.prevAsOf, r.sourceUrl, now);
+      run("INSERT OR REPLACE INTO rate_history (key, as_of, value) VALUES (?, ?, ?)", r.key, r.asOf, r.value);
+      if (r.prevAsOf && r.prevValue != null) run("INSERT OR IGNORE INTO rate_history (key, as_of, value) VALUES (?, ?, ?)", r.key, r.prevAsOf, r.prevValue);
+    }
+  });
+  fresh("rates", P.SOURCES.nrbRates, rows.reduce((m, r) => (r.asOf && r.asOf > m ? r.asOf : m), ""), rows.length);
+  try {
+    const m = await P.nrbMacroReport();
+    if (m) {
+      run(`INSERT INTO macro_reports (url, pdf_url, title, published, inflation, highlights, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(url) DO UPDATE SET pdf_url = excluded.pdf_url, title = excluded.title, published = excluded.published, inflation = excluded.inflation, highlights = excluded.highlights, fetched_at = excluded.fetched_at`,
+        m.url, m.pdfUrl, m.title, m.published, m.inflation, JSON.stringify(m.highlights), now);
+      fresh("macro", P.SOURCES.nrbMacro, m.published, m.highlights.length);
+    }
+  } catch (e) { freshError("macro", e instanceof Error ? e.message : String(e)); }
+  try { await syncRateNotices(); } catch (e) { freshError("rate_notices", e instanceof Error ? e.message : String(e)); }
+  return rows.length;
+}
+
+/** Latest official deposit/loan rate notices from banks and finance companies (from stored announcements). */
+export async function syncRateNotices(): Promise<number> {
+  const rows = all<{ url: string; symbol: string | null; title: string; published_date: string }>(
+    `SELECT url, symbol, title, published_date FROM announcements WHERE published_date >= date('now', '-75 days')
+     AND (lower(title) LIKE '%interest rate%') AND lower(title) NOT LIKE '%loan%only%' ORDER BY published_date DESC`);
+  const have = new Set(all<{ url: string }>("SELECT url FROM rate_notices").map((r) => r.url));
+  let n = 0;
+  for (const r of rows) {
+    if (have.has(r.url)) continue;
+    const inst = r.title.match(/^(.+?(?:Limited|Ltd\.?|Bank|Finance))\b/i)?.[1]?.trim() ?? r.title.split(" has ")[0];
+    const c = r.symbol ? get<{ sector: string }>("SELECT sector FROM companies WHERE symbol = ?", r.symbol) : get<{ sector: string; symbol: string }>("SELECT sector, symbol FROM companies WHERE name = ? COLLATE NOCASE", inst);
+    const sym = r.symbol ?? (c as { symbol?: string } | undefined)?.symbol ?? null;
+    let img: string | null = null;
+    try { img = await P.ssAnnouncementImage(r.url); } catch { /* keep the link without the image */ }
+    const eff = r.title.match(/effective from ([^,.]+?\d{4})/i)?.[1] ?? null;
+    run("INSERT OR REPLACE INTO rate_notices (url, symbol, institution, inst_type, title, published, image_url, effective, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", r.url, sym, inst, c?.sector ?? null, r.title, r.published_date, img, eff, nowIso());
+    n++;
+  }
+  fresh("rate_notices", P.SOURCES.sharesansar, get<{ d: string }>("SELECT MAX(published) d FROM rate_notices")?.d ?? null, get<{ n: number }>("SELECT COUNT(*) n FROM rate_notices")?.n ?? 0);
+  return n;
+}
+
 // ---------- orchestration ----------
 export function queueDailyRefresh() {
   enqueue("listing", (s) => syncListing(s));
@@ -328,6 +378,7 @@ export function queueDailyRefresh() {
   enqueue("forex", () => syncForex());
   enqueue("issues", () => syncIssues());
   enqueue("funds", () => syncFunds());
+  enqueue("rates", () => syncRates());
   enqueue("details", (s) => syncAllDetails(s, { maxAgeDays: 7 }));
 }
 

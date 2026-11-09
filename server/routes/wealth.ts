@@ -7,9 +7,13 @@ import { roundTrip, cgtRate } from "../../shared/costs.ts";
 import { positionSize } from "../../shared/portfolio.ts";
 import { dcf, dividendDiscount, grahamNumber } from "../../shared/fundamentals.ts";
 import { fees } from "../lib/market.ts";
+import * as MON from "../lib/money.ts";
+import * as MO from "../../shared/money.ts";
+import { extractNoticeRates } from "../ai/extract.ts";
+import { nowIso } from "../db.ts";
 
 export const wealthRouter = Router();
-const KINDS = ["profile", "goal", "networth", "journal", "thesis"] as const;
+const KINDS = ["profile", "goal", "networth", "journal", "thesis", "money"] as const;
 const json = z.record(z.unknown()).refine((o) => JSON.stringify(o).length < 200_000, "Too large");
 
 wealthRouter.get("/vault/:kind", (req, res) => {
@@ -50,6 +54,49 @@ wealthRouter.post("/calc/:kind", (req, res) => {
     case "graham": { const p = z.object({ eps: n, bvps: n }).parse(b); return res.json({ value: grahamNumber(p.eps, p.bvps) }); }
   }
   res.status(404).json({ error: "Unknown calculator" });
+});
+
+// ---------- my money: cash flow, net worth, advice, allocation ----------
+const line = z.object({ id: z.string().max(40), label: z.string().max(120), amount: n.min(0).max(1e10), essential: z.boolean().optional(), category: z.string().max(40).optional() });
+const moneyBody = z.object({
+  income: z.array(line).max(50), expenses: z.array(line).max(100),
+  accounts: z.array(z.object({ id: z.string().max(40), name: z.string().max(120), type: z.enum(Object.keys(MO.CLASS) as [MO.AccountType, ...MO.AccountType[]]), institution: z.string().max(120).optional(), balance: n.min(0).max(1e11), ratePct: n.min(0).max(50).nullable().optional(), maturity: z.string().max(20).nullable().optional() })).max(100),
+  liabilities: z.array(z.object({ id: z.string().max(40), name: z.string().max(120), type: z.enum(["home", "car", "personal", "education", "credit_card", "business", "family", "other"]), balance: n.min(0).max(1e11), ratePct: n.min(0).max(60), emi: n.min(0).max(1e9), monthsLeft: n.int().min(0).max(600).nullable().optional() })).max(50),
+  risk: z.enum(["low", "medium", "high"]), horizonYears: n.min(0).max(60), emergencyMonths: n.int().min(1).max(24),
+});
+wealthRouter.get("/money", (req, res) => res.json(MON.moneyOverview(req.userId!)));
+wealthRouter.put("/money", (req, res) => { MON.saveMoney(req.userId!, moneyBody.parse(req.body)); res.json(MON.moneyOverview(req.userId!)); });
+wealthRouter.post("/money/allocate", (req, res) => {
+  const p = z.object({ amount: n.positive().max(1e11), monthly: n.min(0).max(1e9).optional(), risk: z.enum(["low", "medium", "high"]).optional(), horizonYears: n.min(0).max(60).optional(), keepEmergency: z.boolean().optional() }).parse(req.body);
+  res.json(MON.allocate(req.userId!, p));
+});
+wealthRouter.post("/money/loan-vs-invest", (req, res) => {
+  const p = z.object({ amount: n.positive(), loanRatePct: n.min(0).max(60), years: n.positive().max(40), investReturnPct: n.min(-20).max(50), investGuaranteed: z.boolean() }).parse(req.body);
+  res.json(MO.loanVsInvest(p));
+});
+wealthRouter.get("/money/deposits/compare", (req, res) => {
+  const amount = z.coerce.number().positive().max(1e11).parse(req.query.amount ?? 100000);
+  const months = z.coerce.number().int().min(1).max(120).parse(req.query.months ?? 12);
+  res.json(MON.compareDepositsFor(amount, months));
+});
+const depBody = z.object({ institution: z.string().min(2).max(160), inst_type: z.string().max(60).nullable().optional(), product: z.string().max(160).nullable().optional(), depositor: z.enum(["individual", "institutional", "remittance", "senior", "other"]).default("individual"), tenor_months: n.int().min(0).max(240).nullable().optional(), rate: n.positive().max(30), effective_from: z.string().max(20).nullable().optional(), source_url: z.string().url().max(600).nullable().optional().or(z.literal("")), notes: z.string().max(500).nullable().optional() });
+wealthRouter.get("/money/deposit-rates", (_req, res) => res.json(MON.depositRates()));
+wealthRouter.post("/money/deposit-rates", (req, res) => {
+  const p = depBody.parse(req.body);
+  const id = Number(run("INSERT INTO deposit_rates (institution, inst_type, product, depositor, tenor_months, rate, effective_from, source_url, method, verified_on, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?)", p.institution, p.inst_type ?? null, p.product ?? null, p.depositor, p.tenor_months ?? null, p.rate, p.effective_from ?? null, p.source_url || null, nowIso().slice(0, 10), p.notes ?? null, nowIso()).lastInsertRowid);
+  res.json({ id });
+});
+wealthRouter.put("/money/deposit-rates/:id/verify", (req, res) => { run("UPDATE deposit_rates SET method = 'verified', verified_on = ? WHERE id = ?", nowIso().slice(0, 10), Number(req.params.id)); res.json({ ok: true }); });
+wealthRouter.delete("/money/deposit-rates/:id", (req, res) => { run("DELETE FROM deposit_rates WHERE id = ?", Number(req.params.id)); res.json({ ok: true }); });
+wealthRouter.post("/money/deposit-rates/extract", async (req, res) => {
+  const { url } = z.object({ url: z.string().url() }).parse(req.body);
+  let notice: { url: string; institution: string; inst_type: string | null; image_url: string | null; published: string } | undefined;
+  try { notice = get("SELECT * FROM rate_notices WHERE url = ?", url); } catch { /* older market snapshot */ }
+  if (!notice?.image_url) return res.status(404).json({ error: "No notice image stored for this link." });
+  const x = await extractNoticeRates(notice.image_url);
+  run("DELETE FROM deposit_rates WHERE source_url = ? AND method = 'ai'", notice.url);
+  for (const r of x.rates) run("INSERT INTO deposit_rates (institution, inst_type, product, depositor, tenor_months, rate, effective_from, source_url, method, verified_on, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ai', NULL, ?, ?)", notice.institution, notice.inst_type, r.product, r.depositor, r.tenor_months, r.rate, x.effective_from ?? notice.published, notice.url, `Read by AI from the notice published ${notice.published}`, nowIso());
+  res.json({ institution: notice.institution, effective_from: x.effective_from, saved: x.rates.length, rates: x.rates, saving_rate_max: x.saving_rate_max, base_rate: x.base_rate });
 });
 
 // ---------- investment products & resources ----------

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, lazy, Suspense, type FormEvent } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, useApi } from "./lib/api.ts";
+import { nptDate } from "./lib/format.ts";
 import { I } from "./components/icons.tsx";
 import { Loading, Notice } from "./components/ui.tsx";
 import { BROWSER_BACKEND, backendState, onBackendEvent } from "./lib/backend.ts";
@@ -27,6 +28,9 @@ const Alerts = lazy(() => import("./pages/Alerts.tsx"));
 const Learn = lazy(() => import("./pages/Learn.tsx"));
 const Reports = lazy(() => import("./pages/Reports.tsx"));
 const Settings = lazy(() => import("./pages/Settings.tsx"));
+const Money = lazy(() => import("./pages/Money.tsx"));
+const Invest = lazy(() => import("./pages/Invest.tsx"));
+const Monitor = lazy(() => import("./pages/Monitor.tsx"));
 
 interface User { id: number; username: string }
 const ThemeCtx = createContext<{ theme: string; toggle: () => void }>({ theme: "dark", toggle: () => {} });
@@ -37,19 +41,22 @@ export { NAV };
 
 const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }[] = [
   { to: "/", label: "Overview", icon: "overview" },
-  { section: "Markets", to: "/market", label: "NEPSE Market", icon: "market" },
+  { section: "NEPSE Intelligence", to: "/market", label: "NEPSE Market", icon: "market" },
   { to: "/stocks", label: "Stocks", icon: "stocks" },
-  { to: "/compare", label: "Compare", icon: "fundamental" },
+  { to: "/technical", label: "Charts & Technicals", icon: "technical" },
   { to: "/fundamental", label: "Fundamental Analysis", icon: "fundamental" },
-  { to: "/technical", label: "Technical Analysis", icon: "technical" },
+  { to: "/compare", label: "Compare", icon: "fundamental" },
+  { to: "/analyst", label: "AI Analyst", icon: "ai" },
   { to: "/strategy-lab", label: "Strategy Lab", icon: "refresh" },
-  { to: "/analyst", label: "AI Stock Analyst", icon: "ai" },
-  { section: "My money", to: "/portfolio", label: "Portfolio", icon: "portfolio" },
+  { to: "/portfolio", label: "Portfolio", icon: "portfolio" },
   { to: "/watchlist", label: "Watchlist", icon: "watch" },
   { to: "/journal", label: "Journal & Theses", icon: "reports" },
-  { to: "/opportunities", label: "Investment Opportunities", icon: "opportunities" },
-  { to: "/planner", label: "Wealth Planner", icon: "planner" },
-  { section: "Stay informed", to: "/news", label: "Financial News", icon: "news" },
+  { section: "My Financial Life", to: "/money", label: "My Money", icon: "money" },
+  { to: "/invest", label: "Where to Invest", icon: "invest" },
+  { to: "/planner", label: "Goals & Planner", icon: "planner" },
+  { to: "/opportunities", label: "Investment Directory", icon: "opportunities" },
+  { section: "Stay informed", to: "/monitor", label: "Market Monitor", icon: "monitor" },
+  { to: "/news", label: "Financial News", icon: "news" },
   { to: "/alerts", label: "Alerts", icon: "alerts" },
   { to: "/learn", label: "Learning Center", icon: "learn" },
   { to: "/reports", label: "Reports", icon: "reports" },
@@ -189,6 +196,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
         </header>
         {open && <div className="scrim" onClick={() => setOpen(false)} />}
+        <AskAiButton />
         <AppUpdateBanner />
         <DataUpdateBanner />
         <main className="content">
@@ -196,6 +204,9 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
             <Routes>
               <Route path="/" element={<Overview />} />
               <Route path="/market" element={<Market />} />
+              <Route path="/money" element={<Money />} />
+              <Route path="/invest" element={<Invest />} />
+              <Route path="/monitor" element={<Monitor />} />
               <Route path="/stocks" element={<Stocks />} />
               <Route path="/stocks/:symbol" element={<StockDetail />} />
               <Route path="/compare" element={<Compare />} />
@@ -297,8 +308,38 @@ function MarketBadge() {
   return (
     <span className="badge" title={`${d.note} Hours ${d.hours}. Data date ${d.dataDate ?? "—"}.`} style={{ gap: 6 }}>
       <span className="dot" style={{ background: d.session === "open" ? "var(--up)" : d.session === "pre-open" ? "var(--warn)" : "var(--text-3)" }} />
-      {label}{d.session === "open" && mins != null ? ` · ${mins} min ago` : ""}
+      {label}{d.session === "open" && mins != null ? (mins <= 90 ? ` · ${mins} min ago` : d.dataDate ? ` · prices from ${nptDate(d.dataDate)}` : "") : ""}
     </span>
+  );
+}
+
+/** Global assistant: ask from any page; the question carries the page you are on. */
+function AskAiButton() {
+  const loc = useLocation();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  if (loc.pathname.startsWith("/analyst")) return null;
+  const sym = loc.pathname.match(/^\/stocks\/([A-Z0-9]+)/)?.[1];
+  const where = sym ? `${sym}` : NAV.find((n) => n.to !== "/" && loc.pathname.startsWith(n.to))?.label ?? "Overview";
+  const ideas = sym ? [`Is ${sym} worth buying now? Entry, stop-loss and targets`, `${sym} fundamentals vs its sector`] : loc.pathname.startsWith("/money") || loc.pathname.startsWith("/invest") || loc.pathname.startsWith("/planner")
+    ? ["Where should I put Rs 5 lakh?", "I can save Rs 30,000 a month. How should I invest it?", "Which bank has the best fixed deposit rate?", "Should I pay off my loan or invest?"]
+    : ["Which stocks are near support?", "Which stocks have breakout potential?", "Which stocks should I avoid?", "What happened in NEPSE today?"];
+  const go = (text: string) => { setOpen(false); setQ(""); navigate(`/analyst?q=${encodeURIComponent(sym && !text.includes(sym) ? `${text} (about ${sym})` : text)}`); };
+  return (
+    <>
+      <button className="ai-fab" onClick={() => setOpen(!open)} aria-label="Ask AI"><I.ai /><span>Ask AI</span></button>
+      {open && (
+        <div className="ai-pop" role="dialog" aria-label="Ask the AI assistant">
+          <div className="small muted" style={{ marginBottom: 6 }}>Ask about NEPSE or your money · on {where}</div>
+          <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) go(q.trim()); }} className="row" style={{ flexWrap: "nowrap" }}>
+            <input className="input" autoFocus style={{ flex: 1 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type a question" />
+            <button className="btn primary" disabled={!q.trim()}><I.send /></button>
+          </form>
+          <div className="col" style={{ gap: 4, marginTop: 8 }}>{ideas.map((x) => <button key={x} className="btn ghost sm" style={{ justifyContent: "flex-start", textAlign: "left" }} onClick={() => go(x)}>{x}</button>)}</div>
+        </div>
+      )}
+    </>
   );
 }
 

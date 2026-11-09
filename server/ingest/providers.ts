@@ -13,6 +13,8 @@ export const SOURCES = {
   nepseData: { name: "nepse-data (GitHub, MIT licence)", url: "https://github.com/Aabishkar2/nepse-data" },
   sharesansar: { name: "ShareSansar", url: "https://www.sharesansar.com" },
   nrb: { name: "Nepal Rastra Bank forex API", url: "https://www.nrb.org.np/forex/" },
+  nrbRates: { name: "Nepal Rastra Bank (official rates)", url: "https://www.nrb.org.np/cmfm_rates/policy_rates" },
+  nrbMacro: { name: "Nepal Rastra Bank (Current Macroeconomic and Financial Situation)", url: "https://www.nrb.org.np/category/current-macroeconomic-situation/" },
 };
 
 const SS = "https://www.sharesansar.com";
@@ -335,4 +337,89 @@ export async function ssFundNavs(): Promise<FundNavRow[]> {
     }
   }
   return out.filter((r) => r.symbol);
+}
+
+// ---------------- NRB official rates and macro report ----------------
+// nrb.org.np robots.txt allows crawling. Rates pages: policy rates, T-bill yields, interbank,
+// and NRB's published weighted-average deposit / fixed-deposit / lending rates, each with its date.
+export interface NrbRate { key: string; grp: string; label: string; value: number; asOf: string | null; prevValue: number | null; prevAsOf: string | null; sourceUrl: string }
+
+const NRB = "https://www.nrb.org.np";
+const toIso = (s: string | undefined) => { if (!s) return null; const d = new Date(`${s} UTC`); return Number.isNaN(d.getTime()) || d.getUTCFullYear() < 1990 ? null : d.toISOString().slice(0, 10); };
+const slug = (s: string) => s.toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
+/** Parses an NRB rates page: tables of "Rate Type | Current Rate (Last updated: date) | Previous Rate (date)". */
+export function parseNrbRates(html: string, sourceUrl: string, groups: string[]): NrbRate[] {
+  const out: NrbRate[] = [];
+  const tables = [...html.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
+  tables.forEach((t, ti) => {
+    const grp = groups[ti];
+    if (!grp) return;
+    for (const r of t.match(/<tr[\s\S]*?<\/tr>/g) ?? []) {
+      const cells = [...r.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => stripTags(c[1]));
+      if (cells.length < 3 || /^Rate Type$/i.test(cells[0])) continue;
+      const label = cells[0].replace(/Last updated:.*$/i, "").trim();
+      const cur = cells[1].match(/^(-?[\d.]+)\s+(.+)$/), prev = cells[2].match(/^(-?[\d.]+)\s+(.+)$/);
+      const value = cur ? Number(cur[1]) : NaN;
+      const asOf = toIso(cur?.[2] ?? cells[0].match(/Last updated:\s*(.+)$/i)?.[1]);
+      if (!Number.isFinite(value) || !asOf || value === 0) continue; // 0.0000 / 1970 rows are unused instruments
+      out.push({ key: `${grp}.${slug(label)}`, grp, label, value, asOf, prevValue: prev ? Number(prev[1]) : null, prevAsOf: toIso(prev?.[2]), sourceUrl });
+    }
+  });
+  return out;
+}
+
+export async function nrbRates(): Promise<NrbRate[]> {
+  const pages: [string, string[]][] = [
+    ["policy_rates", ["policy", "crr", "refinance", "bank_rate", "slf"]],
+    ["short_term_rates", ["tbill", "repo", "interbank", "reverse_repo", "deposit_collection"]],
+    ["lending_rates", ["deposit", "lending", "base_rate", "interbank_monthly"]],
+  ];
+  const out: NrbRate[] = [];
+  for (const [p, groups] of pages) {
+    const url = `${NRB}/cmfm_rates/${p}`;
+    // NRB serves these pages with full content but an HTTP 404 status, so accept any page that has the rate tables.
+    const res = await politeFetch(url, { browserLike: true });
+    const html = await res.text();
+    if (!/Rate Type/.test(html)) throw new Error(`HTTP ${res.status}: no rate tables at ${url}`);
+    out.push(...parseNrbRates(html, url, groups));
+  }
+  return out;
+}
+
+export interface MacroReport { url: string; pdfUrl: string; title: string; published: string | null; inflation: number | null; highlights: string[] }
+
+/** Parses the text of NRB's "Current Macroeconomic and Financial Situation" (English) report. */
+export function parseMacroText(text: string): { published: string | null; inflation: number | null; highlights: string[]; period: string | null } {
+  const t = text.replace(/\s+/g, " ");
+  const inflation = num(t.match(/CPI-based inflation (?:remained|stood) at ([\d.]+) percent/i)?.[1] ?? t.match(/consumer price inflation stood at ([\d.]+) percent/i)?.[1]);
+  const period = t.match(/Based on ([A-Za-z]+ Months? Data \(Ending [^)]+\) of \d{4}\/\d{2})/i)?.[1] ?? null;
+  const pub = t.match(/(\d{4}) (January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2})/);
+  const published = pub ? toIso(`${pub[2]} ${pub[3]}, ${pub[1]}`) : null;
+  // The first page lists the headline points as bullets.
+  const first = t.split(/Inflation Consumer Price Inflation/i)[0];
+  const highlights = first.split("▪").slice(1).map((s) => s.replace(/\s*\d{4} (January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}.*$/, "").trim()).filter((s) => s.length > 15 && s.length < 400);
+  return { published, inflation, highlights, period };
+}
+
+export async function nrbMacroReport(): Promise<MacroReport | null> {
+  const homeRes = await politeFetch(`${NRB}/`, { browserLike: true, timeoutMs: 60_000 });
+  const home = await homeRes.text();
+  const link = [...home.matchAll(/href="(https:\/\/www\.nrb\.org\.np\/red\/current-macroeconomic-and-financial-situation-english-[^"]+)"/g)].map((m) => m[1]).find((u) => !/tables|nepali/.test(u));
+  if (!link) return null;
+  const res = await politeFetch(link, { browserLike: true, timeoutMs: 60_000 });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${link}`);
+  const buf = new Uint8Array(await res.arrayBuffer());
+  if (String.fromCharCode(...buf.slice(0, 4)) !== "%PDF") return null;
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  const { text } = await extractText(await getDocumentProxy(buf), { mergePages: true });
+  const p = parseMacroText(text as string);
+  const title = `Current Macroeconomic and Financial Situation${p.period ? ` (${p.period})` : ""}`;
+  return { url: link, pdfUrl: res.url, title, published: p.published, inflation: p.inflation, highlights: p.highlights };
+}
+
+/** The notice image on a ShareSansar announcement page (banks publish their monthly rates as images). */
+export async function ssAnnouncementImage(url: string): Promise<string | null> {
+  const html = await fetchText(url, { browserLike: true });
+  return html.match(/https:\/\/content\.sharesansar\.com\/photos\/shares\/announcement\/[^"'\s)]+\.(?:jpe?g|png|webp)/i)?.[0] ?? null;
 }

@@ -89,6 +89,17 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 - ✅ Versions and updates: version and code in the app, update check with Update now, `npm run deploy` publishes and prints a TALLY line that matches the app (0.6.1, 9 November 2026)
 - ⬜ Background alerts on iOS (web apps cannot run in the background; alerts are checked when the app opens)
 
+## v0.7: NEPSE intelligence and personal wealth focus
+- ✅ Two-pillar home (NEPSE Intelligence, My Financial Life) and a global Ask AI button that carries the current page
+- ✅ My Money: income, categorised spending, accounts (bank, FD, shares, funds, bonds, debentures, PF/CIT/SSF, insurance, gold, property), loans; net worth, cash flow, savings rate, emergency-fund cover, EMI ratio, guaranteed vs market-linked allocation; savings advisor with rupee impact (expensive debt, emergency fund, spending vs benchmarks, idle cash, inflation, concentration)
+- ✅ Where to Invest: allocation advisor for a lump sum and/or monthly amount (debt → safety → near-term goals → fixed income / growth, never all in shares), deposit comparison after tax and inflation, official rate notices with AI reading, NRB rates and inflation, mutual funds (NAV discount, returns), debentures (coupon, current yield, approximate YTM), T-bills, prepay-or-invest
+- ✅ Market Monitor: NRB rate changes with explanations, macro report, IPO/FPO/fund issues, reports, dividends, AGM, regulatory and fund notices, holdings/watchlist news
+- ✅ Charts: daily/weekly/monthly, automatic trendlines with breakout and volume confirmation, demand/supply zones and pattern outlines drawn on the chart
+- ✅ Daily briefing items 5-8 (rate changes, opportunities, my money, smartest action today); goal scenarios from real FD and NEPSE returns
+- ✅ AI tools: get_my_money, get_rates_and_inflation, advise_money_allocation, compare_deposits, loan_vs_invest, get_debentures; offline answers for money questions
+- ⬜ Bank-by-bank FD rates without an API key (banks publish only images; reading needs AI or manual entry)
+- ⬜ Open-ended mutual fund NAV history and fees (no machine-readable source yet)
+
 ## Running it
 - ✅ Double-click launcher (`Start Saphal Stocks.command`) that installs, builds when needed and opens the browser; `Start on Wi-Fi.command` for phone access on a home network
 - ✅ Production mode serves the web app and API from one port with CSP and security headers

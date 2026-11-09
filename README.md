@@ -1,6 +1,6 @@
 # Saphal Stocks
 
-A personal financial intelligence platform for Nepal: NEPSE market data and research, technical and fundamental analysis engines, stock comparison, a multi-stock Strategy Lab, an AI stock analyst that reasons over the platform's own data, portfolio management with Nepal fees and taxes, a trading journal and thesis tracker, an IPO and mutual fund tracker, and a wealth planner.
+A personal financial intelligence platform for Nepal with two pillars. **NEPSE Intelligence**: market data and research, charts (daily/weekly/monthly with trendlines, zones and patterns), technical and fundamental analysis engines, stock comparison, a multi-stock Strategy Lab, an AI stock analyst that reasons over the platform's own data, portfolio management with Nepal fees and taxes, a trading journal and thesis tracker, an IPO and mutual fund tracker. **My Financial Life**: a money dashboard (income, spending, savings, investments, loans, net worth), a savings advisor, a where-to-invest advisor built on official NRB rates and inflation, deposit, fund and debenture comparison, a market monitor and goal planning.
 
 It runs in two ways:
 

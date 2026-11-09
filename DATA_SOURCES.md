@@ -18,6 +18,9 @@ Checked on 8 November 2026. Every stored record carries its source, and every da
 | IPO, FPO, right share, local/foreign-employed quota and mutual fund issues (units, price, dates, issue manager, listing date) | ShareSansar `existing-issues` | JSON (DataTables, `type` 1–8, 50 rows/page) | Listing performance is computed only when stored prices start within 7 days of listing. |
 | Listed mutual fund NAVs (weekly/monthly NAV, market price, premium/discount, maturity) | ShareSansar `mutual-fund-navs` | JSON (`type=-1` active, `type=1` matured) | Each weekly NAV seen is kept in `fund_nav_history`, so NAV history builds up over time. |
 | Foreign exchange rates | [Nepal Rastra Bank forex API](https://www.nrb.org.np/api/forex/v1/rates) | Official JSON API | |
+| Policy rates, T-bill yields, interbank rate, weighted-average deposit / FD / savings / lending rates, base rate | Nepal Rastra Bank rate pages ([policy](https://www.nrb.org.np/cmfm_rates/policy_rates), [short-term](https://www.nrb.org.np/cmfm_rates/short_term_rates), [lending/deposit](https://www.nrb.org.np/cmfm_rates/lending_rates)) | HTML tables, each rate with its "last updated" date and previous value | robots.txt allows crawling. The pages return full content with an HTTP 404 status, so the adapter accepts a page when the rate tables are present. History builds up in `rate_history`. |
+| Inflation and macro headline points | NRB "Current Macroeconomic and Financial Situation" (English), linked from the NRB home page | PDF, text extracted with unpdf | CPI inflation and the first-page bullet points, with the publication date and a link to the PDF. |
+| Bank and finance company deposit/loan rate notices | ShareSansar announcements ("new interest rate ... effective from") | HTML page with the official notice image | Stored as links with the notice image (last 75 days). The images are not machine-readable text: the app can read them with Claude using your own API key ("Read rates"), saving each rate as AI-read with the notice link until you mark it verified. No bank rate is shown unless it came from a notice you read or a rate you entered. |
 
 ### Politeness and reliability
 
@@ -38,6 +41,12 @@ Checked on 8 November 2026. Every stored record carries its source, and every da
 ## Where the web app gets data
 
 The web app does not contact the sources above from your phone. GitHub Actions (`.github/workflows/data-and-deploy.yml`) runs the same ingestion jobs on a schedule, exports a market snapshot (`data/market.db.bin`, gzip-compressed SQLite) and a small `data/live.json` with the latest quotes, and publishes them with the app on GitHub Pages. The same rate limits apply. The app shows the snapshot's data date and source on Settings → Data.
+
+## Returns used by the advisor
+
+- **Fixed deposits:** the best rate you track (AI-read from an official notice or entered by you) within 75 days, else NRB's weighted-average FD rate, with the source and date shown. Interest tax 6% (editable setting `interest_tax_pct`).
+- **NEPSE:** 10-year NEPSE index growth plus the market-cap weighted cash dividend yield (about 5.5% a year as of November 2026). The full stored history (since 2012) is shown for reference only because it starts at a market low.
+- **Inflation:** NRB CPI inflation from the latest macro report.
 
 ## Known limitations
 

@@ -5,12 +5,15 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.6.1";
+export const VERSION = "0.7.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "Version and update check: the app shows its version and code, tells you when a newer version is published and updates with one tap.",
-  "Settings → About shows what changed in each version.",
-  "Installable app for iPhone, iPad and Mac with offline use, encrypted sync between devices and per-device appearance settings (from 0.6.0).",
+  "Home now has two pillars, NEPSE Intelligence and My Financial Life, plus an 'Ask AI' button on every page.",
+  "My Money: income, spending by category, savings, FDs, investments and loans, with net worth, cash flow, savings rate, emergency fund cover and specific suggestions worth rupees.",
+  "Where to Invest: 'I have Rs. X' allocation advisor, fixed-deposit comparison after tax and inflation, official bank rate notices (read with AI), NRB rates and inflation, mutual funds, debentures, T-bills, and prepay-or-invest.",
+  "Market Monitor: NRB rate changes, the latest NRB macro report, IPO/FPO and fund issues, reports, dividends and regulatory notices, each with what it could mean for you.",
+  "Charts: daily, weekly and monthly candles, automatic trendlines with breakout and volume confirmation, and demand/supply zones drawn on the chart.",
+  "Daily briefing adds interest-rate changes, attractive opportunities, your money and the smartest action to consider today; goal scenarios now use real FD and NEPSE returns.",
 ];
 
 declare const __BUILD__: string;

@@ -1,7 +1,7 @@
-// Command-line data refresh:  npm run ingest -- [listing|history|indices|details|news|forex|all] [SYMBOL...]
+// Command-line data refresh:  npm run ingest -- [listing|history|indices|details|news|forex|issues|funds|rates|all] [SYMBOL...]
 import "../db.ts";
 import { seedReference } from "../seed.ts";
-import { syncListing, syncHistory, syncIndices, syncAllDetails, syncNews, syncForex, syncCompanyDetail, syncIssues, syncFunds } from "./jobs.ts";
+import { syncListing, syncHistory, syncIndices, syncAllDetails, syncNews, syncForex, syncCompanyDetail, syncIssues, syncFunds, syncRates } from "./jobs.ts";
 import { evaluateAlerts } from "../lib/alerts.ts";
 
 seedReference();
@@ -18,6 +18,7 @@ async function main() {
   if (what === "forex" || what === "all") log(`forex: ${await syncForex()} rows`);
   if (what === "issues" || what === "all") log(`issues: ${await syncIssues()} rows`);
   if (what === "funds" || what === "all") log(`funds: ${await syncFunds()} rows`);
+  if (what === "rates" || what === "all") { try { log(`rates: ${await syncRates()} official NRB rates`); } catch (e) { log(`rates failed: ${e instanceof Error ? e.message : e}`); } }
   if (what === "details" || what === "all") log(`details: ${await syncAllDetails(progress() as never, symbols.length ? { symbols } : { maxAgeDays: 7 })} companies`);
   log(`alerts fired: ${evaluateAlerts()}`);
 }

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useApi } from "../lib/api.ts";
 import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score } from "../components/ui.tsx";
 import { num, pct, tone, compact, nptDate, int } from "../lib/format.ts";
+import { I } from "../components/icons.tsx";
 
 interface Briefing {
   date: string | null;
@@ -14,11 +15,15 @@ interface Briefing {
   portfolios: { id: number; name: string; kind: string; marketValue: number; dayChange: number; movers: { symbol: string; changePct: number; impact: number }[]; healthScore: number | null; issues: string[] }[];
   opportunities: { title: string; url: string; published_date: string; category: string }[];
   unreadAlerts: number;
+  rates?: { changes: { label: string; value: number; prev: number | null; asOf: string; url: string }[]; noticeCount: number; notices: { symbol: string | null; institution: string; published: string; url: string; image_url: string | null }[]; bestDeposit: { institution: string; ratePct: number; netAnnualPct: number; method?: string | null; sourceUrl?: string | null } | null; inflationPct: number | null; fdPct: number | null; fdSource?: string };
+  openIssues?: { company: string; symbol: string | null; issue_type: string; final_date: string | null; closing_date: string | null }[];
+  money?: { saved: boolean; netWorth: number; cashFlow: number; savingsRatePct: number | null; emergencyGap: number; advice: { priority: number; title: string; detail: string; yearlyImpact?: number }[] };
+  action?: { title: string; detail: string; link: string };
 }
 interface Mover { symbol: string; name: string; changePct: number; close: number }
 interface SetupRow { symbol: string; name?: string; type: string; side: string; price: number; entryLow: number; entryHigh: number; stopLoss: number; targets: number[]; riskReward: number; quality: number }
 
-const SECTION_LABELS: Record<string, string> = { stats: "Key numbers (index, breadth, turnover, trend)", market: "What happened in NEPSE + my portfolio", attention: "Stocks that deserve attention + setups", reports: "Reports, news on my stocks, opportunities" };
+const SECTION_LABELS: Record<string, string> = { pillars: "NEPSE Intelligence and My Financial Life shortcuts", today: "8 · Smartest action today", stats: "Key numbers (index, breadth, turnover, trend)", market: "What happened in NEPSE + my portfolio", attention: "Stocks that deserve attention + setups", reports: "Reports, news on my stocks, opportunities", money: "Bank rates, opportunities and my money" };
 const DEFAULT_LAYOUT = Object.keys(SECTION_LABELS).map((key) => ({ key, on: true }));
 
 function loadLayout() {
@@ -43,6 +48,44 @@ export default function Overview() {
   const latest = status.data?.freshness.find((f) => f.dataset === "prices_latest");
   const m = b.market;
   const sections: Record<string, React.ReactNode> = {
+    pillars: (
+      <div className="pillars">
+        <div className="pillar">
+          <h2>NEPSE Intelligence</h2><div className="small muted">Market, charts, analysis, AI trading assistant and your portfolio</div>
+          <div className="pillar-links">
+            <Link to="/market"><I.market />Market overview</Link><Link to="/technical"><I.technical />Charts & setups</Link><Link to="/stocks"><I.stocks />Stock analysis</Link>
+            <Link to={`/analyst?q=${encodeURIComponent("Which NEPSE stocks have strong technical and fundamental setups right now? Separate short-term trades from long-term investments, with entry zone, stop-loss, targets, risk/reward and data date for each.")}`}><I.ai />AI trading assistant</Link><Link to="/portfolio"><I.portfolio />Portfolio</Link>
+          </div>
+        </div>
+        <div className="pillar">
+          <h2>My Financial Life</h2><div className="small muted">{b.money?.saved ? <>Net worth <strong>{compact(b.money.netWorth)}</strong> · saving <strong className={tone(b.money.cashFlow)}>{compact(b.money.cashFlow)}</strong>/month{b.money.savingsRatePct != null ? ` (${num(b.money.savingsRatePct, 0)}%)` : ""}</> : "Money dashboard, savings, investment comparison, AI advisor and goals"}</div>
+          <div className="pillar-links">
+            <Link to="/money"><I.money />Money dashboard</Link><Link to="/money"><I.planner />Savings & expenses</Link><Link to="/invest?tab=deposits"><I.invest />Compare investments</Link>
+            <Link to={`/analyst?q=${encodeURIComponent("Look at my money, goals and current rates. Where should I put my savings in Nepal, and what is the most useful thing I can do this month?")}`}><I.ai />AI financial advisor</Link><Link to="/planner"><I.opportunities />Financial goals</Link>
+          </div>
+        </div>
+      </div>
+    ),
+    today: b.action ? (
+      <Card title="8 · Smartest action to consider today" actions={<Link className="btn sm" to={b.action.link}>Open</Link>}>
+        <div><strong>{b.action.title}</strong></div><div className="small muted">{b.action.detail}</div>
+      </Card>
+    ) : null,
+    money: b.rates ? (
+      <div className="grid g3">
+        <Card title="5 · Interest rates" sub={b.rates.inflationPct != null ? `Inflation ${num(b.rates.inflationPct)}% (NRB)` : undefined} actions={<Link className="small" to="/invest?tab=rates">Rates</Link>}>
+          {b.rates.changes.length === 0 ? <div className="small muted">No official NRB rate changes in the last 30 days.</div> : b.rates.changes.map((c) => <div key={c.label + c.asOf} className="row between small"><span>{c.label}</span><span className="mono">{c.prev != null ? `${num(c.prev)} → ` : ""}{num(c.value)}% <span className="faint">{nptDate(c.asOf)}</span></span></div>)}
+          <div className="small" style={{ marginTop: 8 }}>{b.rates.noticeCount} bank / finance rate notice{b.rates.noticeCount === 1 ? "" : "s"} in 30 days · <Link to="/invest?tab=deposits">compare</Link></div>
+        </Card>
+        <Card title="6 · Attractive opportunities" actions={<Link className="small" to="/invest">Where to invest</Link>}>
+          {b.rates.bestDeposit ? <div className="small">Best tracked 1-year deposit: <strong>{b.rates.bestDeposit.institution} {num(b.rates.bestDeposit.ratePct)}%</strong> ({num(b.rates.bestDeposit.netAnnualPct)}% after tax){b.rates.bestDeposit.method === "ai" ? " · AI-read, check the notice" : ""}</div> : <div className="small muted">Deposit rates used: {b.rates.fdPct != null ? `${num(b.rates.fdPct)}%` : "—"} ({b.rates.fdSource}). Read bank notices under Deposit rates to compare institutions.</div>}
+          {(b.openIssues ?? []).map((x) => <div key={x.company + x.issue_type} className="small">Open: <strong>{x.company}</strong> {x.issue_type} until {x.final_date ?? x.closing_date}</div>)}
+        </Card>
+        <Card title="7 · My money" actions={<Link className="small" to="/money">Open</Link>}>
+          {!b.money?.saved ? <Empty title="Not set up yet"><Link to="/money">Add income, savings and loans</Link></Empty> : b.money.advice.length === 0 ? <div className="small up">Basics in place: emergency fund, debt and savings rate look fine.</div> : b.money.advice.map((a) => <div key={a.title} className="small" style={{ marginBottom: 4 }}>• {a.title}{a.yearlyImpact ? <span className="up"> (+{compact(a.yearlyImpact)}/yr)</span> : null}</div>)}
+        </Card>
+      </div>
+    ) : null,
     stats: (
       <>
       <div className="grid g4">
@@ -125,7 +168,7 @@ export default function Overview() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Good {greeting()}. Here is your market briefing.</h1>
+          <h1>Good {greeting()}. Here is your daily briefing.</h1>
           <p>{b.date ? <>NEPSE data for <strong>{nptDate(b.date)}</strong>.</> : "No market data yet."} <Fresh date={latest?.as_of} fetched={latest?.last_success_at} source="ShareSansar / nepse-data" /></p>
         </div>
         <div className="row"><button className="btn" onClick={() => setEditing(!editing)}>Customize</button><Link className="btn" to="/analyst">Ask the AI analyst</Link></div>

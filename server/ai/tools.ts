@@ -9,6 +9,8 @@ import { searchDocuments } from "../lib/documents.ts";
 import { planGoal, allocateLumpSum } from "../../shared/planner.ts";
 import { positionSize } from "../../shared/portfolio.ts";
 import { roundTrip } from "../../shared/costs.ts";
+import * as MON from "../lib/money.ts";
+import { loanVsInvest, debentureYield } from "../../shared/money.ts";
 
 export interface ToolDef { name: string; description: string; input_schema: Record<string, unknown> }
 
@@ -40,6 +42,12 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: "run_portfolio_backtest", description: "Backtest a strategy as one shared-capital account across many stocks (max simultaneous positions, equal slices), vs the NEPSE index, with Nepal costs.", input_schema: obj({ strategy: { type: "string", enum: STRATEGIES.map((s) => s.id) }, years: { type: "number" }, max_positions: { type: "integer" }, universe: { type: "string", enum: ["liquid", "all", "sector"] }, sector: { type: "string" }, stop_loss_pct: { type: "number" } }, ["strategy"]) },
   { name: "get_exchange_rates", description: "Official NRB exchange rates (NPR per unit) for major and remittance currencies, with 1-month and 1-year changes.", input_schema: obj({}) },
   { name: "get_wealth_profile", description: "The user's saved financial profile and goals (income, expenses, savings, risk tolerance, goals with target dates). Use for personal financial planning questions.", input_schema: obj({}) },
+  { name: "get_my_money", description: "The user's personal money: monthly income and expenses by category, bank balances, fixed deposits, investments, PF/CIT/SSF, property, loans with rates and EMIs, risk tolerance, horizon, goals; computed net worth, cash flow, savings rate, emergency-fund cover, allocation (guaranteed vs market-linked), and rule-based savings advice with rupee impact. Call this first for any personal money, budgeting, savings or 'where should I put my money' question.", input_schema: obj({}) },
+  { name: "get_rates_and_inflation", description: "Official Nepal Rastra Bank rates (policy corridor, T-bill yields, interbank, average deposit / fixed-deposit / savings / lending / base rates) with dates and previous values, the latest NRB macro report (CPI inflation and headline points), NEPSE long-run index growth, and the rates the advisor uses with their sources.", input_schema: obj({}) },
+  { name: "advise_money_allocation", description: "Deterministic allocation of an amount (and optional monthly saving) using the user's money data: repays expensive debt, fills the emergency fund, keeps goals within 3 years in fixed income, splits the rest between fixed income and market-linked growth by risk and horizon (never all in shares). Returns buckets with amounts, guaranteed vs not, expected returns from official rates, projections, and the sources.", input_schema: obj({ amount: { type: "number" }, monthly: { type: "number" }, risk: { type: "string", enum: ["low", "medium", "high"] }, horizon_years: { type: "number" } }, ["amount"]) },
+  { name: "compare_deposits", description: "Fixed-deposit offers ranked by after-tax maturity for an amount and term: institution rates the user tracks (read from official bank notices by AI or entered/verified by the user, with source links and effective dates) plus the NRB average, with real return after inflation. Also lists the latest official rate notices.", input_schema: obj({ amount: { type: "number" }, months: { type: "integer" } }, ["amount", "months"]) },
+  { name: "loan_vs_invest", description: "Compare prepaying a loan with investing the same money over a period: interest saved vs investment gain, and which is better.", input_schema: obj({ amount: { type: "number" }, loan_rate_pct: { type: "number" }, years: { type: "number" }, invest_return_pct: { type: "number", description: "After-tax expected return" }, invest_guaranteed: { type: "boolean" } }, ["amount", "loan_rate_pct", "years", "invest_return_pct", "invest_guaranteed"]) },
+  { name: "get_debentures", description: "Listed corporate debentures with coupon, maturity (BS year), last price, current yield, approximate yield to maturity and recent trading volume.", input_schema: obj({}) },
   { name: "calculate", description: "Deterministic calculators: goal plan (with inflation and scenarios), lump-sum allocation, position size, round-trip trade cost with Nepal fees/CGT.", input_schema: obj({
     kind: { type: "string", enum: ["goal", "allocation", "position_size", "round_trip"] },
     params: { type: "object", description: "goal: {costToday, years, inflationPct, currentSaved, monthlyCapacity}; allocation: {amount, emergencyFundGap, highInterestDebt, horizonYears, risk: low|medium|high, nearTermGoalAmount, nearTermGoalYears}; position_size: {capital, riskPct, entry, stop}; round_trip: {qty, buyPrice, sellPrice, holdingDays}" },
@@ -223,6 +231,24 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
     case "get_exchange_rates": {
       const latest = get<{ d: string }>("SELECT MAX(date) d FROM forex")?.d;
       return { date: latest, source: "Nepal Rastra Bank", rates: all("SELECT currency, unit, buy, sell FROM forex WHERE date = ? AND currency IN ('USD','EUR','GBP','INR','CNY','JPY','AUD','SAR','QAR','AED','MYR','KRW')", latest) };
+    }
+    case "get_my_money": { const o = MON.moneyOverview(userId); return { saved: o.saved, data: o.data, summary: o.summary, advice: o.advice, portfolioValue: o.portfolioValue, goals: o.goals, rates: o.rates }; }
+    case "get_rates_and_inflation": {
+      let rates: unknown[] = [];
+      try { rates = all("SELECT key, label, value, as_of, prev_value, prev_as_of, source_url FROM rates WHERE grp IN ('policy','tbill','interbank','deposit','lending','base_rate') ORDER BY grp, key"); } catch { /* older snapshot */ }
+      return { rates, macro: MON.macroLatest(), nepseLongRun: MON.nepseLongRun(), advisorRates: MON.marketRates() };
+    }
+    case "advise_money_allocation": return MON.allocate(userId, { amount: Number(input.amount), monthly: input.monthly != null ? Number(input.monthly) : undefined, risk: input.risk as "low" | undefined, horizonYears: input.horizon_years != null ? Number(input.horizon_years) : undefined });
+    case "compare_deposits": {
+      const c = MON.compareDepositsFor(Number(input.amount) || 100000, Number(input.months) || 12);
+      let notices: unknown[] = [];
+      try { notices = all("SELECT symbol, institution, inst_type, published, url FROM rate_notices WHERE published >= date('now','-45 days') ORDER BY published DESC LIMIT 30"); } catch { /* older snapshot */ }
+      return { ...c, latestNotices: notices, note: "Rates marked method 'ai' were read from the bank's notice image and should be checked; 'verified'/'manual' were checked or entered by the user; 'official' is the NRB average." };
+    }
+    case "loan_vs_invest": return loanVsInvest({ amount: Number(input.amount), loanRatePct: Number(input.loan_rate_pct), years: Number(input.years), investReturnPct: Number(input.invest_return_pct), investGuaranteed: !!input.invest_guaranteed });
+    case "get_debentures": {
+      const today = M.latestTradingDate() ?? new Date().toISOString().slice(0, 10);
+      return all<{ symbol: string; name: string; close: number | null }>("SELECT c.symbol, c.name, (SELECT close FROM prices p WHERE p.symbol = c.symbol ORDER BY date DESC LIMIT 1) close FROM companies c WHERE c.sector = 'Corporate Debentures'").map((r) => ({ ...r, ...debentureYield(r.name, r.close, today), priceDate: today }));
     }
     case "get_wealth_profile": {
       const { readVault } = await import("../lib/vault.ts");

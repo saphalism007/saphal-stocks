@@ -1,3 +1,4 @@
+import { scenariosFromRates } from "../../../shared/money.ts";
 import { Fragment } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -86,11 +87,13 @@ const GOAL_PRESETS: Record<string, { costToday: number; years: number; inflation
 };
 
 function Goals() {
+  const rates = useApi<{ market: { fdPct: number | null; equityLongRunPct: number | null } }>("/economy/rates");
+  const scenarios = useMemo(() => (rates.data ? scenariosFromRates(rates.data.market) ?? undefined : undefined), [rates.data]);
   const g = useApi<{ id: number; data: any; createdAt: string }[]>("/vault/goal");
   const { theme } = useTheme();
   const [f, setF] = useState<any>({ name: "Buy a car", ...GOAL_PRESETS["Buy a car"], currentSaved: 500000, monthlyCapacity: 60000, annualStepUpPct: 5, investmentCostPct: 0.5, taxOnGainsPct: 6, targetDate: "" });
   const [sel, setSel] = useState<number | null>(null);
-  const plan = useMemo(() => { try { return PL.planGoal({ ...f, costToday: +f.costToday, years: +f.years, inflationPct: +f.inflationPct, currentSaved: +f.currentSaved, monthlyCapacity: +f.monthlyCapacity, annualStepUpPct: +f.annualStepUpPct, investmentCostPct: +f.investmentCostPct, taxOnGainsPct: +f.taxOnGainsPct }); } catch { return null; } }, [f]);
+  const plan = useMemo(() => { try { return PL.planGoal({ ...f, costToday: +f.costToday, years: +f.years, inflationPct: +f.inflationPct, currentSaved: +f.currentSaved, monthlyCapacity: +f.monthlyCapacity, annualStepUpPct: +f.annualStepUpPct, investmentCostPct: +f.investmentCostPct, taxOnGainsPct: +f.taxOnGainsPct, scenarios }); } catch { return null; } }, [f, scenarios]);
   const save = async () => { if (sel) await api(`/vault/goal/${sel}`, { method: "PUT", body: f }); else { const r = await api<{ id: number }>("/vault/goal", { body: f }); setSel(r.id); } g.reload(); };
   const curve = useMemo(() => {
     if (!plan) return [];
@@ -106,7 +109,7 @@ function Goals() {
       <div className="col">
         <Card title="Your goals">
           {g.data?.length ? g.data.map((x) => {
-            const p = PL.planGoal({ ...x.data, costToday: +x.data.costToday, years: +x.data.years, inflationPct: +x.data.inflationPct, currentSaved: +x.data.currentSaved, monthlyCapacity: +x.data.monthlyCapacity });
+            const p = PL.planGoal({ ...x.data, costToday: +x.data.costToday, years: +x.data.years, inflationPct: +x.data.inflationPct, currentSaved: +x.data.currentSaved, monthlyCapacity: +x.data.monthlyCapacity, scenarios });
             const prog = Math.min(100, (+x.data.currentSaved / p.targetFutureCost) * 100);
             return (
               <div key={x.id} style={{ marginBottom: 10, cursor: "pointer", padding: 8, borderRadius: 8, background: sel === x.id ? "var(--panel-3)" : undefined }} onClick={() => { setSel(x.id); setF(x.data); }}>

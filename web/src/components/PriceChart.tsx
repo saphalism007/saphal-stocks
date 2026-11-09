@@ -1,13 +1,15 @@
 // Interactive price chart (TradingView lightweight-charts) with overlays,
 // support/resistance lines, an indicator pane, and optional markers.
 import { useEffect, useRef } from "react";
-import { createChart, CandlestickSeries, HistogramSeries, LineSeries, AreaSeries, LineStyle, createSeriesMarkers, type IChartApi, type Time, type SeriesMarker } from "lightweight-charts";
+import { createChart, CandlestickSeries, HistogramSeries, LineSeries, AreaSeries, BaselineSeries, LineStyle, createSeriesMarkers, type IChartApi, type Time, type SeriesMarker } from "lightweight-charts";
 import type { Bar } from "../../../shared/types.ts";
 import { computeAll, fibonacci } from "../../../shared/indicators.ts";
 
 export type Overlay = "sma20" | "sma50" | "sma200" | "ema9" | "ema20" | "ema50" | "bb" | "vwap" | "supertrend" | "psar" | "ichimoku" | "fib";
 export type Lower = "volume" | "rsi" | "macd" | "stoch" | "adx" | "obv" | "atr" | "none";
 
+export interface ChartSegment { points: { date: string; price: number }[]; color: string; width?: number; dashed?: boolean; label?: string }
+export interface ChartZone { low: number; high: number; from: string; kind: "demand" | "supply" }
 export interface ChartLevel { price: number; kind: "support" | "resistance" | "entry" | "stop" | "target" | "other"; label?: string; strong?: boolean }
 
 const cssVar = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -15,7 +17,7 @@ const OV_COLORS: Record<string, string> = { sma20: "#f59e0b", sma50: "#60a5fa", 
 
 const fitHeight = (h: number) => (typeof window !== "undefined" && window.innerWidth < 600 ? Math.round(h * 0.68) : typeof window !== "undefined" && window.innerWidth < 1100 ? Math.round(h * 0.85) : h);
 
-export function PriceChart({ bars, overlays = [], lower = "volume", levels = [], markers = [], height: heightProp = 460, kind = "candles", theme }: { bars: Bar[]; overlays?: Overlay[]; lower?: Lower; levels?: ChartLevel[]; markers?: { date: string; position: "above" | "below"; color?: string; text: string; shape?: "arrowUp" | "arrowDown" | "circle" }[]; height?: number; kind?: "candles" | "line"; theme?: string }) {
+export function PriceChart({ bars, overlays = [], lower = "volume", levels = [], markers = [], height: heightProp = 460, kind = "candles", theme, segments = [], zones = [] }: { bars: Bar[]; overlays?: Overlay[]; lower?: Lower; levels?: ChartLevel[]; segments?: ChartSegment[]; zones?: ChartZone[]; markers?: { date: string; position: "above" | "below"; color?: string; text: string; shape?: "arrowUp" | "arrowDown" | "circle" }[]; height?: number; kind?: "candles" | "line"; theme?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const height = fitHeight(heightProp);
@@ -74,6 +76,29 @@ export function PriceChart({ bars, overlays = [], lower = "volume", levels = [],
       main.createPriceLine({ price: l.price, color: color + (l.strong === false ? "99" : ""), lineWidth: l.strong ? 2 : 1, lineStyle: l.kind === "support" || l.kind === "resistance" ? LineStyle.Dashed : LineStyle.Solid, axisLabelVisible: true, title: l.label ?? "" });
     }
 
+    // Trendlines and pattern outlines: straight segments between dated points.
+    const dateSet = new Set(bars.map((b) => b.date));
+    for (const sg of segments) {
+      const pts = sg.points.filter((p) => dateSet.has(p.date)).sort((a, b) => (a.date < b.date ? -1 : 1));
+      const uniq = pts.filter((p, i) => i === 0 || p.date !== pts[i - 1].date);
+      if (uniq.length < 2) continue;
+      const ls = chart.addSeries(LineSeries, { color: sg.color, lineWidth: (sg.width ?? 2) as 1, lineStyle: sg.dashed ? LineStyle.Dashed : LineStyle.Solid, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: sg.label ?? "" }, 0);
+      ls.setData(uniq.map((p) => ({ time: t(p.date), value: p.price })));
+    }
+    // Demand / supply zones: a band between the zone's low and high, from where it formed to the latest bar.
+    for (const z of zones) {
+      const span = bars.filter((b) => b.date >= z.from).map((b) => b.date);
+      if (span.length < 2) continue;
+      const col = z.kind === "demand" ? up : down;
+      const band = chart.addSeries(BaselineSeries, {
+        baseValue: { type: "price", price: z.low },
+        topLineColor: col + "99", topFillColor1: col + "2e", topFillColor2: col + "2e",
+        bottomLineColor: "transparent", bottomFillColor1: "transparent", bottomFillColor2: "transparent",
+        lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, title: z.kind === "demand" ? "Demand" : "Supply",
+      }, 0);
+      band.setData(span.map((d) => ({ time: t(d), value: z.high })));
+    }
+
     if (markers.length) {
       const dates = new Set(bars.map((b) => b.date));
       const ms: SeriesMarker<Time>[] = markers.filter((m) => dates.has(m.date)).sort((a, b) => (a.date < b.date ? -1 : 1)).map((m) => ({ time: t(m.date), position: m.position === "above" ? "aboveBar" : "belowBar", color: m.color || (m.position === "below" ? up : down), shape: m.shape || (m.position === "below" ? "arrowUp" : "arrowDown"), text: m.text }));
@@ -113,7 +138,7 @@ export function PriceChart({ bars, overlays = [], lower = "volume", levels = [],
     const from = Math.max(0, bars.length - 260);
     chart.timeScale().setVisibleRange({ from: t(bars[from].date), to: t(bars[bars.length - 1].date) });
     return () => { chart.remove(); chartRef.current = null; };
-  }, [bars, overlays.join(","), lower, JSON.stringify(levels), JSON.stringify(markers), height, kind, theme]);
+  }, [bars, overlays.join(","), lower, JSON.stringify(levels), JSON.stringify(markers), JSON.stringify(segments), JSON.stringify(zones), height, kind, theme]);
 
   if (!bars.length) return <div className="empty"><strong>No price history</strong>Run a data refresh to load prices.</div>;
   return <div ref={ref} className="chart-box" style={{ height }} />;

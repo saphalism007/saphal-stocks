@@ -7,6 +7,8 @@ import { runBacktest, runPortfolioBacktest, STRATEGIES, type StrategyId } from "
 import { patternTrackRecord } from "../../shared/patterns.ts";
 import { syncCompanyDetail, syncHistory } from "../ingest/jobs.ts";
 import { buildStockReport } from "../ai/offline.ts";
+import * as MON from "../lib/money.ts";
+import { debentureYield } from "../../shared/money.ts";
 
 export const marketRouter = Router();
 const SYM = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,12}$/, "Invalid symbol");
@@ -350,6 +352,75 @@ marketRouter.post("/backtest/portfolio", (req, res) => {
   const from = new Date(Date.parse(last) - p.years * 365.25 * 86_400_000).toISOString().slice(0, 10);
   const r = runPortfolioBacktest(series, idx.map((x) => x.date), { ...p, from, fees: M.fees() }, Object.fromEntries(idx.map((x) => [x.date, x.close])));
   res.json({ ...r, universe: Object.keys(series).length, trades: r.trades.slice(-300), tradesTotal: r.trades.length });
+});
+
+// Official NRB rates (policy, T-bills, interbank, average deposit/lending), the latest macro report, and market rates used by the advisor.
+const RATE_GROUPS: Record<string, string> = { policy: "Policy corridor", tbill: "Treasury bills (weighted average yield)", interbank: "Interbank rate (daily)", deposit: "Average deposit rates (commercial banks)", lending: "Average lending rate", base_rate: "Base rate (commercial banks)", bank_rate: "Bank rate", crr: "Cash reserve ratio", refinance: "Refinance rates", interbank_monthly: "Interbank rate (monthly)" };
+marketRouter.get("/economy/rates", (_req, res) => {
+  let rows: MON.RateRow[] = [];
+  try { rows = all<MON.RateRow>("SELECT * FROM rates WHERE grp IN (" + Object.keys(RATE_GROUPS).map((k) => `'${k}'`).join(",") + ") ORDER BY grp, key"); } catch { /* older market snapshot without rates */ }
+  const groups = Object.entries(RATE_GROUPS).map(([grp, title]) => ({ grp, title, rows: rows.filter((r) => r.grp === grp).map((r) => ({ ...r, change: r.prev_value != null ? Math.round((r.value - r.prev_value) * 10000) / 10000 : null })) })).filter((g) => g.rows.length);
+  const history = (key: string) => { try { return all<{ as_of: string; value: number }>("SELECT as_of, value FROM rate_history WHERE key = ? ORDER BY as_of", key); } catch { return []; } };
+  const fresh = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM data_freshness WHERE dataset = 'rates'");
+  res.json({ groups, macro: MON.macroLatest(), market: MON.marketRates(), nepse: MON.nepseLongRun(), history: { fd: history("deposit.fixed_deposit"), tbill364: history("tbill.364_days"), policy: history("policy.policy_rate") }, fetchedAt: fresh?.last_success_at ?? null, source: "Nepal Rastra Bank, nrb.org.np (official)" });
+});
+
+marketRouter.get("/economy/rate-notices", (_req, res) => {
+  // Latest notice per institution (banks and finance companies publish their rates monthly).
+  type N = { url: string; symbol: string | null; institution: string; inst_type: string | null; title: string; published: string; image_url: string | null; effective: string | null };
+  let rows: N[] = [];
+  try { rows = all<N>("SELECT * FROM rate_notices r WHERE published = (SELECT MAX(published) FROM rate_notices x WHERE COALESCE(x.symbol, x.institution) = COALESCE(r.symbol, r.institution)) ORDER BY inst_type, institution"); } catch { /* older market snapshot */ }
+  const seen = new Set<string>();
+  res.json(rows.filter((r) => { const k = r.symbol ?? r.institution; if (seen.has(k)) return false; seen.add(k); return true; }));
+});
+
+marketRouter.get("/economy/debentures", (_req, res) => {
+  const today = M.latestTradingDate() ?? new Date().toISOString().slice(0, 10);
+  const rows = all<{ symbol: string; name: string; close: number | null; date: string | null; volume: number | null }>(
+    "SELECT c.symbol, c.name, (SELECT close FROM prices p WHERE p.symbol = c.symbol ORDER BY date DESC LIMIT 1) close, (SELECT date FROM prices p WHERE p.symbol = c.symbol ORDER BY date DESC LIMIT 1) date, (SELECT SUM(volume) FROM prices p WHERE p.symbol = c.symbol AND date >= date('now','-90 days')) volume FROM companies c WHERE c.sector = 'Corporate Debentures' ORDER BY c.symbol");
+  res.json({ asOf: today, rows: rows.map((r) => ({ ...r, ...debentureYield(r.name, r.close, today) })).sort((a, b) => ((b as { approxYtmPct?: number }).approxYtmPct ?? 0) - ((a as { approxYtmPct?: number }).approxYtmPct ?? 0)), note: "Coupon and maturity are read from the listed name; yields are approximate (face value Rs. 1,000, simple YTM). Thinly traded debentures may not be available at the last price." });
+});
+
+// ---------- Nepal financial market monitor: everything important in one feed, with what it means ----------
+const IMPACT: Record<string, string> = {
+  "Quarterly report": "Compare EPS, profit growth and (for banks) NPL and capital adequacy with the last quarter and last year; the stock page updates its fundamentals automatically.",
+  "Dividend / bonus": "Cash dividends are taxed 5% at source. Bonus shares increase your units but the price adjusts down on book closure; check the book-closure date to qualify.",
+  "AGM / SGM": "Shareholder meetings approve dividends, rights and mergers. Book closure for the AGM decides who receives approved dividends.",
+  "Annual report": "Full audited statements and the auditor's report; useful to confirm quarterly numbers and spot qualifications or provisions.",
+  "Auction": "Unsold right or promoter shares auctioned; usually only matters if you are an existing shareholder or want a block.",
+  "Disclosure": "Company notices (rates, management changes, corrections). Interest-rate notices update the Deposit rates comparison.",
+  "News": "Market and economy news; check whether it changes the story behind a holding before reacting.",
+};
+marketRouter.get("/monitor", (req, res) => {
+  const since = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10);
+  const today = M.latestTradingDate() ?? since(0);
+  const mine = new Set(all<{ symbol: string }>(`SELECT DISTINCT t.symbol FROM transactions t JOIN portfolios p ON p.id = t.portfolio_id WHERE p.user_id = ?
+    UNION SELECT wi.symbol FROM watchlist_items wi JOIN watchlists w ON w.id = wi.watchlist_id WHERE w.user_id = ?`, req.userId, req.userId).map((r) => r.symbol));
+  let rateChanges: Record<string, unknown>[] = [];
+  try {
+    rateChanges = all<MON.RateRow>("SELECT * FROM rates WHERE grp IN ('policy','tbill','deposit','lending','base_rate','interbank') AND as_of >= ? AND prev_value IS NOT NULL AND prev_value <> value ORDER BY as_of DESC", since(120)).map((r) => ({
+      ...r, change: Math.round((r.value - (r.prev_value ?? r.value)) * 100) / 100,
+      impact: r.grp === "policy" ? (r.value < (r.prev_value ?? 0) ? "NRB eased policy: deposit and loan rates tend to fall in the following months; generally supportive for shares." : "NRB tightened policy: deposit and loan rates tend to rise; usually a headwind for shares.")
+        : r.grp === "tbill" ? (r.value < (r.prev_value ?? 0) ? "Lower T-bill yields signal more spare cash in banks; deposit rates may keep easing." : "Higher T-bill yields signal tighter liquidity; deposit rates may rise.")
+        : r.grp === "deposit" ? "Average deposit rates moved; re-check where your fixed deposits and savings sit (Where to Invest → Deposit rates)."
+        : r.grp === "lending" || r.grp === "base_rate" ? "Loan rates moved; floating-rate EMIs reprice with the base rate. Consider whether prepaying makes sense." : "Interbank rate moved; a gauge of bank liquidity.",
+    }));
+  } catch { /* older snapshot */ }
+  const issues = all<Record<string, unknown> & { opening_date: string | null; closing_date: string | null; final_date: string | null; listing_date: string | null; status: number | null }>("SELECT * FROM issues WHERE COALESCE(final_date, closing_date, opening_date) >= ? OR status = -2 ORDER BY opening_date DESC LIMIT 40", since(3))
+    .map((r) => ({ ...r, state: issueStatus(r, today) })).filter((r) => r.state !== "Closed" && r.state !== "Listed");
+  const ann = all<{ symbol: string | null; title: string; url: string; published_date: string; category: string; sector: string | null }>(
+    "SELECT a.symbol, a.title, a.url, a.published_date, a.category, c.sector FROM announcements a LEFT JOIN companies c ON c.symbol = a.symbol WHERE a.published_date >= ? ORDER BY a.published_date DESC, a.id DESC LIMIT 400", since(14));
+  const byCat: Record<string, { impact: string; items: typeof ann }> = {};
+  for (const a of ann) { (byCat[a.category] ??= { impact: IMPACT[a.category] ?? "", items: [] }).items.push(a); }
+  const regulatory = ann.filter((a) => /sebon|nepal rastra|nrb|nepse|cdsc|directive|regulat|tax|budget|monetary/i.test(a.title)).slice(0, 15);
+  let notices: unknown[] = [];
+  try { notices = all("SELECT symbol, institution, inst_type, title, url, published, image_url FROM rate_notices WHERE published >= ? ORDER BY published DESC LIMIT 60", since(35)); } catch { /* older snapshot */ }
+  res.json({
+    today, market: M.marketSummary(), macro: MON.macroLatest(), rates: MON.marketRates(), rateChanges, issues,
+    mine: ann.filter((a) => a.symbol && mine.has(a.symbol)).slice(0, 30), categories: Object.entries(byCat).map(([category, v]) => ({ category, impact: v.impact, count: v.items.length, items: v.items.slice(0, 12) })).sort((a, b) => b.count - a.count),
+    regulatory, notices,
+    funds: all("SELECT symbol, title, url, published_date FROM announcements WHERE published_date >= ? AND (lower(title) LIKE '%mutual fund%' OR lower(title) LIKE '%nav%' OR lower(title) LIKE '%scheme%') ORDER BY published_date DESC LIMIT 15", since(30)),
+  });
 });
 
 marketRouter.get("/economy/forex", (_req, res) => {

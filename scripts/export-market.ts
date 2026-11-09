@@ -21,7 +21,7 @@ src.close();
 
 const db = new DatabaseSync(tmp);
 // Personal tables never leave this computer.
-const PERSONAL = ["users", "sessions", "login_attempts", "portfolios", "transactions", "watchlists", "watchlist_items", "alerts", "notifications", "vault", "documents", "doc_pages", "ai_conversations", "ai_messages", "settings", "_migrations"];
+const PERSONAL = ["users", "sessions", "login_attempts", "portfolios", "transactions", "watchlists", "watchlist_items", "alerts", "notifications", "vault", "documents", "doc_pages", "ai_conversations", "ai_messages", "settings", "deposit_rates", "_migrations"];
 db.exec("PRAGMA foreign_keys = OFF");
 for (const t of PERSONAL) db.exec(`DROP TABLE IF EXISTS ${t}`);
 // Keep the snapshot small enough for phones.

@@ -10,6 +10,7 @@ import { analyzeLevels } from "../../shared/levels.ts";
 import { readVault } from "./vault.ts";
 import { desktopNotify } from "./desktop.ts";
 import { planGoal } from "../../shared/planner.ts";
+import * as MON from "./money.ts";
 
 export const ALERT_TYPES = [
   { type: "price_above", label: "Price rises above", needsSymbol: true, params: ["price"] },
@@ -179,6 +180,24 @@ export function dailyBriefing(userId: number) {
   const myNews = interest.length ? all<{ symbol: string; title: string; url: string; published_date: string; category: string }>(`SELECT symbol, title, url, published_date, category FROM announcements WHERE symbol IN (${interest.map(() => "?").join(",")}) AND published_date >= ? ORDER BY published_date DESC LIMIT 10`, ...interest, since) : [];
   const opportunities = all<{ title: string; url: string; published_date: string; category: string }>("SELECT title, url, published_date, category FROM announcements WHERE (category IN ('IPO / FPO','Right share','Debenture') OR title LIKE '%IPO%' OR title LIKE '%debenture%') AND published_date >= ? ORDER BY published_date DESC LIMIT 8", new Date(Date.parse(date || new Date().toISOString()) - 10 * 86_400_000).toISOString().slice(0, 10));
   const unread = get<{ n: number }>("SELECT COUNT(*) n FROM notifications WHERE user_id = ? AND read = 0", userId)?.n ?? 0;
+  // 5-8: rates, opportunities, my money, and the single most useful action today.
+  const d30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  let rateChanges: { label: string; value: number; prev: number | null; asOf: string; url: string }[] = [];
+  let notices: { symbol: string | null; institution: string; published: string; url: string; image_url: string | null }[] = [];
+  try {
+    rateChanges = all<MON.RateRow>("SELECT * FROM rates WHERE grp IN ('policy','tbill','deposit','lending','base_rate') AND as_of >= ? AND prev_value IS NOT NULL AND prev_value <> value ORDER BY as_of DESC LIMIT 6", d30).map((r) => ({ label: r.label, value: r.value, prev: r.prev_value, asOf: r.as_of, url: r.source_url }));
+    notices = all("SELECT symbol, institution, published, url, image_url FROM rate_notices WHERE published >= ? ORDER BY published DESC LIMIT 40", d30);
+  } catch { /* older snapshot */ }
+  const money = MON.moneyOverview(userId);
+  const bestDeposit = MON.compareDepositsFor(100_000, 12).rows.find((r) => r.instType !== "benchmark") ?? null;
+  const today = date || new Date().toISOString().slice(0, 10);
+  const openIssues = all<{ company: string; symbol: string | null; issue_type: string; final_date: string | null; closing_date: string | null }>("SELECT company, symbol, issue_type, final_date, closing_date FROM issues WHERE opening_date <= ? AND COALESCE(final_date, closing_date) >= ? AND issue_type IN ('IPO','FPO','Mutual fund','IPO (foreign-employed quota)') ORDER BY closing_date LIMIT 5", today, today);
+  const top = money.saved ? money.advice[0] : undefined;
+  const action = top ? { title: top.title, detail: top.detail, link: top.area === "idle cash" || top.area === "investing" ? "/invest" : "/money" }
+    : warnings[0] ? { title: `Review ${warnings[0].symbol}: a sell setup appeared on a stock you hold`, detail: `Stop/invalidation near Rs. ${warnings[0].stopLoss}. Check the chart before acting.`, link: `/stocks/${warnings[0].symbol}` }
+    : openIssues[0] ? { title: `${openIssues[0].company} ${openIssues[0].issue_type} is open until ${openIssues[0].final_date ?? openIssues[0].closing_date}`, detail: "Read the prospectus and rating; apply through Mero Share if it fits your plan.", link: "/opportunities" }
+    : mySetups.find((x) => x.side === "buy") ? { title: `${mySetups.find((x) => x.side === "buy")!.symbol} on your watchlist has a buy setup`, detail: "Check entry, stop and risk/reward on its chart; only act if it fits your plan.", link: `/stocks/${mySetups.find((x) => x.side === "buy")!.symbol}` }
+    : { title: money.saved ? "No action needed today" : "Set up My Money", detail: money.saved ? "Your basics are in place. Stick to your plan; no signal today calls for a change." : "Enter income, spending, savings and loans so the briefing can suggest specific money moves.", link: "/money" };
   return {
     date,
     market: {
@@ -188,6 +207,10 @@ export function dailyBriefing(userId: number) {
       gainers: m.gainers.slice(0, 5), losers: m.losers.slice(0, 5),
     },
     attention: myMoves, mySetups, topSetups, warnings, reports, myNews, portfolios: portfolioChanges, opportunities, unreadAlerts: unread,
+    rates: { changes: rateChanges, noticeCount: notices.length, notices: notices.slice(0, 12), bestDeposit, inflationPct: money.rates.inflationPct, fdPct: money.rates.fdPct, fdSource: money.rates.sources.fd },
+    openIssues,
+    money: { saved: money.saved, netWorth: money.summary.netWorth, cashFlow: money.summary.cashFlow, savingsRatePct: money.summary.savingsRatePct, emergencyGap: money.summary.emergencyGap, advice: money.advice.slice(0, 3) },
+    action,
     factorsCovered: factors.length,
   };
 }

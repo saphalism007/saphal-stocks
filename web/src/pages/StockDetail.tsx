@@ -3,8 +3,9 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { BROWSER_BACKEND } from "../lib/backend.ts";
-import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score, ScoreBar, Tabs, DataTable, Disclaimer, Modal } from "../components/ui.tsx";
-import { PriceChart, LineChart, type Overlay, type Lower, type ChartLevel } from "../components/PriceChart.tsx";
+import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score, ScoreBar, Tabs, DataTable, Disclaimer, Modal, Seg } from "../components/ui.tsx";
+import { PriceChart, LineChart, type Overlay, type Lower, type ChartLevel, type ChartSegment, type ChartZone } from "../components/PriceChart.tsx";
+import { resample, trendlines, type Timeframe } from "../../../shared/timeframe.ts";
 import { num, pct, tone, compact, int, nptDate, isNum } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 import { useTheme, usePrefs } from "../App.tsx";
@@ -188,6 +189,10 @@ function ChartTab({ d, bars }: { d: Any; bars: { bars: Bar[]; adjustments: Any[]
   const [showLevels, setShowLevels] = useState(true);
   const [showSetup, setShowSetup] = useState(true);
   const [kind, setKind] = useState<"candles" | "line">(prefs.chartKind);
+  const [tf, setTf] = useState<Timeframe>("D");
+  const [showTrend, setShowTrend] = useState(true);
+  const [showZones, setShowZones] = useState(true);
+  const [showPatterns, setShowPatterns] = useState(true);
   const t = d.technical;
   const hist = useApi<Any>(`/stocks/${d.symbol}/pattern-history`, [d.symbol]);
   const best = d.setups?.find((s: Any) => s.side === "buy");
@@ -199,6 +204,13 @@ function ChartTab({ d, bars }: { d: Any; bars: { bars: Bar[]; adjustments: Any[]
   if (showSetup && best) { levels.push({ price: best.entryHigh, kind: "entry", label: "Entry" }, { price: best.stopLoss, kind: "stop", label: "Stop" }); best.targets.forEach((x: number, i: number) => levels.push({ price: x, kind: "target", label: `T${i + 1}` })); }
   const markers = (d.patterns ?? []).flatMap((p: Any) => p.points.slice(-1).map((pt: Any) => ({ date: pt.date, position: p.direction === "bearish" ? "above" : "below", text: p.name, shape: "circle" as const, color: p.direction === "bearish" ? "#f43f5e" : "#22c55e" })));
   if (!bars) return <Loading />;
+  const tfBars = resample(bars.bars, tf);
+  const tls = showTrend ? trendlines(tfBars, tf === "D" ? 150 : tf === "W" ? 104 : 60) : [];
+  const segments: ChartSegment[] = [
+    ...tls.map((x) => ({ points: [{ date: x.from.date, price: x.from.price }, { date: x.to.date, price: x.to.price }], color: x.kind === "support" ? "#22c55e" : "#f43f5e", width: 2, label: `${x.kind === "support" ? "Support" : "Resistance"} trend${x.broken ? " (broken)" : ""}` })),
+    ...(showPatterns && tf === "D" ? (d.patterns ?? []).map((p: Any) => ({ points: p.points, color: p.direction === "bearish" ? "#fb7185" : p.direction === "bullish" ? "#4ade80" : "#94a3b8", width: 1, dashed: true })) : []),
+  ];
+  const zones: ChartZone[] = showZones ? (d.levels?.zones ?? []).filter((z: Any) => z.fresh !== false).slice(0, 4).map((z: Any) => ({ low: z.low, high: z.high, from: z.date, kind: z.kind })) : [];
   const rows: [string, string][] = t ? [
     ["RSI (14)", num(t.rsi, 1)], ["MACD / signal", `${num(t.macd.macd)} / ${num(t.macd.signal)}`], ["MACD cross (5 sessions)", t.macd.cross ?? "none"], ["ADX (14)", num(t.adx, 1)],
     ["ATR (14)", `${num(t.atr)} (${num(t.atrPct, 1)}%)`], ["Stochastic %K / %D", `${num(t.stochastic.k, 1)} / ${num(t.stochastic.d, 1)}`], ["Bollinger %B", num(t.bollinger.percentB, 2)],
@@ -214,13 +226,20 @@ function ChartTab({ d, bars }: { d: Any; bars: { bars: Bar[]; adjustments: Any[]
         <select className="input" value={lower} onChange={(e) => setLower(e.target.value as Lower)}>{(["volume", "rsi", "macd", "stoch", "adx", "obv", "atr"] as Lower[]).map((x) => <option key={x} value={x}>{x === "volume" ? "Volume only" : x.toUpperCase()}</option>)}</select>
         <select className="input" value={kind} onChange={(e) => setKind(e.target.value as "candles")}><option value="candles">Candles</option><option value="line">Line</option></select>
       </>}>
+        <div className="row" style={{ marginBottom: 8 }}>
+          <Seg value={tf} onChange={setTf} options={[{ key: "D", label: "Daily" }, { key: "W", label: "Weekly" }, { key: "M", label: "Monthly" }]} />
+          <label className="chk"><input type="checkbox" checked={showTrend} onChange={(e) => setShowTrend(e.target.checked)} />Trendlines</label>
+          <label className="chk"><input type="checkbox" checked={showZones} onChange={(e) => setShowZones(e.target.checked)} />Demand/supply zones</label>
+          <label className="chk"><input type="checkbox" checked={showPatterns} onChange={(e) => setShowPatterns(e.target.checked)} />Pattern outlines</label>
+        </div>
         <div className="row" style={{ marginBottom: 10 }}>
           {OVERLAYS.map((o) => <label key={o.key} className="chk"><input type="checkbox" checked={ov.includes(o.key)} onChange={(e) => setOv(e.target.checked ? [...ov, o.key] : ov.filter((x) => x !== o.key))} />{o.label}</label>)}
           <label className="chk"><input type="checkbox" checked={showLevels} onChange={(e) => setShowLevels(e.target.checked)} />S/R levels</label>
           <label className="chk"><input type="checkbox" checked={showSetup} onChange={(e) => setShowSetup(e.target.checked)} />Setup lines</label>
         </div>
-        <PriceChart bars={bars.bars} overlays={ov} lower={lower} levels={levels} markers={markers} height={560} kind={kind} theme={theme} />
-        <p className="tiny faint" style={{ marginTop: 6 }}>{bars.adjustments.length ? `Adjusted for ${bars.adjustments.length} bonus issue(s). ` : ""}{(bars as Any).rightAdjustments?.length ? `Adjusted for ${(bars as Any).rightAdjustments.length} right issue(s). ` : ""}{bars.skipped.length ? `${bars.skipped.length} bonus record(s) not applied (no matching price gap). ` : ""}Daily data. Scroll to zoom, drag to pan.</p>
+        <PriceChart bars={tfBars} overlays={ov} lower={lower} levels={levels} markers={tf === "D" ? markers : []} segments={segments} zones={zones} height={560} kind={kind} theme={theme} />
+        {tls.length > 0 && <div className="small" style={{ marginTop: 6 }}>{tls.map((x) => <div key={x.kind}><Badge tone={x.broken ? (x.kind === "resistance" ? "up" : "down") : ""}>{x.kind === "support" ? "Support trendline" : "Resistance trendline"}{x.broken ? " broken" : ""}</Badge> {x.why}</div>)}</div>}
+        <p className="tiny faint" style={{ marginTop: 6 }}>{bars.adjustments.length ? `Adjusted for ${bars.adjustments.length} bonus issue(s). ` : ""}{(bars as Any).rightAdjustments?.length ? `Adjusted for ${(bars as Any).rightAdjustments.length} right issue(s). ` : ""}{bars.skipped.length ? `${bars.skipped.length} bonus record(s) not applied (no matching price gap). ` : ""}{tf === "D" ? "Daily" : tf === "W" ? "Weekly" : "Monthly"} bars. Indicators are computed on the bars shown. Scroll to zoom, drag to pan.</p>
       </Card>
       <div className="grid g3">
         <Card title="Indicators" sub={`Technical score ${t?.technicalScore ?? "—"}/100`}>
