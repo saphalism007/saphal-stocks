@@ -1,7 +1,7 @@
 // Where to invest: "I have Rs. X — where should it go?" Allocation advice from your situation and
 // official rates; deposit rates by institution (from their official notices); NRB rates and
 // inflation; mutual funds; debentures; government securities; prepay a loan or invest.
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { Card, Stat, Loading, ErrorBox, Tabs, Badge, Notice, Empty, DataTable, Seg, NumInput } from "../components/ui.tsx";
@@ -28,71 +28,146 @@ export default function Invest() {
   );
 }
 
+const MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashwin", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
+const CH_COL: Record<string, string> = { fd: "var(--blue)", debenture: "#0ea5e9", cit: "#14b8a6", sip: "var(--violet)", closed: "#a855f7", stocks: "var(--accent)", ipo: "var(--warn)" };
+
 function Advisor() {
   const money = useApi<Any>("/money");
-  const [amount, setAmount] = useState(500000);
-  const [monthly, setMonthly] = useState(0);
+  const future = useApi<Any>("/future");
+  const [lump, setLump] = useState<number | "">(0);
+  const [mode, setMode] = useState<"same" | "varies">("same");
+  const [monthly, setMonthly] = useState<number | "">(10000);
+  const [months, setMonths] = useState<(number | "")[]>(() => Array(12).fill(10000));
+  const [stepUp, setStepUp] = useState<number | "">(0);
   const [risk, setRisk] = useState<"" | "low" | "medium" | "high">("");
   const [horizon, setHorizon] = useState<number | "">("");
   const [r, setR] = useState<Any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [cmp, setCmp] = useState<Any>(null);
-  const run = async () => { setBusy(true); setErr(null); try { const [a, c] = await Promise.all([api("/money/allocate", { body: { amount, monthly: monthly || undefined, risk: risk || undefined, horizonYears: horizon === "" ? undefined : horizon } }), api("/money/compare-profiles", { body: { amount } })]); setR(a); setCmp(c); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
-  const KCOL: Record<string, string> = { debt: "var(--down)", safety: "var(--blue)", guaranteed: "var(--up)", market: "var(--violet)" };
+  const v = (x: number | "") => (x === "" ? 0 : Math.max(0, x));
+  const pattern = mode === "same" ? [v(monthly)] : months.map(v);
+  const anyMonthly = pattern.some((x) => x > 0);
+  const canRun = v(lump) > 0 || anyMonthly;
+  const run = async () => {
+    if (!canRun) { setErr("Enter an amount to invest now, a monthly amount, or both."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const body = { lumpSum: v(lump), monthly: anyMonthly ? pattern : [], stepUpPct: v(stepUp) || undefined, risk: risk || undefined, horizonYears: horizon === "" ? undefined : Math.max(1, horizon) };
+      const [a, c] = await Promise.all([api<Any>("/money/plan", { body }), v(lump) > 0 ? api("/money/compare-profiles", { body: { amount: v(lump) } }) : Promise.resolve(null)]);
+      if (!a.ok) { setErr(a.reason); setR(null); } else setR(a);
+      setCmp(c);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  };
+  const products: Record<string, Any> = Object.fromEntries((future.data?.products ?? []).map((p: Any) => [p.seed_key, p]));
+  const finalYear = r?.yearly?.[r.yearly.length - 1];
   return (
     <div className="col">
-      <Card title="I have money available. Where should it go?">
+      <Card title="Build my investment plan" sub="Start with any amount, or nothing today and invest monthly. Monthly amounts can change from month to month.">
         <div className="form-grid">
-          <label className="field">Amount to invest now (Rs.)<NumInput className="input" value={amount} onChange={(e) => setAmount(Number(e.target.value) || 0)} /></label>
-          <label className="field">Plus every month (Rs., optional)<NumInput className="input" value={monthly || ""} onChange={(e) => setMonthly(Number(e.target.value) || 0)} /></label>
+          <label className="field">Invest now (Rs.)<NumInput className="input" placeholder="0" value={lump} onChange={(e) => setLump(e.target.value === "" ? "" : Number(e.target.value))} /></label>
+          <label className="field">Monthly<select className="input" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}><option value="same">Same every month</option><option value="varies">Varies by month</option></select></label>
+          {mode === "same" && <label className="field">Every month (Rs.)<NumInput className="input" placeholder="0" value={monthly} onChange={(e) => setMonthly(e.target.value === "" ? "" : Number(e.target.value))} /></label>}
+          <label className="field">Yearly increase (%)<NumInput className="input" placeholder="0" value={stepUp} onChange={(e) => setStepUp(e.target.value === "" ? "" : Number(e.target.value))} /></label>
           <label className="field">Risk<select className="input" value={risk} onChange={(e) => setRisk(e.target.value as typeof risk)}><option value="">From My Money ({money.data?.data?.risk ?? "medium"})</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
           <label className="field">Horizon (years)<NumInput className="input" placeholder={`From My Money (${money.data?.data?.horizonYears ?? 5})`} value={horizon} onChange={(e) => setHorizon(e.target.value === "" ? "" : Number(e.target.value))} /></label>
         </div>
+        {mode === "varies" && (
+          <div style={{ marginTop: 12 }}>
+            <div className="row between"><strong className="small">Amount for each month (Rs.); leave a month empty or 0 if you can't invest then</strong>
+              <span className="row" style={{ gap: 6 }}><button className="btn sm ghost" onClick={() => setMonths(Array(12).fill(months.find((x) => x !== "" && x > 0) ?? 0))}>Same for all</button><button className="btn sm ghost" onClick={() => setMonths(Array(12).fill(""))}>Clear</button></span></div>
+            <div className="month-grid">{MONTHS.map((m, i) => <label key={m} className="field">{m}<NumInput className="input" placeholder="0" value={months[i]} onChange={(e) => setMonths(months.map((x, j) => (j === i ? (e.target.value === "" ? "" : Number(e.target.value)) : x)))} /></label>)}</div>
+            <p className="tiny faint">Total {rs(pattern.reduce((s, x) => s + x, 0), 0)} a year · average {rs(pattern.reduce((s, x) => s + x, 0) / 12, 0)} a month. The pattern repeats each year.</p>
+          </div>
+        )}
         <div className="row" style={{ marginTop: 10 }}>
-          <button className="btn primary" disabled={busy || amount <= 0} onClick={run}>{busy ? <span className="spinner" /> : "Show my plan"}</button>
-          {[100000, 500000, 1000000].map((a) => <button key={a} className="btn sm" onClick={() => setAmount(a)}>{compact(a)}</button>)}
-          {!money.data?.saved && <span className="small muted">Tip: fill in <Link to="/money">My Money</Link> so the plan accounts for your emergency fund, loans and goals.</span>}
+          <button className="btn primary" disabled={busy || !canRun} onClick={run}>{busy ? <span className="spinner" /> : "Show my plan"}</button>
+          {[100000, 500000].map((a) => <button key={a} className="btn sm" onClick={() => setLump(a)}>Now {compact(a)}</button>)}
+          {[5000, 20000].map((a) => <button key={a} className="btn sm" onClick={() => { setMode("same"); setMonthly(a); }}>{compact(a)}/month</button>)}
         </div>
+        {!canRun && <p className="small muted" style={{ marginTop: 8 }}>Enter an amount to invest now, a monthly amount, or both.</p>}
+        {!money.data?.saved && <p className="small muted" style={{ marginTop: 8 }}>Tip: fill in <Link to="/money">My Money</Link> so the plan first covers your emergency fund, costly loans and near-term goals.</p>}
         {err && <ErrorBox error={err} />}
       </Card>
       {r && (
         <>
           <div className="grid g4">
-            <Stat label="Guaranteed / contractual" value={`${num(r.guaranteedPct, 0)}%`} sub="Debt repaid, deposits, bonds" />
-            <Stat label="Market-linked (max)" value={`${r.equityCapPct}% of long-term money`} sub={`${r.inputs.risk} risk, ${r.inputs.horizonYears}-year horizon`} />
-            <Stat label={`In 1 year (expected)`} value={compact(r.projections[0].mid)} sub={`Range ${compact(r.projections[0].low)} – ${compact(r.projections[0].high)}`} />
-            <Stat label={`In ${r.projections[1].years} years (expected)`} value={compact(r.projections[1].mid)} sub={`Range ${compact(r.projections[1].low)} – ${compact(r.projections[1].high)}`} />
+            <Stat label="You put in" value={compact(r.totalIn)} sub={`${v(lump) > 0 ? `${compact(v(lump))} now` : "Nothing now"}${r.avgMonthly ? ` + avg ${compact(r.avgMonthly)}/month` : ""} over ${num(r.months / 12, 0)} yr`} />
+            <Stat label={`Expected in ${num(r.months / 12, 0)} years`} value={compact(finalYear.mid)} sub={`Weak ${compact(finalYear.low)} · strong ${compact(finalYear.high)}`} />
+            <Stat label="Guaranteed / contractual" value={`${num(r.guaranteedPct, 0)}%`} sub="Deposits, bonds, CIT, debt repaid, emergency fund" />
+            <Stat label="Market-linked" value={`${r.equityCapPct}%`} sub={`of long-term money · ${r.inputs.risk} risk, ${r.inputs.horizonYears}-yr horizon`} />
           </div>
-          <Card title="Suggested split" sub="Priorities: costly debt, then safety, then near-term goals, then long-term growth">
-            <div className="bucket-bar" style={{ marginBottom: 12 }}>{r.buckets.map((b: Any) => <div key={b.name} title={`${b.name}: ${compact(b.amount)}`} style={{ width: `${(b.amount / amount) * 100}%`, background: KCOL[b.kind] }} />)}</div>
-            <div className="list">{r.buckets.map((b: Any) => (
-              <div key={b.name} className="list-row" style={{ alignItems: "flex-start" }}>
-                <span className="dot" style={{ background: KCOL[b.kind], marginTop: 6 }} />
-                <div style={{ flex: 1 }}>
-                  <div className="row between"><strong>{b.name}</strong><strong className="mono">{rs(b.amount, 0)} <span className="muted small">({num((b.amount / amount) * 100, 0)}%)</span></strong></div>
-                  <div className={`small ${b.guaranteed ? "tag-g" : "tag-m"}`}>{b.guaranteed ? "Guaranteed: " : "Not guaranteed: "}{b.returnText}</div>
-                  <div className="small muted">{b.why}</div>
-                  <div className="small">Options: {b.options.join(" · ")}</div>
+          {r.priorities.length > 0 && (
+            <Card title="First, protect yourself" sub="New money fills these before anything is invested">
+              <div className="list">{r.priorities.map((x: Any) => (
+                <div key={x.name} className="list-row" style={{ alignItems: "flex-start" }}>
+                  <span className="dot" style={{ background: x.kind === "debt" ? "var(--down)" : "var(--blue)", marginTop: 6 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="row between"><strong>{x.name}</strong><span className="mono small">{rs(x.amount, 0)} of {rs(x.need, 0)}</span></div>
+                    <div className="small muted">{x.note}. {x.done ? (x.monthDone ? `Covered by month ${x.monthDone}.` : "Covered by today's amount.") : "Not fully covered within this plan."}</div>
+                  </div>
+                </div>))}</div>
+            </Card>
+          )}
+          <Card title="Your diversified plan" sub="Where each rupee goes, by channel. Percentages are of money left after the steps above.">
+            <div className="bucket-bar" style={{ marginBottom: 12 }}>{r.channels.map((c: Any) => <div key={c.key} title={`${c.name}: ${c.pct}%`} style={{ width: `${c.pct}%`, background: CH_COL[c.key] }} />)}</div>
+            <div className="list">{r.channels.map((c: Any) => { const p = products[c.product]; return (
+              <div key={c.key} className="list-row" style={{ alignItems: "flex-start" }}>
+                <span className="dot" style={{ background: CH_COL[c.key], marginTop: 6 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="row between"><strong>{c.name}</strong><Badge tone={c.group === "guaranteed" ? "up" : "warn"}>{c.pct}% · {c.group === "guaranteed" ? "contractual" : "market-linked"}</Badge></div>
+                  <div className="small">{c.lump > 0 && <>Now <b>{rs(c.lump, 0)}</b> · </>}{c.monthlyAvg > 0 && <>about <b>{rs(c.monthlyAvg, 0)}</b> a month · </>}expected {compact(c.final.mid)}{c.group === "market" ? ` (${compact(c.final.low)}–${compact(c.final.high)})` : ""}</div>
+                  <div className="small muted">{c.howTo}</div>
+                  <div className="tiny faint">Return: {c.rateNote}. Liquidity: {c.liquidity}.</div>
+                  <div className="row" style={{ marginTop: 4, gap: 6 }}>
+                    {p?.official_url && <a className="btn sm" href={p.official_url} target="_blank" rel="noopener noreferrer"><I.external /> Official site</a>}
+                    {p?.info_url && <a className="btn sm ghost" href={p.info_url} target="_blank" rel="noopener noreferrer"><I.external /> {/meroshare/.test(p.info_url) ? "MeroShare" : /pdmo/.test(p.info_url) ? "PDMO" : "More info"}</a>}
+                    {c.inApp && <Link className="btn sm ghost" to={c.inApp.to}>{c.inApp.label}</Link>}
+                  </div>
                 </div>
-              </div>
-            ))}</div>
-            {r.monthlySplit.length > 0 && <div style={{ marginTop: 12 }}><strong className="small">Each month:</strong> {r.monthlySplit.map((m: Any) => `${m.name} ${rs(m.amount, 0)}`).join(" · ")}</div>}
-            <div className="row" style={{ marginTop: 12 }}>
-              <Link className="btn sm" to="/invest?tab=deposits">Best deposit rates</Link>
-              <Link className="btn sm" to="/invest?tab=funds">Mutual funds & debentures</Link>
-              <Link className="btn sm" to="/stocks">Strong stocks</Link>
-              <Link className="btn sm" to={`/analyst?q=${encodeURIComponent(`I have Rs. ${amount}${monthly ? ` and can add Rs. ${monthly} every month` : ""}. Using my money data, goals and current rates, where should I put it in Nepal? Compare realistic options with expected outcomes.`)}`}><I.ai /> Discuss with AI</Link>
+              </div>); })}</div>
+          </Card>
+          <Card title="Year by year" sub="What you put in and what it could be worth">
+            <div className="table-scroll"><table className="t small"><thead><tr><th>Year</th><th className="num">Paid in</th><th className="num">Weak</th><th className="num">Expected</th><th className="num">Strong</th></tr></thead>
+              <tbody>{r.yearly.map((y: Any) => <tr key={y.year}><td>{num(y.year, 0)}</td><td className="num">{compact(y.paidIn)}</td><td className="num">{compact(y.low)}</td><td className="num"><b>{compact(y.mid)}</b></td><td className="num">{compact(y.high)}</td></tr>)}</tbody></table></div>
+            {r.notes.map((n: string) => <p key={n} className="tiny faint">{n}</p>)}
+            {r.rates.inflationPct != null && <p className="tiny faint">Inflation is {num(r.rates.inflationPct, 2)}% (NRB), so future amounts buy less than today.</p>}
+            <div className="row" style={{ marginTop: 8 }}>
+              <Link className="btn sm" to={`/analyst?q=${encodeURIComponent(`I can invest Rs. ${v(lump)} now and these monthly amounts: ${pattern.join(", ")} (repeating yearly${v(stepUp) ? `, rising ${v(stepUp)}% a year` : ""}). Risk ${r.inputs.risk}, horizon ${r.inputs.horizonYears} years. Using my money data and current Nepal rates, review this diversified plan and suggest improvements.`)}`}><I.ai /> Review with AI</Link>
             </div>
           </Card>
           {cmp && <ProfileCompare c={cmp} />}
-          <Card title="Rates behind this plan">
-            <dl className="kv small">{Object.entries(r.rates.sources as Record<string, string>).map(([k, v]) => <Fragment key={k}><dt>{({ fd: "Fixed deposit", saving: "Savings", tbill: "T-bill", inflation: "Inflation", equity: "NEPSE long run" } as Record<string, string>)[k] ?? k}</dt><dd>{v}</dd></Fragment>)}</dl>
-            <p className="tiny faint">Projections: guaranteed parts compound at their contractual after-tax rate; market-linked parts show a range (not a forecast).</p>
-          </Card>
         </>
       )}
+      <ChannelsCard products={future.data?.products} />
     </div>
+  );
+}
+
+function ChannelsCard({ products }: { products?: Any[] }) {
+  if (!products) return <Card title="All investment channels in Nepal"><Loading /></Card>;
+  const cats = [...new Set(products.map((p) => p.category))] as string[];
+  return (
+    <Card title="All investment channels in Nepal" sub="Official websites, where to apply, and whether each link opened at the last daily check">
+      <div className="col" style={{ gap: 14 }}>{cats.map((cat) => (
+        <div key={cat}>
+          <div className="sub-h">{cat}</div>
+          <div className="list">{products.filter((p) => p.category === cat).map((p) => (
+            <div key={p.id} className="list-row" style={{ alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                <strong>{p.name}</strong>
+                {p.suitableFor && <div className="small muted">Suits: {p.suitableFor}</div>}
+                {p.how_to_apply && <div className="tiny faint">How to start: {p.how_to_apply}</div>}
+              </div>
+              <div className="row" style={{ gap: 6 }}>
+                {p.official_url && <a className="btn sm" href={p.official_url} target="_blank" rel="noopener noreferrer"><I.external /> {new URL(p.official_url).host.replace(/^www\./, "")}</a>}
+                {p.info_url && <a className="btn sm ghost" href={p.info_url} target="_blank" rel="noopener noreferrer"><I.external /> {new URL(p.info_url).host.replace(/^www\./, "")}</a>}
+                {p.officialCheck && <span className={`tiny ${p.officialCheck.ok ? "up" : "warn"}`}>{p.officialCheck.ok ? "✓ opened" : "couldn't reach"} {nptDate(p.officialCheck.checked_at)}</span>}
+              </div>
+            </div>))}</div>
+        </div>))}</div>
+      <p className="tiny faint" style={{ marginTop: 8 }}>Some Nepal government sites block requests from outside Nepal, so a failed check does not always mean the link is broken. Full details for each channel are on <Link to="/future">Invest for the Future</Link>.</p>
+    </Card>
   );
 }
 

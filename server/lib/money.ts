@@ -164,6 +164,15 @@ export function allocate(userId: number, p: { amount: number; monthly?: number; 
   return { ...res, rates: o.rates, inputs: { risk: p.risk ?? o.data.risk, horizonYears: p.horizonYears ?? o.data.horizonYears, emergencyGap: o.summary.emergencyGap, expensiveDebt: expensive, equityPct: o.summary.equityPct } };
 }
 
+export function plan(userId: number, p: { lumpSum: number; monthly: number[]; stepUpPct?: number; risk?: MO.Risk; horizonYears?: number; keepEmergency?: boolean }) {
+  const o = moneyOverview(userId);
+  const fdNet = (o.rates.fdPct ?? 0) * (1 - o.rates.interestTaxPct / 100);
+  const expensive = o.data.liabilities.filter((l) => l.balance > 0 && (l.type === "credit_card" || l.ratePct >= Math.max(11, fdNet + 6))).map((l) => ({ name: l.name, balance: l.balance, ratePct: l.ratePct }));
+  const risk = p.risk ?? o.data.risk, horizonYears = p.horizonYears ?? o.data.horizonYears;
+  const res = MO.buildPlan({ lumpSum: p.lumpSum, monthly: p.monthly, stepUpPct: p.stepUpPct, risk, horizonYears, emergencyGap: p.keepEmergency === false ? 0 : o.summary.emergencyGap, expensiveDebt: expensive, nearTermNeeds: o.goals.filter((g) => g.years <= 3 && g.amount > 0), existingEquityPct: o.summary.equityPct, rates: o.rates });
+  return { ...res, rates: o.rates, inputs: { risk, horizonYears, emergencyGap: o.summary.emergencyGap, equityPct: o.summary.equityPct, moneySaved: o.saved } };
+}
+
 export function compareDepositsFor(amount: number, months: number) {
   const r = marketRates();
   const offers = depositRates().filter((d) => d.depositor !== "institutional").map((d) => ({ institution: d.institution, instType: d.inst_type, product: d.product, tenorMonths: d.tenor_months, ratePct: d.rate, sourceUrl: d.source_url, effectiveFrom: d.effective_from, method: d.method }));

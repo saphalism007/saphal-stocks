@@ -55,9 +55,10 @@ export default function Future() {
         <div className="opt-grid">
           {products.map((p: Any) => (
             <div key={p.id} className="opt">
-              <div className="row between" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}><strong>{p.name}</strong><Badge tone={/low/i.test(p.risk ?? "") ? "up" : /high/i.test(p.risk ?? "") ? "down" : "warn"}>{p.risk ?? "—"} risk</Badge></div>
+              <div className="row between" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}><strong style={{ minWidth: 0 }}>{p.name}</strong><Badge tone={/low/i.test(p.risk ?? "") ? "up" : /high/i.test(p.risk ?? "") ? "down" : "warn"}>{(p.risk ?? "—").replace(/\s*\(.*$/, "")} risk</Badge></div>
               <div className="tiny faint">{p.category}{p.provider ? ` · ${p.provider}` : ""}</div>
-              <dl className="kv small">
+              {p.risk && /\(/.test(p.risk) && <div className="tiny muted">Risk: {p.risk}</div>}
+              <dl className="kv text small">
                 <dt>Return</dt><dd>{p.return_text ?? "—"} {p.return_type === "contractual" ? <Badge tone="up">contractual</Badge> : p.return_type ? <Badge>{p.return_type}</Badge> : null}</dd>
                 <dt>Minimum</dt><dd>{p.min_investment ?? "—"}</dd>
                 <dt>Period</dt><dd>{[p.duration, p.lock_in && p.lock_in !== "None" ? `lock-in: ${p.lock_in}` : null].filter(Boolean).join(" · ") || "—"}</dd>

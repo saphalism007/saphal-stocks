@@ -388,3 +388,107 @@ export function compareProfiles(amount: number, rates: MarketRates) {
     ]),
   ];
 }
+
+// ---------- v0.11.1: flexible, diversified investment plan ----------
+// Works with any starting amount (including zero) and monthly amounts that change from month to
+// month. Money first clears costly debt and the emergency fund, then is spread across Nepal's
+// investment channels by risk and horizon. Return assumptions come only from the official/market
+// rates passed in; where a channel has no rate of its own the assumption is stated.
+
+export interface Channel {
+  key: string; name: string; product: string; // seed key of the products catalogue (official links)
+  group: "guaranteed" | "market"; ratePct: number | null; rateNote: string;
+  liquidity: string; howTo: string; inApp?: { label: string; to: string };
+}
+export interface PlanInput {
+  lumpSum: number; monthly: number[]; // one amount per month; the pattern repeats each year
+  stepUpPct?: number; // raise the monthly amounts by this % each year
+  risk: Risk; horizonYears: number;
+  emergencyGap: number; expensiveDebt: { name: string; balance: number; ratePct: number }[];
+  nearTermNeeds: { name: string; amount: number; years: number }[];
+  existingEquityPct?: number | null; rates: MarketRates;
+}
+
+/** Channels and their share of long-term money for a risk level and horizon (percentages add to 100). */
+export function channelMix(risk: Risk, horizonYears: number, rates: MarketRates, existingEquityPct?: number | null) {
+  const tax = rates.interestTaxPct / 100;
+  const fdNet = rates.fdPct != null ? Math.round(rates.fdPct * (1 - tax) * 100) / 100 : null;
+  const eq = rates.equityLongRunPct;
+  let cap = equityCap(risk, horizonYears);
+  if (existingEquityPct != null && existingEquityPct > cap) cap = Math.max(0, cap - Math.min(cap, existingEquityPct - cap));
+  const eqNote = eq != null ? `NEPSE's last-10-year growth incl. dividends (${eq.toFixed(1)}%/yr); not guaranteed, has fallen 30-50% before` : "No long-run NEPSE figure available";
+  const C: Record<string, Channel> = {
+    fd: { key: "fd", name: "Fixed / recurring deposits", product: "fd", group: "guaranteed", ratePct: fdNet, rateNote: fdNet != null ? `Best verified FD rate after 6% tax (${fdNet}%)` : "Rate unavailable", liquidity: "At maturity (early withdrawal with a penalty)", howTo: "Lump sums: FD at the best verified rate. Monthly: a recurring deposit (RD) in your bank's app.", inApp: { label: "Best deposit rates", to: "/invest?tab=deposits" } },
+    debenture: { key: "debenture", name: "Debentures & government bonds", product: "debenture", group: "guaranteed", ratePct: fdNet, rateNote: "Assumed at the FD rate; each issue has its own coupon, so check it", liquidity: "Sell on NEPSE (thin trading) or hold to maturity", howTo: "Apply for new debenture/bond issues in MeroShare; check coupon, maturity and issuer quality.", inApp: { label: "Debentures & bonds", to: "/invest?tab=funds" } },
+    cit: { key: "cit", name: "Citizen Investment Trust (CIT)", product: "cit-scheme", group: "guaranteed", ratePct: fdNet, rateNote: "Assumed at the FD rate (CIT publishes its own scheme returns)", liquidity: "Long-term; withdrawal rules per scheme", howTo: "Open a CIT scheme account (branch or online); contributions can be monthly and have tax benefits." },
+    sip: { key: "sip", name: "Mutual fund SIP (open-ended)", product: "mf-open", group: "market", ratePct: eq, rateNote: eqNote, liquidity: "Redeem in a few days", howTo: "Start a SIP with a fund manager (via their app, branch or C-ASBA); pick a diversified equity or balanced fund.", inApp: { label: "Mutual funds", to: "/invest?tab=funds" } },
+    closed: { key: "closed", name: "Close-ended mutual funds", product: "mf-closed", group: "market", ratePct: eq, rateNote: eqNote, liquidity: "Buy/sell on NEPSE (T+2)", howTo: "Buy listed funds through your broker (TMS), preferably below NAV.", inApp: { label: "Fund NAV vs price", to: "/invest?tab=funds" } },
+    stocks: { key: "stocks", name: "Strong NEPSE stocks (5+ across sectors)", product: "nepse-shares", group: "market", ratePct: eq, rateNote: eqNote, liquidity: "Sell on NEPSE (T+2 for liquid stocks)", howTo: "Open a demat (MeroShare) and broker (TMS) account; buy fundamentally strong companies in different sectors.", inApp: { label: "Strong stocks", to: "/opportunities" } },
+    ipo: { key: "ipo", name: "IPOs / right shares (small amounts)", product: "ipo", group: "market", ratePct: eq, rateNote: "Allotment is a lottery; returns vary widely", liquidity: "After listing", howTo: "Apply for each IPO in MeroShare (usually 10 units).", inApp: { label: "IPO calendar", to: "/ipo" } },
+  };
+  const gW: [string, number][] = horizonYears < 2 ? [["fd", 1]] : horizonYears < 5 ? [["fd", 0.7], ["debenture", 0.3]] : [["fd", 0.5], ["debenture", 0.25], ["cit", 0.25]];
+  const mW: [string, number][] = risk === "low" ? [["sip", 0.7], ["stocks", 0.3]] : risk === "medium" ? [["sip", 0.45], ["closed", 0.15], ["stocks", 0.35], ["ipo", 0.05]] : [["sip", 0.3], ["closed", 0.15], ["stocks", 0.5], ["ipo", 0.05]];
+  const mix = [
+    ...gW.map(([k, w]) => ({ ...C[k], pct: r1((100 - cap) * w) })),
+    ...(cap > 0 ? mW.map(([k, w]) => ({ ...C[k], pct: r1(cap * w) })) : []),
+  ].filter((c) => c.pct > 0);
+  return { cap, mix };
+}
+
+/** Builds the plan month by month with three outcomes for the market part. */
+export function buildPlan(p: PlanInput) {
+  const months = Math.max(12, Math.round(Math.max(1, p.horizonYears) * 12));
+  const pattern = p.monthly.length ? p.monthly.map((x) => Math.max(0, x || 0)) : [0];
+  const step = (p.stepUpPct ?? 0) / 100;
+  const contrib = Array.from({ length: months }, (_, i) => pattern[i % pattern.length] * Math.pow(1 + step, Math.floor(i / 12)));
+  const totalIn = p.lumpSum + sum(contrib);
+  if (totalIn <= 0) return { ok: false as const, reason: "Enter an amount to invest now, a monthly amount, or both." };
+
+  const { cap, mix } = channelMix(p.risk, p.horizonYears, p.rates, p.existingEquityPct);
+  const savNet = p.rates.savingPct != null ? p.rates.savingPct * (1 - p.rates.interestTaxPct / 100) : 0;
+  // Priorities: costly debt, emergency fund, money needed within 3 years. Lump sum first, then monthly money.
+  const prio: { name: string; kind: "debt" | "safety" | "goal"; need: number; ratePct: number; note: string }[] = [
+    ...[...p.expensiveDebt].sort((a, b) => b.ratePct - a.ratePct).map((d) => ({ name: `Repay ${d.name}`, kind: "debt" as const, need: d.balance, ratePct: d.ratePct, note: `Saves ${d.ratePct}% a year, guaranteed` })),
+    { name: "Emergency fund", kind: "safety" as const, need: p.emergencyGap, ratePct: savNet, note: "Instant-access savings so you never sell investments in a hurry" },
+    ...p.nearTermNeeds.filter((g) => g.years <= 3).map((g) => ({ name: `${g.name} (in ${g.years} yr)`, kind: "goal" as const, need: g.amount, ratePct: p.rates.fdPct != null ? p.rates.fdPct * (1 - p.rates.interestTaxPct / 100) : 0, note: "Kept in deposits matched to the date, not shares" })),
+  ].filter((x) => x.need > 0);
+  const prioFilled = prio.map(() => 0);
+  const prioMonthDone: (number | null)[] = prio.map(() => null);
+  const lumpTo = mix.map(() => 0), monthlyTo = mix.map(() => 0);
+  const bal = { low: mix.map(() => 0), mid: mix.map(() => 0), high: mix.map(() => 0) };
+  let prioBal = 0;
+  const rateFor = (c: Channel, s: "low" | "mid" | "high") => c.ratePct == null ? 0 : c.group === "guaranteed" ? c.ratePct : s === "mid" ? c.ratePct : s === "low" ? Math.max(-5, c.ratePct - 8) : c.ratePct + 6;
+  const prioRate = prio.length ? prio.reduce((s, x) => s + x.ratePct * x.need, 0) / sum(prio.map((x) => x.need)) : 0;
+  const place = (amount: number, month: number, into: number[]) => {
+    let left = amount;
+    for (let i = 0; i < prio.length && left > 0; i++) {
+      const take = Math.min(left, prio[i].need - prioFilled[i]);
+      if (take > 0) { prioFilled[i] += take; left -= take; prioBal += take; if (prioFilled[i] >= prio[i].need - 0.5 && prioMonthDone[i] == null) prioMonthDone[i] = month; }
+    }
+    if (left > 0) mix.forEach((c, j) => { const a = left * c.pct / 100; into[j] += a; bal.low[j] += a; bal.mid[j] += a; bal.high[j] += a; });
+  };
+  place(p.lumpSum, 0, lumpTo);
+  const yearly: { year: number; paidIn: number; low: number; mid: number; high: number }[] = [];
+  let paid = p.lumpSum;
+  for (let m = 0; m < months; m++) {
+    for (const s of ["low", "mid", "high"] as const) mix.forEach((c, j) => { bal[s][j] *= 1 + rateFor(c, s) / 1200; });
+    prioBal *= 1 + prioRate / 1200;
+    place(contrib[m], m + 1, monthlyTo);
+    paid += contrib[m];
+    if ((m + 1) % 12 === 0 || m === months - 1) yearly.push({ year: r1((m + 1) / 12), paidIn: r0(paid), low: r0(prioBal + sum(bal.low)), mid: r0(prioBal + sum(bal.mid)), high: r0(prioBal + sum(bal.high)) });
+  }
+  const avgMonthly = sum(contrib) / months;
+  const guaranteedIn = sum(prioFilled) + sum(mix.map((c, j) => c.group === "guaranteed" ? lumpTo[j] + monthlyTo[j] : 0));
+  return {
+    ok: true as const, equityCapPct: cap, months, totalIn: r0(totalIn), avgMonthly: r0(avgMonthly),
+    guaranteedPct: r1(guaranteedIn / totalIn * 100),
+    priorities: prio.map((x, i) => ({ name: x.name, kind: x.kind, amount: r0(prioFilled[i]), need: r0(x.need), done: prioFilled[i] >= x.need - 0.5, monthDone: prioMonthDone[i], note: x.note })),
+    channels: mix.map((c, j) => ({ ...c, lump: r0(lumpTo[j]), monthlyTotal: r0(monthlyTo[j]), monthlyAvg: r0(monthlyTo[j] / months), final: { low: r0(bal.low[j]), mid: r0(bal.mid[j]), high: r0(bal.high[j]) } })),
+    yearly,
+    notes: [
+      "Guaranteed parts grow at their contractual after-tax rate; market-linked parts show a weak, expected and strong case (expected minus 8 points, expected, expected plus 6 points a year). These are scenarios, not forecasts.",
+      ...(p.stepUpPct ? [`Monthly amounts rise ${p.stepUpPct}% each year.`] : []),
+      ...(pattern.length > 1 ? [`Your ${pattern.length}-month pattern repeats every year (average Rs. ${fmt(sum(pattern) / pattern.length)} a month).`] : []),
+    ],
+  };
+}

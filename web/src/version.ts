@@ -5,16 +5,12 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.11.0";
+export const VERSION = "0.11.1";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "Chart Terminal rebuilt: candles, hollow, Heikin Ashi, bars, line, step, area and baseline charts; daily, weekly and monthly candles; date ranges and a custom range; 1, 2 or 4 charts at once; full screen and chart pictures.",
-  "64 indicators with a searchable library: moving averages, VWAP, Ichimoku, Supertrend, SAR, ADX, RSI, MACD, Stochastic, CCI, MFI, OBV, CMF and more, on the price or in their own panels, with your own settings, colours and saved templates.",
-  "30 drawing tools in a left toolbar: trendlines, rays, channels, pitchfork, Fibonacci, shapes, brush, text, price/date ranges and long/short positions. Drag to draw, move, edit, lock, undo, with magnet snapping; saved per stock.",
-  "AI Analyst beside every chart: a clear verdict (Strong buy to Strong sell, or Wait), entry, best buying zone, breakout entry, stop-loss and three targets, with the evidence in numbers; support, resistance and supply/demand zones drawn on the chart; strategies from very short-term to long-term; separate short, medium and long-term suitability.",
-  "Ask AI about the chart (works without a key; uses Claude with your key), a trade planner that saves and tracks plans or paper-trades them, and a scanner for buy setups, breakouts, momentum, oversold/overbought, reversals and volume spikes.",
-  "Company pages: Quarterly Reports, Annual & Audit Reports, Notices & Announcements, News and Downloads, linking to the company's official website pages and PDFs. Quarterly, annual and audited documents are never mixed up, and the newest files are checked to open.",
-  "Compare financial reports: put quarterly reports of the company or its peers side by side (revenue, profit, EPS, reserves, liabilities, deposits, NPL and more).",
+  "Phone layout fixed: no more text running off the screen on iPhone; long labels wrap neatly and wide tables scroll inside their card.",
+  "New investment plan builder: start with Rs. 0 today and invest monthly, set different amounts for each month (any month can be 0), and raise them each year. The plan covers costly debt and the emergency fund first, then spreads money across deposits, debentures and bonds, CIT, mutual fund SIPs, close-ended funds, stocks and IPOs, with a year-by-year outlook.",
+  "Links to every investment channel in Nepal (NEPSE, MeroShare, SEBON, NRB, PDMO, CIT, EPF, SSF, insurance), each checked daily.",
 ];
 
 declare const __BUILD__: string;
