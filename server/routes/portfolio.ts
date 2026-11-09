@@ -1,4 +1,5 @@
 import { Router, type Request } from "express";
+import * as GR from "../lib/growth.ts";
 import { z } from "zod";
 import { all, get, run, nowIso } from "../db.ts";
 import { portfolioSummary, txsFor, latestPrices } from "../lib/portfolioService.ts";
@@ -207,6 +208,16 @@ portfolioRouter.post("/notifications/read", (req, res) => {
 });
 
 portfolioRouter.get("/briefing", (req, res) => res.json(dailyBriefing(uid(req))));
+portfolioRouter.get("/growth/today", (req, res) => res.json(GR.today(uid(req))));
+portfolioRouter.get("/growth/holdings", (req, res) => res.json(GR.holdingsPlan(uid(req))));
+portfolioRouter.get("/growth/calendar", (req, res) => res.json(GR.calendar(uid(req))));
+portfolioRouter.get("/growth/coach", (req, res) => res.json(GR.coach(uid(req))));
+portfolioRouter.get("/growth/pretrade/:symbol", (req, res) => {
+  const capital = Math.min(1e11, Math.max(1000, Number(req.query.capital) || 100000)), risk = Math.min(10, Math.max(0.1, Number(req.query.risk) || 1));
+  const r = GR.preTradeFor(uid(req), String(req.params.symbol).toUpperCase().replace(/[^A-Z0-9]/g, ""), capital, risk);
+  if (!r) return res.status(404).json({ error: "No price data for this symbol" });
+  res.json(r);
+});
 
 portfolioRouter.get("/prices/latest", (req, res) => {
   const syms = String(req.query.symbols || "").split(",").map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z0-9]{1,12}$/.test(s)).slice(0, 200);

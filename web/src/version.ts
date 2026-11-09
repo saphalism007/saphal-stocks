@@ -5,11 +5,13 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.13.1";
+export const VERSION = "0.14.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "⚡ Buy/Sell signal button on every chart: one tap shows the verdict, buy zone, breakout buy, stop-loss, three targets, risk:reward, exact orders with dates, support and resistance, technical readings (trend, RSI, MACD, ADX, moving averages, volume), fundamentals (EPS, P/E vs sector, P/B, ROE, debt, Graham value, growth, dividends), the reasons, the risks and how past signals did — and draws the levels and B/S arrows on the chart.",
-  "On phones the price scale stays automatic, so a stray swipe on the price axis can no longer squash the candles.",
+  "New page: My Growth. Today: a to-do list of what needs you (stops hit, targets reached, watchlist stocks in their buy zone, book closures, IPOs closing, thesis reviews, journal trades).",
+  "Holdings plan: every share you own with the chart verdict, stop-loss, target, support/resistance, weight, what to do (sell, trim, take profit, hold, add, diversify), the fees and capital gains tax if sold today, and expected dividend income.",
+  "Discipline coach: a pre-buy checklist that works out how many shares to buy from the risk you accept and checks 9 rules (GO / CAREFUL / DON'T BUY), plus the habits in your own trades (wins vs losses, holding losers too long, ignoring stops, selling winners early, revenge trades, emotions).",
+  "Dividends & events calendar: upcoming book closures, open and upcoming IPOs and right shares, and AGM/dividend notices for your holdings and watchlist (or the whole market).",
 ];
 
 declare const __BUILD__: string;
