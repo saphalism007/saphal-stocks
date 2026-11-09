@@ -154,3 +154,32 @@ describe("timeframes and trendlines", () => {
     expect(t2.volumeConfirmed).toBe(true);
   });
 });
+
+import { summarizeEntries, averageMonthly } from "../shared/money.ts";
+import { classifyFiling } from "../server/ingest/providers.ts";
+describe("income & expense tracker", () => {
+  const e = [
+    { date: "2026-11-01", type: "income" as const, category: "salary", amount: 150000 },
+    { date: "2026-11-02", type: "expense" as const, category: "food", amount: 2500 },
+    { date: "2026-11-02", type: "expense" as const, category: "invest", amount: 20000 },
+    { date: "2026-11-05", type: "expense" as const, category: "emi", amount: 10000 },
+    { date: "2026-10-03", type: "expense" as const, category: "food", amount: 6000 },
+  ];
+  it("totals a month with savings kept apart from spending", () => {
+    const s = summarizeEntries(e.filter((x) => x.date.startsWith("2026-11")));
+    expect(s.income).toBe(150000);
+    expect(s.spending).toBe(12500);
+    expect(s.invested).toBe(20000);
+    expect(s.emi).toBe(10000);
+    expect(s.net).toBe(137500);
+    expect(s.days[0].date).toBe("2026-11-05");
+  });
+  it("averages spending per category over full months", () => {
+    expect(averageMonthly(e, ["2026-10", "2026-11"]).find((x) => x.category === "food")?.amount).toBe(4250);
+  });
+  it("classifies official filings", () => {
+    expect(classifyFiling("Nabil Bank - Information regarding appointment of Statutory Auditor for FY 2082/83")).toBe("Auditor appointment");
+    expect(classifyFiling("Minutes of 42nd Annual General Meeting of Nabil Bank Limited")).toBe("AGM minutes");
+    expect(classifyFiling("Annual Audit Report [TPC]")).toBe("Audited / annual report");
+  });
+});

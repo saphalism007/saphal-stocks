@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { BROWSER_BACKEND } from "../lib/backend.ts";
-import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score, ScoreBar, Tabs, DataTable, Disclaimer, Modal, Seg } from "../components/ui.tsx";
+import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, Fresh, Score, ScoreBar, Tabs, DataTable, Disclaimer, Modal, Seg, NumInput } from "../components/ui.tsx";
 import { PriceChart, LineChart, type Overlay, type Lower, type ChartLevel, type ChartSegment, type ChartZone } from "../components/PriceChart.tsx";
 import { resample, trendlines, type Timeframe } from "../../../shared/timeframe.ts";
 import { num, pct, tone, compact, int, nptDate, isNum } from "../lib/format.ts";
@@ -14,7 +14,7 @@ import type { Bar } from "../../../shared/types.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
-type TabKey = "summary" | "chart" | "levels" | "fundamentals" | "financials" | "dividends" | "news" | "backtest";
+type TabKey = "summary" | "chart" | "levels" | "fundamentals" | "financials" | "dividends" | "news" | "backtest" | "audit";
 
 export default function StockDetail() {
   const { symbol = "" } = useParams();
@@ -22,7 +22,7 @@ export default function StockDetail() {
   const a = useApi<Any>(`/stocks/${sym}`, [sym]);
   const rep = useApi<Any>(`/stocks/${sym}/report`, [sym]);
   const barsQ = useApi<{ bars: Bar[]; adjustments: Any[]; skipped: Any[] }>(`/stocks/${sym}/bars`, [sym]);
-  const [tab, setTab] = useState<TabKey>("summary");
+  const [tab, setTab] = useState<TabKey>(() => (new URLSearchParams(location.search).get("tab") as TabKey) || "summary");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [showWatch, setShowWatch] = useState(false);
@@ -75,7 +75,7 @@ export default function StockDetail() {
 
       <Tabs value={tab} onChange={setTab} tabs={[
         { key: "summary", label: "Summary" }, { key: "chart", label: "Chart & technicals" }, { key: "levels", label: "Support & resistance" },
-        { key: "fundamentals", label: "Fundamentals" }, { key: "financials", label: "Financial statements" }, { key: "dividends", label: "Dividends" },
+        { key: "fundamentals", label: "Fundamentals" }, { key: "financials", label: "Financial statements" }, { key: "audit", label: "Reports & audit" }, { key: "dividends", label: "Dividends" },
         { key: "news", label: "Announcements" }, { key: "backtest", label: "Backtest" },
       ]} />
 
@@ -84,6 +84,7 @@ export default function StockDetail() {
       {tab === "levels" && <LevelsTab d={d} bars={barsQ.data?.bars ?? []} />}
       {tab === "fundamentals" && <FundamentalsTab d={d} />}
       {tab === "financials" && <FinancialsTab sym={sym} />}
+      {tab === "audit" && <AuditTab sym={sym} />}
       {tab === "dividends" && <DividendsTab d={d} />}
       {tab === "news" && <NewsTab sym={sym} />}
       {tab === "backtest" && <BacktestTab sym={sym} />}
@@ -352,7 +353,7 @@ function FundamentalsTab({ d }: { d: Any }) {
           </dl>
           <div className="sep" />
           <div className="small" style={{ fontWeight: 600 }}>Dividend discount model</div>
-          <div className="row small"><label className="field" style={{ flex: 1 }}>Growth %<input className="input" type="number" value={ddm.growth} onChange={(e) => setDdm({ ...ddm, growth: +e.target.value })} /></label><label className="field" style={{ flex: 1 }}>Required return %<input className="input" type="number" value={ddm.required} onChange={(e) => setDdm({ ...ddm, required: +e.target.value })} /></label></div>
+          <div className="row small"><label className="field" style={{ flex: 1 }}>Growth %<NumInput className="input" value={ddm.growth} onChange={(e) => setDdm({ ...ddm, growth: +e.target.value })} /></label><label className="field" style={{ flex: 1 }}>Required return %<NumInput className="input" value={ddm.required} onChange={(e) => setDdm({ ...ddm, required: +e.target.value })} /></label></div>
           <div className="small" style={{ marginTop: 6 }}>Last cash dividend Rs. {num(lastCashPerShare)} / share → value <strong className="mono">{num(ddmValue)}</strong></div>
           <p className="tiny faint">Models are only as good as their assumptions. More in Wealth Planner → Calculators.</p>
         </Card>
@@ -496,12 +497,12 @@ function BacktestTab({ sym }: { sym: string }) {
       <Card title="Backtest a strategy on this stock" sub="Long-only. Signals at close, fills at next open. Nepal commission, SEBON fee, DP charge and CGT applied.">
         <div className="form-grid">
           <label className="field">Strategy<select className="input" value={form.strategy} onChange={(e) => { setForm({ ...form, strategy: e.target.value }); setParams({}); }}>{strategies.data?.map((x: Any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-          {def && Object.entries(def.defaults).map(([k, v]) => <label key={k} className="field">{k}<input className="input" type="number" value={params[k] ?? (v as number)} onChange={(e) => setParams({ ...params, [k]: +e.target.value })} /></label>)}
-          <label className="field">Years<input className="input" type="number" value={form.years} onChange={(e) => setForm({ ...form, years: +e.target.value })} /></label>
-          <label className="field">Capital (Rs.)<input className="input" type="number" value={form.capital} onChange={(e) => setForm({ ...form, capital: +e.target.value })} /></label>
-          <label className="field">Stop-loss %<input className="input" type="number" value={form.stopLossPct} placeholder="none" onChange={(e) => setForm({ ...form, stopLossPct: e.target.value })} /></label>
-          <label className="field">Take-profit %<input className="input" type="number" value={form.takeProfitPct} placeholder="none" onChange={(e) => setForm({ ...form, takeProfitPct: e.target.value })} /></label>
-          <label className="field">Slippage %<input className="input" type="number" step="0.1" value={form.slippagePct} onChange={(e) => setForm({ ...form, slippagePct: +e.target.value })} /></label>
+          {def && Object.entries(def.defaults).map(([k, v]) => <label key={k} className="field">{k}<NumInput className="input" value={params[k] ?? (v as number)} onChange={(e) => setParams({ ...params, [k]: +e.target.value })} /></label>)}
+          <label className="field">Years<NumInput className="input" value={form.years} onChange={(e) => setForm({ ...form, years: +e.target.value })} /></label>
+          <label className="field">Capital (Rs.)<NumInput className="input" value={form.capital} onChange={(e) => setForm({ ...form, capital: +e.target.value })} /></label>
+          <label className="field">Stop-loss %<NumInput className="input" value={form.stopLossPct} placeholder="none" onChange={(e) => setForm({ ...form, stopLossPct: e.target.value })} /></label>
+          <label className="field">Take-profit %<NumInput className="input" value={form.takeProfitPct} placeholder="none" onChange={(e) => setForm({ ...form, takeProfitPct: e.target.value })} /></label>
+          <label className="field">Slippage %<NumInput className="input" step="0.1" value={form.slippagePct} onChange={(e) => setForm({ ...form, slippagePct: +e.target.value })} /></label>
         </div>
         {def && <p className="small muted" style={{ marginTop: 8 }}>{def.description}</p>}
         <button className="btn primary" onClick={run} disabled={busy} style={{ marginTop: 8 }}>{busy ? <span className="spinner" /> : "Run backtest"}</button>
@@ -559,7 +560,7 @@ function WatchModal({ sym, price, onClose }: { sym: string; price?: number; onCl
     <Modal title={`Add ${sym} to watchlist`} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save} disabled={!id}>Save</button></>}>
       <div className="col">
         <label className="field">Watchlist<select className="input" value={id ?? ""} onChange={(e) => setListId(+e.target.value)}>{lists.data?.map((l: Any) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
-        <div className="grid g2"><label className="field">Target price<input className="input" type="number" value={target} placeholder={price ? String(price) : ""} onChange={(e) => setTarget(e.target.value)} /></label><label className="field">Stop / review price<input className="input" type="number" value={stop} onChange={(e) => setStop(e.target.value)} /></label></div>
+        <div className="grid g2"><label className="field">Target price<NumInput className="input" value={target} placeholder={price ? String(price) : ""} onChange={(e) => setTarget(e.target.value)} /></label><label className="field">Stop / review price<NumInput className="input" value={stop} onChange={(e) => setStop(e.target.value)} /></label></div>
         <label className="field">Note / thesis<textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} /></label>
         {msg && <Notice tone="warn">{msg}</Notice>}
       </div>
@@ -588,7 +589,7 @@ export function AlertModal({ sym, onClose }: { sym?: string; onClose: () => void
       <div className="col">
         <label className="field">Alert type<select className="input" value={type} onChange={(e) => { setType(e.target.value); setParams({}); }}>{types.data?.map((t: Any) => <option key={t.type} value={t.type}>{t.label}</option>)}</select></label>
         {def?.needsSymbol && <label className="field">Symbol<input className="input" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} /></label>}
-        <div className="grid g2">{def?.params.map((p: string) => <label key={p} className="field">{p}<input className="input" type="number" placeholder={placeholders[p]} value={params[p] ?? ""} onChange={(e) => setParams({ ...params, [p]: e.target.value })} /></label>)}</div>
+        <div className="grid g2">{def?.params.map((p: string) => <label key={p} className="field">{p}<NumInput className="input" placeholder={placeholders[p]} value={params[p] ?? ""} onChange={(e) => setParams({ ...params, [p]: e.target.value })} /></label>)}</div>
         <label className="field">Note<input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why you set this alert" /></label>
         <label className="chk"><input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} /> Keep active after it fires (repeat)</label>
         <p className="tiny faint">Alerts are checked against end-of-day data after each refresh. They fire only when the condition is met in the stored data, and show the data date.</p>
@@ -596,5 +597,42 @@ export function AlertModal({ sym, onClose }: { sym?: string; onClose: () => void
         <Link to="/alerts" className="small" onClick={onClose}>Manage all alerts</Link>
       </div>
     </Modal>
+  );
+}
+
+/** Audited results, annual reports, auditor and AGM filings, and where to get the full report. */
+function AuditTab({ sym }: { sym: string }) {
+  const f = useApi<Any>(`/stocks/${sym}/filings`, [sym]);
+  if (f.error) return <ErrorBox error={f.error} onRetry={f.reload} />;
+  if (!f.data) return <Loading />;
+  const d = f.data;
+  const Row = ({ r, tag }: { r: Any; tag?: string }) => (
+    <div className="list-row" style={{ alignItems: "flex-start" }}>
+      <span className="small faint mono" style={{ minWidth: 82 }}>{nptDate(r.published_date)}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>{tag && <Badge>{tag}</Badge>} <a href={r.url} target="_blank" rel="noopener noreferrer" className="small">{r.title}</a></div>
+    </div>
+  );
+  const keyEvents = d.events.filter((e: Any) => e.kind !== "Other");
+  return (
+    <div className="col">
+      <Card title="Full annual report and auditor's report" sub={`FY ${d.lastCompletedFiscalYear} is the latest completed fiscal year`}>
+        <div className="col" style={{ gap: 8 }}>
+          {d.where.map((w: Any) => <a key={w.url} className="btn link-btn" href={w.url} target="_blank" rel="noopener noreferrer"><span style={{ textAlign: "left" }}>{w.label}</span><I.external /></a>)}
+        </div>
+        <p className="tiny faint" style={{ marginTop: 8 }}>Companies publish audited annual results before their AGM, usually within six months after the fiscal year ends in mid-July. Download the PDF and upload it under <Link to="/reports">Reports</Link> to let the AI read it with page citations.</p>
+      </Card>
+      <div className="grid g2">
+        <Card title="Audited results & annual reports" sub="From the company's official announcements">
+          {d.audited.length === 0 ? <Empty title="None stored yet">Check the company website above; new filings appear here after the daily refresh.</Empty> : <div className="list">{d.audited.map((r: Any) => <Row key={r.url} r={r} />)}</div>}
+        </Card>
+        <Card title="Auditor, AGM and other official filings" sub="NEPSE corporate events">
+          {d.latestAuditorNotice && <Notice>Latest auditor notice: <a href={d.latestAuditorNotice.url} target="_blank" rel="noopener noreferrer">{d.latestAuditorNotice.title}</a> ({nptDate(d.latestAuditorNotice.published_date)})</Notice>}
+          {keyEvents.length === 0 ? <Empty title="No filings stored yet">They are added on the next data refresh.</Empty> : <div className="list">{keyEvents.slice(0, 25).map((r: Any) => <Row key={r.url} r={r} tag={r.kind} />)}</div>}
+        </Card>
+      </div>
+      <Card title="Quarterly results" sub={d.statementsStored.length ? `Statements stored: ${d.statementsStored.map((r: Any) => r.period).join(", ")}` : "No statements stored yet"}>
+        {d.quarterly.length === 0 ? <Empty title="No quarterly report announcements stored" /> : <div className="list">{d.quarterly.map((r: Any) => <Row key={r.url} r={r} />)}</div>}
+      </Card>
+    </div>
   );
 }

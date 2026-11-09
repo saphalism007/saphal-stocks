@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Loading, ErrorBox, DataTable, Score, Fresh, Badge } from "../components/ui.tsx";
+import { Card, Loading, ErrorBox, DataTable, Score, Fresh, Badge, NumInput } from "../components/ui.tsx";
 import { num, pct, tone, compact } from "../lib/format.ts";
 
 export interface StockRow { symbol: string; name: string | null; sector: string | null; date: string | null; close: number | null; change_pct: number | null; turnover: number | null; marketCap: number | null; fundamentalScore: number | null; technicalScore: number | null; pe: number | null; pb: number | null; roe: number | null; cashYield: number | null; return3m: number | null; return1y: number | null; trend: string | null; rsi: number | null; reports: number; high52: number | null; low52: number | null; avgTurnover20: number | null }
@@ -64,11 +64,11 @@ export default function Stocks() {
         <div className="form-grid">
           <label className="field">Search<input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Symbol or name" /></label>
           <label className="field">Sector<select className="input" value={sector} onChange={(e) => setSector(e.target.value)}><option value="">All sectors</option>{sectors.map((s) => <option key={s}>{s}</option>)}</select></label>
-          <label className="field">Max P/E<input className="input" type="number" value={f.maxPe} onChange={set("maxPe")} /></label>
-          <label className="field">Max P/B<input className="input" type="number" value={f.maxPb} onChange={set("maxPb")} /></label>
-          <label className="field">Min ROE %<input className="input" type="number" value={f.minRoe} onChange={set("minRoe")} /></label>
-          <label className="field">Min cash yield %<input className="input" type="number" value={f.minYield} onChange={set("minYield")} /></label>
-          <label className="field">Min fundamental score<input className="input" type="number" value={f.minFund} onChange={set("minFund")} /></label>
+          <label className="field">Max P/E<NumInput className="input" value={f.maxPe} onChange={set("maxPe")} /></label>
+          <label className="field">Max P/B<NumInput className="input" value={f.maxPb} onChange={set("maxPb")} /></label>
+          <label className="field">Min ROE %<NumInput className="input" value={f.minRoe} onChange={set("minRoe")} /></label>
+          <label className="field">Min cash yield %<NumInput className="input" value={f.minYield} onChange={set("minYield")} /></label>
+          <label className="field">Min fundamental score<NumInput className="input" value={f.minFund} onChange={set("minFund")} /></label>
           <label className="field">Trend<select className="input" value={f.trend} onChange={set("trend")}><option value="">Any</option><option value="uptrend">Uptrend</option><option value="sideways">Sideways</option><option value="downtrend">Downtrend</option></select></label>
           <label className="chk" style={{ alignSelf: "end", paddingBottom: 8 }}><input type="checkbox" checked={f.liquid} onChange={set("liquid")} /> Liquid only (≥ Rs. 50 L/day)</label>
         </div>

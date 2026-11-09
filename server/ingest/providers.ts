@@ -167,7 +167,10 @@ export function parseCompanyInfo(s: CompanySession): CompanyInfo {
     const re = new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+(.*?)\\s+(?=Symbol|Name|Sector|Listed Shares|Paid Up|Total Paid Up Value|Operation Date|Phone Number|Email|Address|Website Link|Share Registrar|As of|$)");
     return block.match(re)?.[1]?.trim() || null;
   };
-  const website = s.html.match(/Website Link[\s\S]{0,300}?href="(https?:\/\/[^"]+)"/i)?.[1] ?? null;
+  // Links are often protocol-relative ("//www.nabilbank.com").
+  const rawSite = s.html.match(/Website Link[\s\S]{0,400}?href="((?:https?:)?\/\/[^"]+)"/i)?.[1] ?? null;
+  const host = rawSite ? rawSite.replace(/^((https?:)?\/\/)+/i, "").replace(/^((https?:)?\/\/)+/i, "").trim() : "";
+  const website = host && /^[\w.-]+\.[a-z]{2,}/i.test(host) ? `https://${host}` : null;
   return {
     symbol: s.symbol, companyId: Number(s.companyId),
     name: field("Name"), sector: field("Sector"),
@@ -200,6 +203,27 @@ export async function ssCompanyAnnouncements(s: CompanySession, length = 50): Pr
   if (!res.ok) throw new Error(`company-announcements HTTP ${res.status}`);
   const j = (await res.json()) as { data?: { title: string; published_date: string }[] };
   return (j.data || []).map((r) => ({ title: stripTags(r.title), url: r.title.match(/href='([^']+)'/)?.[1] ?? r.title.match(/href="([^"]+)"/)?.[1] ?? "", publishedDate: r.published_date?.slice(0, 10) ?? null, symbol: s.symbol })).filter((a) => a.url);
+}
+
+/** Official corporate events (NEPSE filings mirrored by ShareSansar): AGM notices and minutes, auditor appointments, reports, book closures. */
+export async function ssCompanyEvents(s: CompanySession, length = 50): Promise<AnnouncementRow[]> {
+  const res = await ssPost(s, "company-events", { company: s.companyId, draw: "1", start: "0", length: String(Math.min(length, 50)) });
+  if (!res.ok) throw new Error(`company-events HTTP ${res.status}`);
+  const j = (await res.json()) as { data?: { title: string; published_date: string }[] };
+  return (j.data || []).map((r) => ({ title: stripTags(r.title), url: r.title.match(/href='([^']+)'/)?.[1] ?? r.title.match(/href="([^"]+)"/)?.[1] ?? "", publishedDate: r.published_date?.slice(0, 10) ?? null, symbol: s.symbol })).filter((a) => a.url);
+}
+
+/** What a filing is about, for the Reports & audit view. */
+export function classifyFiling(title: string): string {
+  const t = title.toLowerCase();
+  if (/audit(ed)? (report|financial)|annual (report|financial)|audited/.test(t)) return "Audited / annual report";
+  if (/unaudited|quarter|q[1-4]\b|financial (statement|report|highlight)/.test(t)) return "Quarterly results";
+  if (/auditor/.test(t)) return "Auditor appointment";
+  if (/minute/.test(t)) return "AGM minutes";
+  if (/\bagm\b|\bsgm\b|\begm\b|general meeting/.test(t)) return "AGM / SGM";
+  if (/dividend|bonus|right share/.test(t)) return "Dividend / bonus / rights";
+  if (/book clos/.test(t)) return "Book closure";
+  return "Other";
 }
 
 export interface QuarterlyStatement { period: string | null; items: { statement: "balance_sheet" | "income" | "metrics"; label: string; value: number | null }[] }

@@ -1,7 +1,7 @@
 import type { SVGProps } from "react";
 
 const P = (d: string) => (props: SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+  <svg viewBox="0 0 24 24" width="1.15em" height="1.15em" style={{ flex: "none", verticalAlign: "-0.2em" }} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
     {d.split("|").map((p, i) => <path key={i} d={p} />)}
   </svg>
 );

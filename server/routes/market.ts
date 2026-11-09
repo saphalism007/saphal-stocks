@@ -381,6 +381,45 @@ marketRouter.get("/economy/debentures", (_req, res) => {
   res.json({ asOf: today, rows: rows.map((r) => ({ ...r, ...debentureYield(r.name, r.close, today) })).sort((a, b) => ((b as { approxYtmPct?: number }).approxYtmPct ?? 0) - ((a as { approxYtmPct?: number }).approxYtmPct ?? 0)), note: "Coupon and maturity are read from the listed name; yields are approximate (face value Rs. 1,000, simple YTM). Thinly traded debentures may not be available at the last price." });
 });
 
+// ---------- reports, audited results and official filings ----------
+const AUDIT_RE = "(lower(title) LIKE '%audited%' OR lower(title) LIKE '%annual report%' OR lower(title) LIKE '%annual financial%' OR lower(title) LIKE '%audit report%')";
+marketRouter.get("/stocks/:symbol/filings", (req, res) => {
+  const sym = SYM.parse(req.params.symbol);
+  const c = get<{ name: string; website: string | null; sector: string | null }>("SELECT name, website, sector FROM companies WHERE symbol = ?", sym);
+  if (!c) return res.status(404).json({ error: "Unknown symbol" });
+  const audited = all<{ title: string; url: string; published_date: string; category: string }>(`SELECT title, url, published_date, category FROM announcements WHERE symbol = ? AND ${AUDIT_RE} ORDER BY published_date DESC LIMIT 20`, sym);
+  const quarterly = all<{ title: string; url: string; published_date: string }>("SELECT title, url, published_date FROM announcements WHERE symbol = ? AND category = 'Quarterly report' ORDER BY published_date DESC LIMIT 8", sym);
+  let events: { title: string; url: string; published_date: string; kind: string }[] = [];
+  try { events = all("SELECT title, url, published_date, kind FROM company_events WHERE symbol = ? ORDER BY published_date DESC LIMIT 60", sym); } catch { /* older snapshot */ }
+  const auditor = events.find((e) => e.kind === "Auditor appointment") ?? null;
+  const reports = all<{ period: string; fetched_at: string }>("SELECT period, fetched_at FROM reports WHERE symbol = ? ORDER BY fiscal_year DESC, quarter DESC LIMIT 6", sym);
+  const fyNow = (() => { const d = new Date(Date.now() + 345 * 60_000); const bs = d.getUTCFullYear() + 57 - (d.getUTCMonth() < 6 || (d.getUTCMonth() === 6 && d.getUTCDate() < 16) ? 1 : 0); return `${bs - 1}/${String(bs).slice(2)}`; })();
+  res.json({
+    symbol: sym, name: c.name, sector: c.sector, website: c.website, audited, quarterly, events, latestAuditorNotice: auditor, statementsStored: reports,
+    lastCompletedFiscalYear: fyNow,
+    where: [
+      c.website ? { label: "Company website: full annual report with auditor's report", url: c.website } : null,
+      { label: "NEPSE (official exchange filings)", url: "https://www.nepalstock.com.np/company" },
+      { label: "SEBON (securities regulator)", url: "https://www.sebon.gov.np" },
+      { label: "ShareSansar: announcements and quarterly reports", url: `https://www.sharesansar.com/company/${sym.toLowerCase()}` },
+    ].filter(Boolean),
+  });
+});
+
+marketRouter.get("/reports/audited", (_req, res) => {
+  // Latest audited / annual-report announcement per company in the last 18 months, plus coverage.
+  const rows = all<{ symbol: string; name: string; sector: string; title: string; url: string; published_date: string }>(`
+    SELECT a.symbol, c.name, c.sector, a.title, a.url, a.published_date FROM announcements a JOIN companies c ON c.symbol = a.symbol
+    WHERE a.published_date >= date('now','-540 days') AND ${AUDIT_RE.replace(/title/g, "a.title")}
+      AND a.published_date = (SELECT MAX(published_date) FROM announcements x WHERE x.symbol = a.symbol AND ${AUDIT_RE.replace(/title/g, "x.title")})
+    GROUP BY a.symbol ORDER BY a.published_date DESC`);
+  let agm: { symbol: string; title: string; url: string; published_date: string }[] = [];
+  try { agm = all(`SELECT e.symbol, e.title, e.url, e.published_date FROM company_events e WHERE e.kind IN ('AGM / SGM','AGM minutes') AND e.published_date >= date('now','-200 days') AND e.published_date = (SELECT MAX(published_date) FROM company_events x WHERE x.symbol = e.symbol AND x.kind IN ('AGM / SGM','AGM minutes')) GROUP BY e.symbol ORDER BY e.published_date DESC`); } catch { /* older snapshot */ }
+  const total = get<{ n: number }>("SELECT COUNT(*) n FROM companies WHERE status = 'active' AND sector NOT IN ('Promoter Share','Corporate Debentures')")?.n ?? 0;
+  const websites = all<{ symbol: string; website: string }>("SELECT symbol, website FROM companies WHERE website IS NOT NULL AND website <> ''");
+  res.json({ rows, agm, total, websites: Object.fromEntries(websites.map((w) => [w.symbol, w.website])), note: "Nepali companies publish audited annual results before their AGM, usually within six months after the fiscal year ends (mid-July). The full annual report, with the auditor's report, is on each company's website and filed with NEPSE." });
+});
+
 // ---------- Nepal financial market monitor: everything important in one feed, with what it means ----------
 const IMPACT: Record<string, string> = {
   "Quarterly report": "Compare EPS, profit growth and (for banks) NPL and capital adequacy with the last quarter and last year; the stock page updates its fundamentals automatically.",

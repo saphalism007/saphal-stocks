@@ -26,7 +26,8 @@ export default function Reports() {
   const search = async () => { if (!q.trim()) return; setResults(await api(`/documents/search?q=${encodeURIComponent(q)}`)); };
   return (
     <div className="page">
-      <div className="page-head"><div><h1>Reports & Documents</h1><p>Upload annual reports, quarterly reports, auditor reports or AGM notices (PDF). Text is indexed by page so the AI can answer with citations.</p></div></div>
+      <div className="page-head"><div><h1>Reports & Audit</h1><p>Latest audited results and annual reports of NEPSE companies, and your own uploaded PDFs (indexed by page so the AI can answer with citations).</p></div></div>
+      <AuditedList />
       <div className="grid g3">
         <Card title="Upload a PDF report">
           <div className="col">
@@ -71,5 +72,25 @@ export default function Reports() {
       </Card>
       {page && <Modal title={`${page.title} · page ${page.page}`} onClose={() => setPage(null)}><pre className="small" style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font)" }}>{page.text || "(no text on this page)"}</pre></Modal>}
     </div>
+  );
+}
+
+/** Latest audited / annual-report filing per company, with links to the company and its website. */
+function AuditedList() {
+  const r = useApi<any>("/reports/audited");
+  const [q, setQ] = useState("");
+  if (!r.data) return <Card title="Latest audited results (all companies)"><Loading /></Card>;
+  const term = q.trim().toLowerCase();
+  const rows = r.data.rows.filter((x: any) => !term || x.symbol.toLowerCase().includes(term) || (x.name ?? "").toLowerCase().includes(term) || (x.sector ?? "").toLowerCase().includes(term));
+  return (
+    <Card title="Latest audited results & annual reports" sub={`${r.data.rows.length} of ${r.data.total} companies have an audited/annual filing stored in the last 18 months`} actions={<input className="input" style={{ width: 200 }} placeholder="Search company or sector" value={q} onChange={(e) => setQ(e.target.value)} />}>
+      <DataTable rows={rows} rowKey={(x: any) => x.symbol} maxHeight={420} initialSort={{ key: "published_date", dir: -1 }} cols={[
+        { key: "symbol", label: "Company", render: (x: any) => <span><Link className="sym" to={`/stocks/${x.symbol}?tab=audit`}>{x.symbol}</Link> <span className="tiny faint">{x.sector}</span></span> },
+        { key: "title", label: "Latest filing", render: (x: any) => <a className="small" href={x.url} target="_blank" rel="noopener noreferrer">{x.title}</a> },
+        { key: "published_date", label: "Date", render: (x: any) => <span className="small">{nptDate(x.published_date)}</span> },
+        { key: "web", label: "", render: (x: any) => r.data.websites[x.symbol] ? <a className="small" href={r.data.websites[x.symbol]} target="_blank" rel="noopener noreferrer">Website</a> : null },
+      ]} />
+      <p className="tiny faint" style={{ marginTop: 8 }}>{r.data.note} For any company, open its page → <strong>Reports & audit</strong> for its filings, auditor notices and website.</p>
+    </Card>
   );
 }

@@ -173,9 +173,18 @@ let factorCache: { key: string; rows: StockFactors[] } | null = null;
 
 const priceStamp = () => get<{ t: string }>("SELECT last_success_at t FROM data_freshness WHERE dataset = 'prices_latest'")?.t ?? "";
 
+const factorKey = () => `${latestTradingDate()}|${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}|${get<{ n: number }>("SELECT COUNT(*) n FROM dividends")?.n}`;
+const setupKey = () => `${latestTradingDate()}|${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}`;
+/** Precomputed result stored in the snapshot (by the export script), if it matches the current data. */
+function persisted<T>(name: string, key: string): T | null {
+  try { const r = get<{ stamp: string; json: string }>("SELECT stamp, json FROM computed WHERE name = ?", name); return r && r.stamp === key ? (JSON.parse(r.json) as T) : null; } catch { return null; }
+}
+
 export function allFactors(): StockFactors[] {
-  const key = `${latestTradingDate()}|${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}|${get<{ n: number }>("SELECT COUNT(*) n FROM dividends")?.n}`;
+  const key = factorKey();
   if (factorCache?.key === key) return factorCache.rows;
+  const pre = persisted<StockFactors[]>("factors", key);
+  if (pre) { factorCache = { key, rows: pre }; return pre; }
   const cos = all<{ symbol: string; name: string | null; sector: string | null }>(
     "SELECT c.symbol, c.name, c.sector FROM companies c JOIN quotes q ON q.symbol = c.symbol WHERE c.status = 'active'",
   ).filter((c) => !/mutual fund|debenture|promoter/i.test(c.sector || ""));
@@ -216,8 +225,8 @@ export function allFactors(): StockFactors[] {
 
 let setupCache: { key: string; rows: ReturnType<typeof computeSetups> } | null = null;
 export function allSetups(limit = 100) {
-  const key = `${latestTradingDate()}|${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}`;
-  if (setupCache?.key !== key) setupCache = { key, rows: computeSetups() };
+  const key = setupKey();
+  if (setupCache?.key !== key) setupCache = { key, rows: persisted<ReturnType<typeof computeSetups>>("setups", key) ?? computeSetups() };
   return setupCache.rows.slice(0, limit);
 }
 
@@ -234,6 +243,12 @@ function computeSetups() {
     for (const s of r.setups) out.push({ ...s, name: fr?.name, sector: fr?.sector, avgTurnover20: fr?.avgTurnover20 });
   }
   return out.sort((a, b) => b.quality - a.quality);
+}
+
+/** Export step: compute factors and setups once and store them for the snapshot. */
+export function persistComputed(write: (name: string, stamp: string, json: string) => void) {
+  write("factors", factorKey(), JSON.stringify(allFactors()));
+  write("setups", setupKey(), JSON.stringify(allSetups(100000)));
 }
 
 /** Drops cached market-wide computations (used when new data is loaded in the browser). */

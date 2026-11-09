@@ -77,11 +77,11 @@ export default function Analyst() {
       <div className="page-head">
         <div><h1>AI Stock Analyst</h1><p>Answers are built from the platform's own data: prices, computed indicators and levels, statements, rankings, your portfolio and uploaded documents.</p></div>
         <div className="row">
-          {status.data && (status.data.available ? <Badge tone="accent">{status.data.model}</Badge> : <Badge tone="warn">AI narrative off · data reports only</Badge>)}
+          {status.data && (status.data.available ? <Badge tone="accent">{status.data.model}</Badge> : <Badge tone="warn">Basic mode (no AI key)</Badge>)}
           <button className="btn" onClick={() => { setConvId(null); setMsgs([]); setErr(null); }}><I.plus /> New chat</button>
         </div>
       </div>
-      {status.data && !status.data.available && <Notice>No AI API key is configured, so the analyst answers with rule-based data reports (stock reports, comparisons, rankings, support and breakout scans, portfolio review). Add an Anthropic API key in <Link to="/settings">Settings → AI</Link> for full conversational analysis.</Notice>}
+      {status.data && !status.data.available && <Notice><strong>Basic mode.</strong> You can still ask questions: answers come straight from the app's data as tables and reports. For full conversation (follow-up questions, explanations in plain words, reading notices), connect Claude once on this device: <Link to="/settings?tab=ai">Settings → AI</Link> (takes 2 minutes).</Notice>}
       <div className="chat">
         <Card title="Conversations" flush>
           <div className="list" style={{ maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}>

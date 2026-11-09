@@ -17,12 +17,13 @@ export interface Prefs {
   chartLower: string;
   chartKind: "candles" | "line";
   reduceMotion: boolean;
+  name: string; // how the home screen greets you
 }
 
 export const DEFAULT_PREFS: Prefs = {
   theme: "auto", accent: "emerald", scale: 1, density: "comfortable", numbers: "nepali", landing: "/",
   hiddenNav: [], bottomBar: ["/", "/market", "/money", "/analyst"], sidebar: "full",
-  chartOverlays: ["sma50", "sma200"], chartLower: "rsi", chartKind: "candles", reduceMotion: false,
+  chartOverlays: ["sma50", "sma200"], chartLower: "rsi", chartKind: "candles", reduceMotion: false, name: "Saphal",
 };
 
 const KEY = "ss-prefs";

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Stat, Empty, Badge, Tabs, Modal, Notice, DataTable, Score } from "../components/ui.tsx";
+import { Card, Stat, Empty, Badge, Tabs, Modal, Notice, DataTable, Score, NumInput } from "../components/ui.tsx";
 import { num, pct, tone, todayNpt, nptDate, compact } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 import { roundTrip } from "../../../shared/costs.ts";
@@ -96,12 +96,12 @@ function TradeModal({ row, onClose, onDone }: { row: VaultRow<Trade> | null; onC
           <label className="field">Date<input className="input" type="date" value={t.date} onChange={set("date")} /></label>
           <label className="field">Symbol<input className="input" value={t.symbol} onChange={(e) => setT({ ...t, symbol: e.target.value.toUpperCase() })} /></label>
           <label className="field">Setup<select className="input" value={t.setup} onChange={set("setup")}>{SETUPS.map((s) => <option key={s}>{s}</option>)}</select></label>
-          <label className="field">Entry price<input className="input" type="number" value={t.entry} onChange={set("entry")} /></label>
-          <label className="field">Planned stop<input className="input" type="number" value={t.stop} onChange={set("stop")} /></label>
-          <label className="field">Planned target<input className="input" type="number" value={t.target} onChange={set("target")} /></label>
-          <label className="field">Quantity<input className="input" type="number" value={t.qty} onChange={set("qty")} /></label>
+          <label className="field">Entry price<NumInput className="input" value={t.entry} onChange={set("entry")} /></label>
+          <label className="field">Planned stop<NumInput className="input" value={t.stop} onChange={set("stop")} /></label>
+          <label className="field">Planned target<NumInput className="input" value={t.target} onChange={set("target")} /></label>
+          <label className="field">Quantity<NumInput className="input" value={t.qty} onChange={set("qty")} /></label>
           <label className="field">Exit date<input className="input" type="date" value={t.exitDate ?? ""} onChange={set("exitDate")} /></label>
-          <label className="field">Exit price (blank if open)<input className="input" type="number" value={t.exit ?? ""} onChange={set("exit")} /></label>
+          <label className="field">Exit price (blank if open)<NumInput className="input" value={t.exit ?? ""} onChange={set("exit")} /></label>
         </div>
         {rr != null && <div className="small muted">Planned risk/reward {num(rr, 2)} · risk Rs. {num((+t.entry - +t.stop) * +t.qty, 0)}</div>}
         <label className="field">Why I took it<textarea className="input" value={t.reason} onChange={set("reason")} /></label>
@@ -175,7 +175,7 @@ function ThesisModal({ row, price, onClose, onDone }: { row: VaultRow<Thesis> | 
           <label className="field">Symbol<input className="input" value={t.symbol} onChange={(e) => setT({ ...t, symbol: e.target.value.toUpperCase() })} disabled={!!row} /></label>
           <label className="field">Horizon<select className="input" value={t.horizon} onChange={set("horizon")}>{["6-12 months", "1-3 years", "3-5 years", "5+ years"].map((x) => <option key={x}>{x}</option>)}</select></label>
           <label className="field">Status<select className="input" value={t.status} onChange={set("status")}>{["active", "validated", "broken", "closed"].map((x) => <option key={x}>{x}</option>)}</select></label>
-          <label className="field">Your fair value (Rs.)<input className="input" type="number" value={t.fairValue ?? ""} onChange={set("fairValue")} /></label>
+          <label className="field">Your fair value (Rs.)<NumInput className="input" value={t.fairValue ?? ""} onChange={set("fairValue")} /></label>
           <label className="field">Next review<input className="input" type="date" value={t.reviewOn} onChange={set("reviewOn")} /></label>
         </div>
         <label className="field">Thesis: why this company, why now<textarea className="input" value={t.thesis} onChange={set("thesis")} /></label>

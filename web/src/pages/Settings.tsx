@@ -5,9 +5,10 @@ import { Link } from "react-router-dom";
 import { usePrefs, NAV } from "../App.tsx";
 import { DEFAULT_PREFS, type Prefs } from "../lib/prefs.ts";
 import { SyncTab } from "./SyncTab.tsx";
+import { CloudBackup } from "../components/CloudBackup.tsx";
 import { VERSION, RELEASED, NOTES, CODE, BUILD } from "../version.ts";
 import { check as checkUpdate, update as applyUpdate, type Check } from "../lib/update.ts";
-import { Card, Loading, Badge, Notice, Tabs, DataTable } from "../components/ui.tsx";
+import { Card, Loading, Badge, Notice, Tabs, DataTable, NumInput } from "../components/ui.tsx";
 import { nptDate, ago, int } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 
@@ -15,7 +16,7 @@ import { I } from "../components/icons.tsx";
 type Tab = "appearance" | "data" | "quality" | "ai" | "fees" | "security" | "sync" | "about";
 
 export default function Settings() {
-  const [tab, setTab] = useState<Tab>("appearance");
+  const [tab, setTab] = useState<Tab>(() => (new URLSearchParams(location.search).get("tab") as Tab) || "appearance");
   return (
     <div className="page">
       <div className="page-head"><div><h1>Settings</h1><p>Data sources and refresh, AI provider, Nepal fees and taxes, security, export and deletion.</p></div></div>
@@ -96,27 +97,37 @@ function AiTab() {
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => { if (s.data) setF((x) => ({ ...x, provider: s.data.provider, model: s.data.model, effort: s.data.effort })); }, [s.data]);
   const save = async () => {
-    try { await api("/settings/ai", { method: "PUT", body: { provider: f.provider, model: f.model, effort: f.effort, ...(f.apiKey ? { apiKey: f.apiKey } : {}) } }); setF({ ...f, apiKey: "" }); setMsg("Saved."); s.reload(); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); }
+    try { await api("/settings/ai", { method: "PUT", body: { provider: f.provider, model: f.model, effort: f.effort, ...(f.apiKey ? { apiKey: f.apiKey } : {}) } }); setF({ ...f, apiKey: "" }); setMsg(f.apiKey ? "Key saved. Claude is now connected on this device." : "Saved."); s.reload(); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); }
   };
   return (
     <div className="grid g2">
-      <Card title="AI provider" sub={BROWSER_BACKEND ? "Stored only on this device (set it on each device you use). Never uploaded to GitHub or included in sync." : "Settings are written to the local .env file (never committed to git)"}>
+      <Card title={s.data?.hasKey ? "Claude is connected" : "Connect Claude (AI)"} sub={BROWSER_BACKEND ? "The key stays on this device only. It is never synced, backed up or uploaded." : "Saved to the local .env file (never committed to git)"}>
         <div className="col">
-          <label className="field">Provider<select className="input" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })}><option value="anthropic">Anthropic Claude</option><option value="none">None (rule-based data reports only)</option></select></label>
-          <label className="field">Model<input className="input" value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} /></label>
-          <label className="field">Effort<select className="input" value={f.effort} onChange={(e) => setF({ ...f, effort: e.target.value })}>{["low", "medium", "high", "xhigh", "max"].map((x) => <option key={x}>{x}</option>)}</select></label>
-          <label className="field">API key {s.data?.hasKey && <Badge tone="accent">A key is set</Badge>}<input className="input" type="password" value={f.apiKey} onChange={(e) => setF({ ...f, apiKey: e.target.value })} placeholder={s.data?.hasKey ? "Leave blank to keep the current key" : "sk-ant-…"} autoComplete="off" /></label>
-          <button className="btn primary" onClick={save}>Save</button>
+          {s.data?.hasKey ? <Notice>AI chat is on. Ask anything in the AI Analyst or with the Ask AI button.</Notice> : (
+            <ol className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+              <li>An <strong>API key</strong> is a password that lets this app use Claude (the AI) on your account. Claude charges per question, typically a few rupees; you set a monthly limit.</li>
+              <li>Open <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>, sign in (or sign up), add a payment method under <strong>Billing</strong> and set a spending limit (e.g. $10/month).</li>
+              <li>Go to <strong>API keys</strong> → <strong>Create key</strong>, name it "Saphal Stocks", and copy it (it starts with <code>sk-ant-</code>).</li>
+              <li>Paste it below and tap <strong>Save</strong>. Do this once on each device (iPhone, iPad, Mac).</li>
+            </ol>
+          )}
+          <label className="field">API key {s.data?.hasKey && <Badge tone="accent">Saved on this device</Badge>}<input className="input" type="password" value={f.apiKey} onChange={(e) => setF({ ...f, apiKey: e.target.value.trim() })} placeholder={s.data?.hasKey ? "Leave blank to keep the current key" : "Paste your key (sk-ant-…)"} autoComplete="off" /></label>
+          <button className="btn primary" onClick={save} disabled={!f.apiKey && !!s.data?.hasKey && f.provider === s.data?.provider && f.effort === s.data?.effort}>Save</button>
           {msg && <Notice>{msg}</Notice>}
+          <details className="small"><summary className="muted">Advanced</summary>
+            <div className="col" style={{ marginTop: 8 }}>
+              <label className="field">Provider<select className="input" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })}><option value="anthropic">Anthropic Claude</option><option value="none">None (basic mode only)</option></select></label>
+              <label className="field">Model<input className="input" value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} /></label>
+              <label className="field">Thoroughness<select className="input" value={f.effort} onChange={(e) => setF({ ...f, effort: e.target.value })}>{["low", "medium", "high", "xhigh", "max"].map((x) => <option key={x}>{x}</option>)}</select></label>
+            </div>
+          </details>
         </div>
       </Card>
-      <Card title="How the AI works here">
-        <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
-          <li>The analyst does not guess. It calls tools that read the database and run the deterministic engines (indicators, levels, patterns, fundamentals, rankings, backtests, portfolio, document search), then explains the results.</li>
-          <li>It is instructed to cite data dates, separate facts from calculations, assumptions and predictions, and to say "data unavailable" when it is.</li>
-          <li>Questions and the data it reads are sent directly from this device to the AI provider you choose. Without a key, nothing leaves your device and the analyst answers with rule-based reports.</li>
-          {BROWSER_BACKEND && <li>Get a key at console.anthropic.com. You pay the provider directly for usage; set a monthly spending limit there.</li>}
-          <li>Effort: higher effort = more thorough reasoning and higher cost. Medium suits most questions.</li>
+      <Card title="Basic mode vs Claude">
+        <ul className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+          <li><strong>Without a key (basic mode):</strong> free and private. The analyst answers common questions (a stock, comparisons, rankings, support, breakouts, your portfolio, "where should I put Rs. X", fixed deposits) with tables built from the app's data.</li>
+          <li><strong>With Claude:</strong> real conversation and follow-ups, plain-language explanations, and reading bank rate notices. It still uses only the app's data and shows dates and sources.</li>
+          <li>Your questions and the data needed to answer them go directly from this device to Anthropic. Nothing goes to any other server.</li>
         </ul>
       </Card>
     </div>
@@ -135,21 +146,21 @@ function FeesTab() {
       <Card title="Broker commission slabs" sub="Rate applies to the whole transaction value in that slab">
         <table className="t"><thead><tr><th>Up to (Rs.)</th><th>Rate %</th></tr></thead><tbody>
           {f.commissionSlabs.map((sl: any, i: number) => (
-            <tr key={i}><td><input className="input" type="number" value={sl.upTo ?? ""} placeholder="and above" onChange={(e) => { const c = [...f.commissionSlabs]; c[i] = { ...sl, upTo: e.target.value === "" ? null : +e.target.value }; setF({ ...f, commissionSlabs: c }); }} /></td>
-              <td><input className="input" type="number" step="0.01" value={+(sl.rate * 100).toFixed(4)} onChange={(e) => { const c = [...f.commissionSlabs]; c[i] = { ...sl, rate: +e.target.value / 100 }; setF({ ...f, commissionSlabs: c }); }} /></td></tr>
+            <tr key={i}><td><NumInput className="input" value={sl.upTo ?? ""} placeholder="and above" onChange={(e) => { const c = [...f.commissionSlabs]; c[i] = { ...sl, upTo: e.target.value === "" ? null : +e.target.value }; setF({ ...f, commissionSlabs: c }); }} /></td>
+              <td><NumInput className="input" step="0.01" value={+(sl.rate * 100).toFixed(4)} onChange={(e) => { const c = [...f.commissionSlabs]; c[i] = { ...sl, rate: +e.target.value / 100 }; setF({ ...f, commissionSlabs: c }); }} /></td></tr>
           ))}
         </tbody></table>
       </Card>
       <Card title="Other charges & taxes">
         <div className="form-grid">
-          <label className="field">Minimum commission (Rs.)<input className="input" type="number" value={f.minCommission} onChange={(e) => setF({ ...f, minCommission: e.target.value })} /></label>
-          <label className="field">SEBON fee %<input className="input" type="number" step="0.001" value={+(f.sebonFeeRate * 100).toFixed(4)} onChange={(e) => setF({ ...f, sebonFeeRate: +e.target.value / 100 })} /></label>
-          <label className="field">DP charge per scrip sold (Rs.)<input className="input" type="number" value={f.dpChargePerScrip} onChange={(e) => setF({ ...f, dpChargePerScrip: e.target.value })} /></label>
-          <label className="field">CGT, held ≤ threshold %<input className="input" type="number" step="0.5" value={+(f.cgtShortTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtShortTerm: +e.target.value / 100 })} /></label>
-          <label className="field">CGT, held longer %<input className="input" type="number" step="0.5" value={+(f.cgtLongTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtLongTerm: +e.target.value / 100 })} /></label>
-          <label className="field">Long-term threshold (days)<input className="input" type="number" value={f.holdingDaysForLongTerm} onChange={(e) => setF({ ...f, holdingDaysForLongTerm: e.target.value })} /></label>
-          <label className="field">CGT institutions %<input className="input" type="number" step="0.5" value={+(f.cgtInstitution * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtInstitution: +e.target.value / 100 })} /></label>
-          <label className="field">Dividend tax %<input className="input" type="number" step="0.5" value={+(f.dividendTax * 100).toFixed(2)} onChange={(e) => setF({ ...f, dividendTax: +e.target.value / 100 })} /></label>
+          <label className="field">Minimum commission (Rs.)<NumInput className="input" value={f.minCommission} onChange={(e) => setF({ ...f, minCommission: e.target.value })} /></label>
+          <label className="field">SEBON fee %<NumInput className="input" step="0.001" value={+(f.sebonFeeRate * 100).toFixed(4)} onChange={(e) => setF({ ...f, sebonFeeRate: +e.target.value / 100 })} /></label>
+          <label className="field">DP charge per scrip sold (Rs.)<NumInput className="input" value={f.dpChargePerScrip} onChange={(e) => setF({ ...f, dpChargePerScrip: e.target.value })} /></label>
+          <label className="field">CGT, held ≤ threshold %<NumInput className="input" step="0.5" value={+(f.cgtShortTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtShortTerm: +e.target.value / 100 })} /></label>
+          <label className="field">CGT, held longer %<NumInput className="input" step="0.5" value={+(f.cgtLongTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtLongTerm: +e.target.value / 100 })} /></label>
+          <label className="field">Long-term threshold (days)<NumInput className="input" value={f.holdingDaysForLongTerm} onChange={(e) => setF({ ...f, holdingDaysForLongTerm: e.target.value })} /></label>
+          <label className="field">CGT institutions %<NumInput className="input" step="0.5" value={+(f.cgtInstitution * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtInstitution: +e.target.value / 100 })} /></label>
+          <label className="field">Dividend tax %<NumInput className="input" step="0.5" value={+(f.dividendTax * 100).toFixed(2)} onChange={(e) => setF({ ...f, dividendTax: +e.target.value / 100 })} /></label>
           <label className="field">Verified on<input className="input" value={f.verifiedOn} onChange={(e) => setF({ ...f, verifiedOn: e.target.value })} /></label>
         </div>
         <ul className="tiny faint" style={{ paddingLeft: 18 }}>{s.data.defaults.notes.map((n: string) => <li key={n}>{n}</li>)}</ul>
@@ -197,7 +208,7 @@ function SecurityTab() {
   const change = async () => { try { await api("/auth/password", { body: pw }); setMsg("Password changed. Other sessions were signed out."); setPw({ current: "", next: "" }); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); } };
   return (
     <div className="grid g2">
-      {BROWSER_BACKEND ? <DeviceBackup onMsg={setMsg} msg={msg} /> : <Card title="Password">
+      {BROWSER_BACKEND ? <CloudBackup /> : <Card title="Password">
         <div className="col">
           <label className="field">Current password<input className="input" type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} autoComplete="current-password" /></label>
           <label className="field">New password (10+ characters)<input className="input" type="password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} autoComplete="new-password" /></label>
@@ -229,34 +240,6 @@ function SecurityTab() {
         <div className="row"><input className="input" placeholder="Type DELETE MY DATA" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} /><button className="btn danger" disabled={confirmText !== "DELETE MY DATA"} onClick={async () => { await api("/account/delete-personal-data", { body: { confirm: confirmText } }); setMsg("Personal data deleted."); setConfirmText(""); }}>Delete</button></div>
       </Card>
     </div>
-  );
-}
-
-function DeviceBackup({ onMsg, msg }: { onMsg: (m: string) => void; msg: string | null }) {
-  const download = async () => {
-    flushBackend();
-    const r = await api<{ filename: string; base64: string }>("/backup/file");
-    const bytes = Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0));
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([bytes], { type: "application/x-sqlite3" }));
-    a.download = r.filename; document.body.appendChild(a); a.click(); a.remove();
-    onMsg("Backup downloaded. On iPhone/iPad choose “Save to Files” (e.g. iCloud Drive).");
-  };
-  const restore = async (file: File) => {
-    if (!confirm("Replace all personal data on this device with this backup?")) return;
-    const buf = new Uint8Array(await file.arrayBuffer());
-    let s = ""; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-    try { await api("/backup/restore", { body: { base64: btoa(s) } }); onMsg("Backup restored."); setTimeout(() => location.reload(), 800); } catch (e) { onMsg(e instanceof Error ? e.message : String(e)); }
-  };
-  return (
-    <Card title="Backup file">
-      <p className="small muted">A single file with all your personal data on this device (portfolios, transactions, journal, goals, watchlists, alerts, documents, settings). Save it to iCloud Drive; restore it on any device.</p>
-      <div className="row">
-        <button className="btn primary" onClick={download}><I.download /> Download backup file</button>
-        <label className="btn"><I.upload /> Restore from file<input type="file" accept=".sqlite,.db,application/octet-stream" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void restore(f); }} /></label>
-      </div>
-      {msg && <div style={{ marginTop: 8 }}><Notice>{msg}</Notice></div>}
-    </Card>
   );
 }
 
@@ -320,6 +303,7 @@ function AppearanceTab() {
       </Card>
       <Card title="Navigation">
         <div className="col" style={{ gap: 14 }}>
+          <label className="field">Your name (home greeting)<input className="input" value={prefs.name ?? ""} maxLength={30} onChange={(e) => set("name", e.target.value)} placeholder="Saphal" /></label>
           <label className="field">Start page<select className="input" value={prefs.landing} onChange={(e) => set("landing", e.target.value)}>{pages.map((n) => <option key={n.to} value={n.to}>{n.label}</option>)}</select></label>
           <div>
             <div className="small muted" style={{ marginBottom: 6 }}>iPhone tab bar (pick up to 4; “More” is always last)</div>

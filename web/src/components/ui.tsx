@@ -1,6 +1,6 @@
-import { useMemo, useState, type ReactNode, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type ReactNode, type CSSProperties } from "react";
 import { I } from "./icons.tsx";
-import { scoreColor, isNum, nptDate, ago } from "../lib/format.ts";
+import { scoreColor, isNum, nptDate, ago, numberLocale } from "../lib/format.ts";
 
 export function Card({ title, actions, children, flush, className, style, sub }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; flush?: boolean; className?: string; style?: CSSProperties; sub?: ReactNode }) {
   return (
@@ -183,4 +183,47 @@ export function ScoreBar({ value, label }: { value: number | null | undefined; l
 
 export function Disclaimer() {
   return <p className="tiny faint" style={{ marginTop: 8 }}>Decision-support only, not licensed financial advice. Scores, levels and setups are calculations from stored data; they can be wrong and do not predict returns. Verify before you trade.</p>;
+}
+
+/**
+ * Number box that behaves well on iPhone: it can be cleared completely, tapping selects the
+ * whole value (typing replaces it, no "05699"), the numeric keypad opens, and when you are not
+ * editing it shows grouped digits (60,00,000). Drop-in for <input type="number">: onChange gets
+ * an event-like object whose target.value is the plain number text ("" when empty).
+ */
+export function NumInput({ value, onChange, className = "input", min, max, step, placeholder, style, title, disabled, autoFocus, id, name }: {
+  value: number | string | null | undefined; onChange?: (e: any) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
+  className?: string; min?: number | string; max?: number | string; step?: number | string; placeholder?: string; style?: CSSProperties; title?: string; disabled?: boolean; autoFocus?: boolean; id?: string; name?: string;
+}) {
+  const asText = (v: unknown) => (v === null || v === undefined || v === "" || (typeof v === "number" && !Number.isFinite(v)) ? "" : String(v));
+  const [text, setText] = useState(asText(value));
+  const [focused, setFocused] = useState(false);
+  // Follow outside changes, but keep an empty box empty while the value is 0.
+  useEffect(() => {
+    const outside = asText(value);
+    if (Number(outside || 0) !== Number(text || 0) || (outside === "" && text !== "" && !focused)) setText(outside);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allowNeg = min === undefined || Number(min) < 0;
+  const clean = (raw: string) => {
+    let t = raw.replace(/[,\s]/g, "").replace(allowNeg ? /[^\d.-]/g : /[^\d.]/g, "");
+    t = t.replace(/(?!^)-/g, "");
+    const dot = t.indexOf(".");
+    if (dot >= 0) t = t.slice(0, dot + 1) + t.slice(dot + 1).replace(/\./g, "");
+    if (/^-?0\d/.test(t)) t = t.replace(/^(-?)0+(?=\d)/, "$1"); // no leading zeros
+    return t;
+  };
+  const emit = (t: string) => onChange?.({ target: { value: t, valueAsNumber: t === "" ? NaN : Number(t) }, currentTarget: { value: t } });
+  const n = Number(text);
+  const shown = focused || text === "" || text === "-" || !Number.isFinite(n) ? text
+    : n.toLocaleString(numberLocale(), { maximumFractionDigits: (text.split(".")[1] ?? "").length });
+  return (
+    <input
+      id={id} name={name} className={className} style={style} title={title} disabled={disabled} autoFocus={autoFocus}
+      type="text" inputMode={allowNeg && Number(min ?? -1) < 0 && min !== undefined ? "text" : "decimal"} enterKeyHint="done" autoComplete="off"
+      placeholder={placeholder} value={shown} data-step={step} data-max={max}
+      onFocus={(e) => { setFocused(true); const el = e.currentTarget; requestAnimationFrame(() => { try { el.select(); } catch { /* ignore */ } }); }}
+      onBlur={() => { setFocused(false); if (text === "-" || text === ".") { setText(""); emit(""); } }}
+      onChange={(e) => { const t = clean(e.target.value); setText(t); emit(t); }}
+    />
+  );
 }

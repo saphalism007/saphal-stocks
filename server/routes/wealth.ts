@@ -99,6 +99,46 @@ wealthRouter.post("/money/deposit-rates/extract", async (req, res) => {
   res.json({ institution: notice.institution, effective_from: x.effective_from, saved: x.rates.length, rates: x.rates, saving_rate_max: x.saving_rate_max, base_rate: x.base_rate });
 });
 
+// ---------- income & expense tracker ----------
+const entryBody = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), type: z.enum(["income", "expense"]), category: z.string().min(1).max(40), amount: n.positive().max(1e10), note: z.string().max(300).nullable().optional(), method: z.string().max(30).nullable().optional() });
+const monthQ = (q: unknown) => z.string().regex(/^\d{4}-\d{2}$/).parse(q);
+const monthsBack = (m: string, k: number) => { const [y, mo] = m.split("-").map(Number); const d = new Date(Date.UTC(y, mo - 1 - k, 1)); return d.toISOString().slice(0, 7); };
+wealthRouter.get("/money/entries", (req, res) => {
+  const month = monthQ(req.query.month ?? new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 7));
+  const rows = all<MO.Entry & { id: number }>("SELECT id, date, type, category, amount, note, method FROM money_entries WHERE substr(date, 1, 7) = ? ORDER BY date DESC, id DESC", month);
+  const trend = Array.from({ length: 6 }, (_, i) => monthsBack(month, 5 - i)).map((m) => {
+    const r = get<{ inc: number | null; exp: number | null; inv: number | null }>("SELECT SUM(CASE WHEN type='income' THEN amount END) inc, SUM(CASE WHEN type='expense' AND category <> 'invest' THEN amount END) exp, SUM(CASE WHEN type='expense' AND category = 'invest' THEN amount END) inv FROM money_entries WHERE substr(date,1,7) = ?", m);
+    return { month: m, income: r?.inc ?? 0, spending: r?.exp ?? 0, invested: r?.inv ?? 0 };
+  });
+  const prev = MO.summarizeEntries(all<MO.Entry>("SELECT date, type, category, amount FROM money_entries WHERE substr(date, 1, 7) = ?", monthsBack(month, 1)));
+  res.json({ month, entries: rows, summary: MO.summarizeEntries(rows), previous: { month: monthsBack(month, 1), spending: prev.spending, income: prev.income }, trend, count: get<{ n: number }>("SELECT COUNT(*) n FROM money_entries")?.n ?? 0 });
+});
+wealthRouter.post("/money/entries", (req, res) => {
+  const e = entryBody.parse(req.body);
+  res.json({ id: Number(run("INSERT INTO money_entries (date, type, category, amount, note, method, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)", e.date, e.type, e.category, e.amount, e.note ?? null, e.method ?? null, nowIso()).lastInsertRowid) });
+});
+wealthRouter.put("/money/entries/:id", (req, res) => {
+  const e = entryBody.parse(req.body);
+  run("UPDATE money_entries SET date = ?, type = ?, category = ?, amount = ?, note = ?, method = ? WHERE id = ?", e.date, e.type, e.category, e.amount, e.note ?? null, e.method ?? null, Number(req.params.id));
+  res.json({ ok: true });
+});
+wealthRouter.delete("/money/entries/:id", (req, res) => { run("DELETE FROM money_entries WHERE id = ?", Number(req.params.id)); res.json({ ok: true }); });
+wealthRouter.get("/money/entries/averages", (_req, res) => {
+  // The last three full months before this one.
+  const cur = new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 7);
+  const months = [1, 2, 3].map((k) => monthsBack(cur, k)).filter((m) => (get<{ n: number }>("SELECT COUNT(*) n FROM money_entries WHERE substr(date,1,7) = ?", m)?.n ?? 0) > 0);
+  const entries = all<MO.Entry>("SELECT date, type, category, amount FROM money_entries WHERE substr(date,1,7) IN (" + months.map(() => "?").join(",") + ")", ...months);
+  const incomes = months.length ? entries.filter((e) => e.type === "income").reduce((s2, e) => s2 + e.amount, 0) / months.length : 0;
+  res.json({ months, expenses: months.length ? MO.averageMonthly(entries, months) : [], income: Math.round(incomes) });
+});
+wealthRouter.get("/money/entries.csv", (_req, res) => {
+  const rows = all<MO.Entry>("SELECT date, type, category, amount, note, method FROM money_entries ORDER BY date, id");
+  const esc = (v: unknown) => { const t = v == null ? "" : String(v); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="saphal-income-expenses.csv"');
+  res.send(["Date,Type,Category,Amount (NPR),Note,Paid with", ...rows.map((r) => [r.date, r.type, r.category, r.amount, r.note, r.method].map(esc).join(","))].join("\n"));
+});
+
 // ---------- investment products & resources ----------
 wealthRouter.get("/products", (_req, res) => res.json(all("SELECT * FROM products ORDER BY category, name")));
 

@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Stat, Loading, ErrorBox, Tabs, Badge, Notice, Empty } from "../components/ui.tsx";
+import { Card, Stat, Loading, ErrorBox, Tabs, Badge, Notice, Empty, NumInput } from "../components/ui.tsx";
 import { I } from "../components/icons.tsx";
 import { compact, num, pct, tone, nptDate } from "../lib/format.ts";
-import { CLASS, EXPENSE_CATEGORIES, EMPTY_MONEY, summarize, type MoneyData, type MoneySummary, type Advice, type AccountType, type LiabilityType, type MarketRates } from "../../../shared/money.ts";
+import { Tracker } from "./Tracker.tsx";
+import { CLASS, EXPENSE_CATEGORIES, ENTRY_CATEGORIES, EMPTY_MONEY, summarize, type MoneyData, type MoneySummary, type Advice, type AccountType, type LiabilityType, type MarketRates } from "../../../shared/money.ts";
 
 interface Overview { saved: boolean; data: MoneyData; summary: MoneySummary; advice: Advice[]; rates: MarketRates & { sources: Record<string, string> }; portfolioValue: number; goals: { name: string; amount: number; years: number }[] }
-type Tab = "overview" | "cash" | "accounts" | "loans" | "prefs";
+type Tab = "tracker" | "overview" | "cash" | "accounts" | "loans" | "prefs";
 const uid = () => Math.random().toString(36).slice(2, 9);
 const LIAB: [LiabilityType, string][] = [["home", "Home loan"], ["car", "Car / vehicle loan"], ["personal", "Personal loan"], ["education", "Education loan"], ["credit_card", "Credit card"], ["business", "Business loan"], ["family", "Borrowed from family / friends"], ["other", "Other"]];
 const KIND_COLOR: Record<string, string> = { cash: "var(--blue)", guaranteed: "var(--up)", market: "var(--violet)", illiquid: "var(--text-3)" };
@@ -17,7 +18,7 @@ const KIND_LABEL: Record<string, string> = { cash: "Cash & savings", guaranteed:
 
 export default function Money() {
   const o = useApi<Overview>("/money");
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(() => (new URLSearchParams(location.search).get("tab") as Tab) || "tracker");
   const [d, setD] = useState<MoneyData>(EMPTY_MONEY);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -31,13 +32,21 @@ export default function Money() {
   return (
     <div className="page">
       <div className="page-head row between">
-        <div><h1>My Money</h1><p className="muted">Income, spending, savings, investments and loans in NPR. Saved on this device{o.data.saved ? "" : " (nothing saved yet)"}.</p></div>
-        <div className="row">
+        <div><h1>My Money</h1><p className="muted">Track daily income and spending, and see your whole financial picture. Saved on this device.</p></div>
+        {tab !== "tracker" && <div className="row">
           {dirty && <span className="small warn">Unsaved changes</span>}
           <button className="btn primary" disabled={!dirty || saving} onClick={save}>{saving ? <span className="spinner" /> : "Save"}</button>
-        </div>
+        </div>}
       </div>
-      <Tabs value={tab} onChange={setTab} tabs={[{ key: "overview", label: "Overview" }, { key: "cash", label: "Income & expenses" }, { key: "accounts", label: "Savings & investments" }, { key: "loans", label: "Loans" }, { key: "prefs", label: "Risk & goals" }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ key: "tracker", label: "Daily tracker" }, { key: "overview", label: "Overview" }, { key: "cash", label: "Monthly budget" }, { key: "accounts", label: "Savings & investments" }, { key: "loans", label: "Loans" }, { key: "prefs", label: "Risk & goals" }]} />
+      {tab === "tracker" && <Tracker onUseAsBudget={(a) => {
+        const exp = a.expenses.filter((x) => x.category !== "invest").map((x) => {
+          const c = ENTRY_CATEGORIES.expense.find((k) => k.key === x.category);
+          return { id: uid(), label: c?.label ?? x.category, amount: x.amount, category: c?.budget ?? "other", essential: !["dining", "shopping", "travel", "social"].includes(x.category) };
+        });
+        set({ ...d, expenses: exp, income: a.income > 0 && d.income.length === 0 ? [{ id: uid(), label: "Average tracked income", amount: a.income }] : d.income });
+        setTab("cash");
+      }} />}
       {tab === "overview" && <OverviewTab s={s} o={o.data} advice={dirty ? null : o.data.advice} onEdit={setTab} />}
       {tab === "cash" && <CashTab d={d} set={set} s={s} />}
       {tab === "accounts" && <AccountsTab d={d} set={set} portfolioValue={o.data.portfolioValue} />}
@@ -109,7 +118,7 @@ function OverviewTab({ s, o, advice, onEdit }: { s: MoneySummary; o: Overview; a
 }
 
 function Num({ value, onChange, placeholder, w = 130 }: { value: number | null | undefined; onChange: (v: number) => void; placeholder?: string; w?: number }) {
-  return <input className="input num" style={{ width: w }} type="number" inputMode="decimal" value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(Number(e.target.value) || 0)} />;
+  return <NumInput className="input num" style={{ width: w }} value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(Number(e.target.value) || 0)} />;
 }
 
 function CashTab({ d, set, s }: { d: MoneyData; set: (d: MoneyData) => void; s: MoneySummary }) {
@@ -216,8 +225,8 @@ function PrefsTab({ d, set, goals }: { d: MoneyData; set: (d: MoneyData) => void
       <Card title="Risk and time horizon" sub="Used by the allocation advisor">
         <div className="form-grid">
           <label className="field">Risk tolerance<select className="input" value={d.risk} onChange={(e) => set({ ...d, risk: e.target.value as MoneyData["risk"] })}><option value="low">Low: protect capital</option><option value="medium">Medium: balanced</option><option value="high">High: growth, accept big swings</option></select></label>
-          <label className="field">Main investment horizon (years)<input className="input" type="number" value={d.horizonYears} onChange={(e) => set({ ...d, horizonYears: Number(e.target.value) || 0 })} /></label>
-          <label className="field">Emergency fund (months of essential costs)<input className="input" type="number" min={1} max={24} value={d.emergencyMonths} onChange={(e) => set({ ...d, emergencyMonths: Math.max(1, Number(e.target.value) || 6) })} /></label>
+          <label className="field">Main investment horizon (years)<NumInput className="input" value={d.horizonYears} onChange={(e) => set({ ...d, horizonYears: Number(e.target.value) || 0 })} /></label>
+          <label className="field">Emergency fund (months of essential costs)<NumInput className="input" min={1} max={24} value={d.emergencyMonths} onChange={(e) => set({ ...d, emergencyMonths: Math.max(1, Number(e.target.value) || 6) })} /></label>
         </div>
       </Card>
       <Card title="Your goals" actions={<Link className="btn sm" to="/planner">Manage goals</Link>}>

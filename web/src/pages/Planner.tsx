@@ -3,7 +3,7 @@ import { Fragment } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Stat, Loading, Notice, Badge, Tabs, Empty, DataTable } from "../components/ui.tsx";
+import { Card, Stat, Loading, Notice, Badge, Tabs, Empty, DataTable, NumInput } from "../components/ui.tsx";
 import { LineChart } from "../components/PriceChart.tsx";
 import { I } from "../components/icons.tsx";
 import { num, compact, rs, pct, todayNpt, nptDate, tone } from "../lib/format.ts";
@@ -54,10 +54,10 @@ function Profile() {
     <div className="grid g3">
       <Card title="Your financial situation" className="span2" sub="Encrypted with AES-256-GCM in the local database">
         <div className="form-grid">
-          {PROFILE_FIELDS.map(([k, l]) => <label key={k} className="field">{l} (Rs.)<input className="input" type="number" value={f[k] ?? ""} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>)}
+          {PROFILE_FIELDS.map(([k, l]) => <label key={k} className="field">{l} (Rs.)<NumInput className="input" value={f[k] ?? ""} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>)}
           <label className="field">Risk tolerance<select className="input" value={f.risk ?? "medium"} onChange={(e) => setF({ ...f, risk: e.target.value })}><option value="low">Low: protect capital</option><option value="medium">Medium: balanced</option><option value="high">High: growth, accept big swings</option></select></label>
-          <label className="field">Investment horizon (years)<input className="input" type="number" value={f.horizon ?? ""} onChange={(e) => setF({ ...f, horizon: e.target.value })} /></label>
-          <label className="field">Dependents<input className="input" type="number" value={f.dependents ?? ""} onChange={(e) => setF({ ...f, dependents: e.target.value })} /></label>
+          <label className="field">Investment horizon (years)<NumInput className="input" value={f.horizon ?? ""} onChange={(e) => setF({ ...f, horizon: e.target.value })} /></label>
+          <label className="field">Dependents<NumInput className="input" value={f.dependents ?? ""} onChange={(e) => setF({ ...f, dependents: e.target.value })} /></label>
         </div>
         <label className="field" style={{ marginTop: 12 }}>Preferences and obligations<textarea className="input" value={f.notes ?? ""} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="e.g. prefer dividend stocks, avoid hydropower, family obligations…" /></label>
         <div className="row" style={{ marginTop: 10 }}><button className="btn primary" onClick={save}>Save profile</button>{saved && <span className="small up">Saved</span>}</div>
@@ -126,14 +126,14 @@ function Goals() {
             <label className="field">Goal<select className="input" value={f.name in GOAL_PRESETS ? f.name : "custom"} onChange={(e) => e.target.value !== "custom" && setF({ ...f, name: e.target.value, ...GOAL_PRESETS[e.target.value] })}>{Object.keys(GOAL_PRESETS).map((k) => <option key={k}>{k}</option>)}<option value="custom">Custom…</option></select></label>
             <label className="field">Name<input className="input" value={f.name} onChange={set("name")} /></label>
             <div className="grid g2">
-              <label className="field">Cost today (Rs.)<input className="input" type="number" value={f.costToday} onChange={set("costToday")} /></label>
-              <label className="field">Years<input className="input" type="number" value={f.years} onChange={set("years")} /></label>
-              <label className="field">Inflation for this goal %<input className="input" type="number" step="0.5" value={f.inflationPct} onChange={set("inflationPct")} /></label>
-              <label className="field">Saved so far (Rs.)<input className="input" type="number" value={f.currentSaved} onChange={set("currentSaved")} /></label>
-              <label className="field">Monthly you can invest<input className="input" type="number" value={f.monthlyCapacity} onChange={set("monthlyCapacity")} /></label>
-              <label className="field">Yearly increase %<input className="input" type="number" value={f.annualStepUpPct} onChange={set("annualStepUpPct")} /></label>
-              <label className="field">Costs/fees % per year<input className="input" type="number" step="0.1" value={f.investmentCostPct} onChange={set("investmentCostPct")} /></label>
-              <label className="field">Tax on gains %<input className="input" type="number" step="0.5" value={f.taxOnGainsPct} onChange={set("taxOnGainsPct")} /></label>
+              <label className="field">Cost today (Rs.)<NumInput className="input" value={f.costToday} onChange={set("costToday")} /></label>
+              <label className="field">Years<NumInput className="input" value={f.years} onChange={set("years")} /></label>
+              <label className="field">Inflation for this goal %<NumInput className="input" step="0.5" value={f.inflationPct} onChange={set("inflationPct")} /></label>
+              <label className="field">Saved so far (Rs.)<NumInput className="input" value={f.currentSaved} onChange={set("currentSaved")} /></label>
+              <label className="field">Monthly you can invest<NumInput className="input" value={f.monthlyCapacity} onChange={set("monthlyCapacity")} /></label>
+              <label className="field">Yearly increase %<NumInput className="input" value={f.annualStepUpPct} onChange={set("annualStepUpPct")} /></label>
+              <label className="field">Costs/fees % per year<NumInput className="input" step="0.1" value={f.investmentCostPct} onChange={set("investmentCostPct")} /></label>
+              <label className="field">Tax on gains %<NumInput className="input" step="0.5" value={f.taxOnGainsPct} onChange={set("taxOnGainsPct")} /></label>
             </div>
             <button className="btn primary" onClick={save}>{sel ? "Update goal" : "Save goal"}</button>
           </div>
@@ -172,8 +172,8 @@ function CarPlanner() {
   return (
     <div className="grid g3">
       <Card title="Car details">
-        <div className="col">
-          {([["price", "Car price today (Rs.)"], ["currentSaved", "Saved so far"], ["monthlyCapacity", "Monthly you can save / pay"], ["downPaymentPct", "Down payment %"], ["maxLtvPct", "Bank max loan-to-value % (check NRB limit)"], ["loanRatePct", "Loan interest rate %"], ["loanYears", "Loan years"], ["savingsReturnPct", "Return on savings while you wait %"], ["carInflationPct", "Car price increase %/yr"]] as [keyof typeof f, string][]).map(([k, l]) => <label key={k} className="field">{l}<input className="input" type="number" value={f[k]} onChange={set(k)} /></label>)}
+        <div className="form-grid tight">
+          {([["price", "Car price today (Rs.)"], ["currentSaved", "Saved so far"], ["monthlyCapacity", "Monthly you can save / pay"], ["downPaymentPct", "Down payment %"], ["maxLtvPct", "Max loan % (bank limit)"], ["loanRatePct", "Loan interest rate %"], ["loanYears", "Loan years"], ["savingsReturnPct", "Return on savings while you wait %"], ["carInflationPct", "Car price increase %/yr"]] as [keyof typeof f, string][]).map(([k, l]) => <label key={k} className="field">{l}<NumInput className="input" value={f[k]} onChange={set(k)} /></label>)}
         </div>
       </Card>
       <div className="col span2">
@@ -219,12 +219,12 @@ function Allocation() {
     <div className="grid g3">
       <Card title="Money to allocate" sub={profile ? "Pre-filled from your profile" : "Save your profile to pre-fill"}>
         <div className="col">
-          <label className="field">Amount (Rs.)<input className="input" type="number" value={f.amount} onChange={(e) => setF({ ...f, amount: +e.target.value })} /></label>
-          <label className="field">Emergency fund gap<input className="input" type="number" value={f.emergencyFundGap} onChange={(e) => setF({ ...f, emergencyFundGap: +e.target.value })} /></label>
-          <label className="field">High-interest debt<input className="input" type="number" value={f.highInterestDebt} onChange={(e) => setF({ ...f, highInterestDebt: +e.target.value })} /></label>
-          <label className="field">Near-term goal amount<input className="input" type="number" value={f.nearTermGoalAmount} onChange={(e) => setF({ ...f, nearTermGoalAmount: +e.target.value })} /></label>
-          <label className="field">Near-term goal in (years)<input className="input" type="number" value={f.nearTermGoalYears} onChange={(e) => setF({ ...f, nearTermGoalYears: +e.target.value })} /></label>
-          <label className="field">Long-term horizon (years)<input className="input" type="number" value={f.horizonYears} onChange={(e) => setF({ ...f, horizonYears: +e.target.value })} /></label>
+          <label className="field">Amount (Rs.)<NumInput className="input" value={f.amount} onChange={(e) => setF({ ...f, amount: +e.target.value })} /></label>
+          <label className="field">Emergency fund gap<NumInput className="input" value={f.emergencyFundGap} onChange={(e) => setF({ ...f, emergencyFundGap: +e.target.value })} /></label>
+          <label className="field">High-interest debt<NumInput className="input" value={f.highInterestDebt} onChange={(e) => setF({ ...f, highInterestDebt: +e.target.value })} /></label>
+          <label className="field">Near-term goal amount<NumInput className="input" value={f.nearTermGoalAmount} onChange={(e) => setF({ ...f, nearTermGoalAmount: +e.target.value })} /></label>
+          <label className="field">Near-term goal in (years)<NumInput className="input" value={f.nearTermGoalYears} onChange={(e) => setF({ ...f, nearTermGoalYears: +e.target.value })} /></label>
+          <label className="field">Long-term horizon (years)<NumInput className="input" value={f.horizonYears} onChange={(e) => setF({ ...f, horizonYears: +e.target.value })} /></label>
           <label className="field">Risk tolerance<select className="input" value={f.risk} onChange={(e) => setF({ ...f, risk: e.target.value as "low" })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
         </div>
       </Card>
@@ -266,8 +266,8 @@ function NetWorth() {
       <Card title="Snapshot">
         <div className="col">
           <label className="field">Date<input className="input" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></label>
-          {assets.map((k) => <label key={k} className="field">{k.replace(/([A-Z])/g, " $1")} {k === "shares" && <span className="faint">(from your real portfolios)</span>}<input className="input" type="number" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>)}
-          {liabs.map((k) => <label key={k} className="field">{k.replace(/([A-Z])/g, " $1")} (liability)<input className="input" type="number" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>)}
+          {assets.map((k) => <label key={k} className="field">{k.replace(/([A-Z])/g, " $1")} {k === "shares" && <span className="faint">(from your real portfolios)</span>}<NumInput className="input" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>)}
+          {liabs.map((k) => <label key={k} className="field">{k.replace(/([A-Z])/g, " $1")} (liability)<NumInput className="input" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} /></label>)}
           <div className="row between"><strong>Net worth</strong><span className="mono">{rs(total(f), 0)}</span></div>
           <button className="btn primary" onClick={async () => { await api("/vault/networth", { body: f }); nw.reload(); }}>Save snapshot</button>
         </div>
@@ -294,7 +294,7 @@ function Calc({ title, fields, compute, sub }: { title: string; sub?: string; fi
   try { out = compute(v); } catch { out = [["Result", "Check inputs"]]; }
   return (
     <Card title={title} sub={sub}>
-      <div className="grid g2" style={{ gap: 8 }}>{fields.map(([k, l]) => <label key={k} className="field">{l}<input className="input" type="number" value={v[k]} onChange={(e) => setV({ ...v, [k]: +e.target.value })} /></label>)}</div>
+      <div className="grid g2" style={{ gap: 8 }}>{fields.map(([k, l]) => <label key={k} className="field">{l}<NumInput className="input" value={v[k]} onChange={(e) => setV({ ...v, [k]: +e.target.value })} /></label>)}</div>
       <div className="sep" />
       <dl className="kv">{out.map(([k, x]) => <Fragment key={k}><dt>{k}</dt><dd>{x}</dd></Fragment>)}</dl>
     </Card>

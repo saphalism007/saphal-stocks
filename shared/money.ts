@@ -273,3 +273,51 @@ export function scenariosFromRates(r: Pick<MarketRates, "fdPct" | "equityLongRun
     { name: "Aggressive" as const, returnPct: mix(0.7), volatilityPct: 18, description: `30% fixed income, 70% equity; large swings likely.` },
   ];
 }
+
+// ---------- income & expense tracker ----------
+export const ENTRY_CATEGORIES = {
+  expense: [
+    { key: "food", label: "Food & groceries", budget: "food" }, { key: "housing", label: "Rent / housing", budget: "housing" }, { key: "transport", label: "Transport / fuel", budget: "transport" },
+    { key: "utilities", label: "Electricity, water, gas", budget: "utilities" }, { key: "subscriptions", label: "Phone, internet, subscriptions", budget: "subscriptions" },
+    { key: "dining", label: "Eating out / entertainment", budget: "dining" }, { key: "shopping", label: "Shopping / clothes", budget: "shopping" }, { key: "health", label: "Health / medicine", budget: "health" },
+    { key: "education", label: "School / education", budget: "education" }, { key: "insurance", label: "Insurance premiums", budget: "insurance" }, { key: "family", label: "Family support", budget: "family" },
+    { key: "social", label: "Festivals, gifts, social", budget: "social" }, { key: "travel", label: "Travel / holidays", budget: "travel" }, { key: "emi", label: "Loan EMI", budget: null },
+    { key: "invest", label: "Saved / invested", budget: null }, { key: "other", label: "Other", budget: "other" },
+  ],
+  income: [
+    { key: "salary", label: "Salary" }, { key: "business", label: "Business / professional" }, { key: "rent", label: "Rent received" }, { key: "dividend", label: "Dividends" },
+    { key: "interest", label: "Interest" }, { key: "freelance", label: "Freelance / side income" }, { key: "gift", label: "Gift / remittance received" }, { key: "other_income", label: "Other" },
+  ],
+} as const;
+export const PAY_METHODS = ["Cash", "Bank", "Card", "eSewa", "Khalti", "Fonepay", "Other"];
+
+export interface Entry { id?: number; date: string; type: "income" | "expense"; category: string; amount: number; note?: string | null; method?: string | null }
+
+/** Month summary: totals, by category, by day; "invest" and EMI are shown separately from spending. */
+export function summarizeEntries(entries: Entry[]) {
+  const income = sum(entries.filter((e) => e.type === "income").map((e) => e.amount));
+  const exp = entries.filter((e) => e.type === "expense");
+  const invested = sum(exp.filter((e) => e.category === "invest").map((e) => e.amount));
+  const emi = sum(exp.filter((e) => e.category === "emi").map((e) => e.amount));
+  const spending = sum(exp.filter((e) => e.category !== "invest").map((e) => e.amount));
+  const byCat = new Map<string, number>();
+  for (const e of entries) byCat.set(`${e.type}:${e.category}`, (byCat.get(`${e.type}:${e.category}`) ?? 0) + e.amount);
+  const byDay = new Map<string, { income: number; expense: number }>();
+  for (const e of entries) { const d = byDay.get(e.date) ?? { income: 0, expense: 0 }; if (e.type === "income") d.income += e.amount; else d.expense += e.amount; byDay.set(e.date, d); }
+  return {
+    income, spending, invested, emi, net: income - spending,
+    savingsRatePct: income ? r1(((income - spending) / income) * 100) : null,
+    categories: [...byCat.entries()].map(([k, v]) => ({ type: k.split(":")[0] as "income" | "expense", category: k.split(":")[1], amount: v })).sort((a, b) => b.amount - a.amount),
+    days: [...byDay.entries()].map(([date, v]) => ({ date, ...v })).sort((a, b) => (a.date < b.date ? 1 : -1)),
+  };
+}
+
+/** Average monthly spending per budget category over full months, to fill My Money's expense list. */
+export function averageMonthly(entries: Entry[], months: string[]) {
+  const out = new Map<string, number>();
+  for (const e of entries) {
+    if (e.type !== "expense" || !months.includes(e.date.slice(0, 7))) continue;
+    out.set(e.category, (out.get(e.category) ?? 0) + e.amount / months.length);
+  }
+  return [...out.entries()].map(([category, amount]) => ({ category, amount: r0(amount) }));
+}

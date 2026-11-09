@@ -180,6 +180,11 @@ export async function syncCompanyDetail(symbol: string): Promise<{ dividends: nu
 
   const anns = await P.ssCompanyAnnouncements(sess, 50);
   saveAnnouncements(anns, symbol);
+  try {
+    const evs = await P.ssCompanyEvents(sess, 50);
+    const st = db.prepare("INSERT INTO company_events (url, symbol, title, published_date, kind, fetched_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET title = excluded.title, kind = excluded.kind");
+    tx(() => { for (const e of evs) st.run(e.url, symbol, e.title, e.publishedDate, P.classifyFiling(e.title), now); });
+  } catch (e) { console.warn(`[details] events ${symbol}: ${e instanceof Error ? e.message : e}`); }
 
   let period: string | null = null;
   try {

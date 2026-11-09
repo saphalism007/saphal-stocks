@@ -281,7 +281,7 @@ function GlobalSearch() {
   return (
     <div className="search" ref={box}>
       <I.search />
-      <input className="input" placeholder={typeof window !== "undefined" && window.innerWidth < 600 ? "Search stocks or pages" : "Search stocks, pages or actions (⌘ K)"} value={q} onChange={(e) => setQ(e.target.value)}
+      <input className="input" placeholder={typeof window !== "undefined" && window.innerWidth < 600 ? "Search" : "Search stocks, pages or actions (⌘ K)"} value={q} onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); } if (e.key === "Enter" && items[sel]) go(items[sel]); if (e.key === "Escape") setQ(""); }} />
       {items.length > 0 && (
         <div className="search-results">
@@ -308,7 +308,7 @@ function MarketBadge() {
   return (
     <span className="badge" title={`${d.note} Hours ${d.hours}. Data date ${d.dataDate ?? "—"}.`} style={{ gap: 6 }}>
       <span className="dot" style={{ background: d.session === "open" ? "var(--up)" : d.session === "pre-open" ? "var(--warn)" : "var(--text-3)" }} />
-      {label}{d.session === "open" && mins != null ? (mins <= 90 ? ` · ${mins} min ago` : d.dataDate ? ` · prices from ${nptDate(d.dataDate)}` : "") : ""}
+      <span className="hide-phone">{label}{d.session === "open" && mins != null ? (mins <= 90 ? ` · ${mins} min ago` : d.dataDate ? ` · prices from ${nptDate(d.dataDate)}` : "") : ""}</span><span className="show-phone">{d.session === "open" ? "Open" : d.session === "pre-open" ? "11:00" : "Closed"}</span>
     </span>
   );
 }

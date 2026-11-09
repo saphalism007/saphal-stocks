@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { downloadFromApi } from "../lib/backend.ts";
-import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, DataTable, Score, Modal, Fresh, Tabs } from "../components/ui.tsx";
+import { Card, Stat, Loading, ErrorBox, Notice, Badge, Empty, DataTable, Score, Modal, Fresh, Tabs, NumInput } from "../components/ui.tsx";
 import { MultiLineChart, LineChart } from "../components/PriceChart.tsx";
 import { useTheme } from "../App.tsx";
 import { num, pct, tone, compact, int, nptDate, todayNpt, rs } from "../lib/format.ts";
@@ -148,7 +148,7 @@ function CreateModal({ onClose, onDone }: { onClose: () => void; onDone: (id: nu
           <label className="field">Type<select className="input" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}><option value="real">Real money</option><option value="paper">Paper trading (simulated)</option></select></label>
           <label className="field">Strategy<select className="input" value={f.strategy} onChange={(e) => setF({ ...f, strategy: e.target.value })}>{["Long-term", "Swing trading", "Dividend", "Growth", "Value", "Experimental"].map((x) => <option key={x}>{x}</option>)}</select></label>
         </div>
-        {f.kind === "paper" && <label className="field">Starting paper cash (Rs.)<input className="input" type="number" value={f.paperCash} onChange={(e) => setF({ ...f, paperCash: +e.target.value })} /></label>}
+        {f.kind === "paper" && <label className="field">Starting paper cash (Rs.)<NumInput className="input" value={f.paperCash} onChange={(e) => setF({ ...f, paperCash: +e.target.value })} /></label>}
         {err && <Notice tone="warn">{err}</Notice>}
       </div>
     </Modal>
@@ -177,14 +177,14 @@ function TxModal({ portfolioId, tx, onClose, onDone }: { portfolioId: number; tx
           <label className="field">Date<input className="input" type="date" value={f.date} onChange={set("date")} /></label>
         </div>
         <div className="grid g2">
-          {f.type !== "cash_dividend" && <label className="field">Quantity<input className="input" type="number" value={f.quantity} onChange={set("quantity")} /></label>}
-          <label className="field">{priceLabel}<input className="input" type="number" step="0.01" value={f.price} onChange={set("price")} /></label>
+          {f.type !== "cash_dividend" && <label className="field">Quantity<NumInput className="input" value={f.quantity} onChange={set("quantity")} /></label>}
+          <label className="field">{priceLabel}<NumInput className="input" step="0.01" value={f.price} onChange={set("price")} /></label>
         </div>
         <details><summary className="small muted">Charges & tax (leave blank to auto-calculate)</summary>
           <div className="grid g3" style={{ marginTop: 8 }}>
-            <label className="field">Broker commission<input className="input" type="number" value={f.commission} placeholder={est ? num(est.commission) : "auto"} onChange={set("commission")} /></label>
-            <label className="field">SEBON + DP etc.<input className="input" type="number" value={f.otherCharges} placeholder={est ? num(est.sebonFee + est.dpCharge) : "auto"} onChange={set("otherCharges")} /></label>
-            <label className="field">{f.type === "sell" ? "CGT withheld" : f.type === "cash_dividend" ? "Dividend tax (5% if blank)" : "Tax paid"}<input className="input" type="number" value={f.tax} placeholder="auto" onChange={set("tax")} /></label>
+            <label className="field">Broker commission<NumInput className="input" value={f.commission} placeholder={est ? num(est.commission) : "auto"} onChange={set("commission")} /></label>
+            <label className="field">SEBON + DP etc.<NumInput className="input" value={f.otherCharges} placeholder={est ? num(est.sebonFee + est.dpCharge) : "auto"} onChange={set("otherCharges")} /></label>
+            <label className="field">{f.type === "sell" ? "CGT withheld" : f.type === "cash_dividend" ? "Dividend tax (5% if blank)" : "Tax paid"}<NumInput className="input" value={f.tax} placeholder="auto" onChange={set("tax")} /></label>
           </div>
         </details>
         {est && <div className="small muted">Estimated: amount {rs(est.amount)} · commission {rs(est.commission)} · SEBON {rs(est.sebonFee)}{est.dpCharge ? ` · DP ${rs(est.dpCharge)}` : ""} · {f.type === "buy" ? "total cost" : "net proceeds before CGT"} <strong>{rs(est.net)}</strong></div>}
@@ -207,8 +207,8 @@ function PaperModal({ portfolioId, cash, onClose, onDone }: { portfolioId: numbe
         <div className="grid g2">
           <label className="field">Symbol<input className="input" value={f.symbol} onChange={(e) => setF({ ...f, symbol: e.target.value.toUpperCase() })} autoFocus /></label>
           <label className="field">Side<select className="input" value={f.side} onChange={(e) => setF({ ...f, side: e.target.value })}><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
-          <label className="field">Quantity<input className="input" type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} /></label>
-          <label className="field">Price (blank = last close)<input className="input" type="number" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></label>
+          <label className="field">Quantity<NumInput className="input" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} /></label>
+          <label className="field">Price (blank = last close)<NumInput className="input" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></label>
         </div>
         {res && <Notice>Filled at Rs. {num(res.price)} on {nptDate(res.date)}; charges Rs. {num(res.estCharges)}.</Notice>}
         {err && <Notice tone="warn">{err}</Notice>}
@@ -340,13 +340,13 @@ function Rebalance({ summary, sectors, extras }: { summary: Any; sectors: Record
         <div className="table-wrap"><table className="t"><thead><tr><th>Stock</th><th className="num">Now</th><th className="num">Target %</th></tr></thead><tbody>
           {Object.keys(targets).map((sym) => { const h = open.find((x: Any) => x.symbol === sym); const now = h ? ((h.marketValue ?? h.costBasis) / (total || 1)) * 100 : 0; return (
             <tr key={sym}><td><span className="sym">{sym}</span><div className="tiny faint">{sectors[sym] ?? "new"} {extras[sym]?.fundamentalScore != null && <>· fund. {extras[sym].fundamentalScore}</>}</div></td><td className="num">{num(now, 1)}%</td>
-              <td className="num"><input className="input" type="number" step="0.5" style={{ width: 64, padding: "5px 6px" }} value={targets[sym]} onChange={(e) => setTargets({ ...targets, [sym]: +e.target.value })} /></td></tr>
+              <td className="num"><NumInput className="input" step="0.5" style={{ width: 64, padding: "5px 6px" }} value={targets[sym]} onChange={(e) => setTargets({ ...targets, [sym]: +e.target.value })} /></td></tr>
           ); })}
         </tbody></table></div>
         <form className="row" style={{ marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); void addSymbol(); }}><input className="input" placeholder="Add stock" value={add} onChange={(e) => setAdd(e.target.value.toUpperCase())} style={{ width: 120 }} /><button className="btn sm"><I.plus /></button></form>
         <div className="grid g2" style={{ marginTop: 10 }}>
-          <label className="field">New cash to invest (Rs.)<input className="input" type="number" value={cash} onChange={(e) => setCash(+e.target.value)} /></label>
-          <label className="field">Skip trades under (Rs.)<input className="input" type="number" value={minTrade} onChange={(e) => setMinTrade(+e.target.value)} /></label>
+          <label className="field">New cash to invest (Rs.)<NumInput className="input" value={cash} onChange={(e) => setCash(+e.target.value)} /></label>
+          <label className="field">Skip trades under (Rs.)<NumInput className="input" value={minTrade} onChange={(e) => setMinTrade(+e.target.value)} /></label>
         </div>
       </Card>
       <div className="col span2">

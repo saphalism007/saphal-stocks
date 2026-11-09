@@ -15,13 +15,22 @@ rmSync(join(OUT_DIR, "market.db.gz"), { force: true });
 const tmp = join(ROOT, "data", "market-export.tmp.db");
 if (existsSync(tmp)) unlinkSync(tmp);
 
+// Precompute market-wide factors and setups so phones read them instead of recomputing.
+{
+  const { db } = await import("../server/db.ts");
+  const { persistComputed } = await import("../server/lib/market.ts");
+  const t0 = Date.now();
+  persistComputed((name, stamp, json) => db.prepare("INSERT OR REPLACE INTO computed (name, stamp, json, created_at) VALUES (?, ?, ?, ?)").run(name, stamp, json, new Date().toISOString()));
+  console.log(`precomputed factors and setups in ${Date.now() - t0} ms`);
+}
+
 const src = new DatabaseSync(config.dbPath);
 src.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
 src.close();
 
 const db = new DatabaseSync(tmp);
 // Personal tables never leave this computer.
-const PERSONAL = ["users", "sessions", "login_attempts", "portfolios", "transactions", "watchlists", "watchlist_items", "alerts", "notifications", "vault", "documents", "doc_pages", "ai_conversations", "ai_messages", "settings", "deposit_rates", "_migrations"];
+const PERSONAL = ["users", "sessions", "login_attempts", "portfolios", "transactions", "watchlists", "watchlist_items", "alerts", "notifications", "vault", "documents", "doc_pages", "ai_conversations", "ai_messages", "settings", "deposit_rates", "money_entries", "_migrations"];
 db.exec("PRAGMA foreign_keys = OFF");
 for (const t of PERSONAL) db.exec(`DROP TABLE IF EXISTS ${t}`);
 // Keep the snapshot small enough for phones.

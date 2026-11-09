@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Stat, Notice, DataTable, Badge, Seg } from "../components/ui.tsx";
+import { Card, Stat, Notice, DataTable, Badge, Seg, NumInput } from "../components/ui.tsx";
 import { MultiLineChart } from "../components/PriceChart.tsx";
 import { useTheme } from "../App.tsx";
 import { nptDate, compact } from "../lib/format.ts";
@@ -44,19 +44,19 @@ export default function StrategyLab() {
         <p className="small muted" style={{ marginTop: 0 }}>{mode === "each" ? "Tests the rule on every stock independently: does it work broadly, and how often does it beat buying and holding?" : "Simulates one real account: one pot of money, a limit on how many stocks you hold at once, and choices when more stocks signal than you can afford."}</p>
         <div className="form-grid">
           {mode === "portfolio" && <>
-            <label className="field">Capital (Rs.)<input className="input" type="number" value={port.capital} onChange={(e) => setPort({ ...port, capital: +e.target.value })} /></label>
-            <label className="field">Max positions<input className="input" type="number" value={port.maxPositions} onChange={(e) => setPort({ ...port, maxPositions: +e.target.value })} /></label>
+            <label className="field">Capital (Rs.)<NumInput className="input" value={port.capital} onChange={(e) => setPort({ ...port, capital: +e.target.value })} /></label>
+            <label className="field">Max positions<NumInput className="input" value={port.maxPositions} onChange={(e) => setPort({ ...port, maxPositions: +e.target.value })} /></label>
             <label className="field">If too many signals, prefer<select className="input" value={port.rankBy} onChange={(e) => setPort({ ...port, rankBy: e.target.value })}><option value="liquidity">Most liquid</option><option value="momentum">Strongest 3-month momentum</option></select></label>
           </>}
           <label className="field">Strategy<select className="input" value={f.strategy} onChange={(e) => { setF({ ...f, strategy: e.target.value }); setParams({}); }}>{strategies.data?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
-          {def && Object.entries(def.defaults).map(([k, v]) => <label key={k} className="field">{k}<input className="input" type="number" value={params[k] ?? (v as number)} onChange={(e) => setParams({ ...params, [k]: +e.target.value })} /></label>)}
+          {def && Object.entries(def.defaults).map(([k, v]) => <label key={k} className="field">{k}<NumInput className="input" value={params[k] ?? (v as number)} onChange={(e) => setParams({ ...params, [k]: +e.target.value })} /></label>)}
           <label className="field">Stocks<select className="input" value={f.universe} onChange={(e) => setF({ ...f, universe: e.target.value })}><option value="liquid">Liquid stocks (≥ Rs. 50 L/day)</option><option value="all">All stocks</option><option value="sector">One sector</option><option value="symbols">My list</option></select></label>
           {f.universe === "sector" && <label className="field">Sector<select className="input" value={f.sector} onChange={(e) => setF({ ...f, sector: e.target.value })}><option value="">Choose…</option>{sectors.data?.map((x) => <option key={x.sector}>{x.sector}</option>)}</select></label>}
           {f.universe === "symbols" && <label className="field">Symbols<input className="input" value={f.symbols} placeholder="NABIL, EBL, UPPER" onChange={(e) => setF({ ...f, symbols: e.target.value })} /></label>}
-          <label className="field">Years<input className="input" type="number" value={f.years} onChange={(e) => setF({ ...f, years: +e.target.value })} /></label>
-          <label className="field">Stop-loss %<input className="input" type="number" placeholder="none" value={f.stopLossPct} onChange={(e) => setF({ ...f, stopLossPct: e.target.value })} /></label>
-          <label className="field">Take-profit %<input className="input" type="number" placeholder="none" value={f.takeProfitPct} onChange={(e) => setF({ ...f, takeProfitPct: e.target.value })} /></label>
-          <label className="field">Max holding days<input className="input" type="number" placeholder="none" value={f.maxHoldDays} onChange={(e) => setF({ ...f, maxHoldDays: e.target.value })} /></label>
+          <label className="field">Years<NumInput className="input" value={f.years} onChange={(e) => setF({ ...f, years: +e.target.value })} /></label>
+          <label className="field">Stop-loss %<NumInput className="input" placeholder="none" value={f.stopLossPct} onChange={(e) => setF({ ...f, stopLossPct: e.target.value })} /></label>
+          <label className="field">Take-profit %<NumInput className="input" placeholder="none" value={f.takeProfitPct} onChange={(e) => setF({ ...f, takeProfitPct: e.target.value })} /></label>
+          <label className="field">Max holding days<NumInput className="input" placeholder="none" value={f.maxHoldDays} onChange={(e) => setF({ ...f, maxHoldDays: e.target.value })} /></label>
         </div>
         {def && <p className="small muted" style={{ marginTop: 8 }}>{def.description}</p>}
         <button className="btn primary" onClick={run} disabled={busy} style={{ marginTop: 6 }}>{busy ? <><span className="spinner" /> Testing…</> : "Run across stocks"}</button>

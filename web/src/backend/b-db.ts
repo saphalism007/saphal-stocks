@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS ai_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, co
 CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, name TEXT NOT NULL, provider TEXT, description TEXT, eligibility TEXT, min_investment TEXT, return_text TEXT, return_type TEXT, risk TEXT, lock_in TEXT, duration TEXT, liquidity TEXT, tax TEXT, conditions TEXT, how_to_apply TEXT, official_url TEXT, info_url TEXT, verified_on TEXT, source TEXT, user_edited INTEGER DEFAULT 0, seed_key TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS resources (id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, name TEXT NOT NULL, description TEXT, url TEXT, links TEXT, seed_key TEXT UNIQUE);
 CREATE TABLE IF NOT EXISTS deposit_rates (id INTEGER PRIMARY KEY AUTOINCREMENT, institution TEXT NOT NULL, inst_type TEXT, product TEXT, depositor TEXT DEFAULT 'individual', tenor_months INTEGER, rate REAL NOT NULL, effective_from TEXT, source_url TEXT, method TEXT DEFAULT 'manual', verified_on TEXT, notes TEXT, created_at TEXT);
+CREATE TABLE IF NOT EXISTS money_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, type TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, note TEXT, method TEXT, created_at TEXT);
+CREATE INDEX IF NOT EXISTS money_entries_date ON money_entries(date);
 INSERT OR IGNORE INTO users (id, username, password_hash, created_at) VALUES (1, 'me', '-', datetime('now'));
 `;
 

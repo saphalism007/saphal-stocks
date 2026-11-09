@@ -6,6 +6,7 @@ export const isNum = (x: unknown): x is number => typeof x === "number" && Numbe
 let style: "nepali" | "international" = "nepali";
 export function setNumberStyle(s: "nepali" | "international") { style = s; }
 const LOCALE = () => (style === "nepali" ? "en-IN" : "en-US");
+export const numberLocale = () => LOCALE();
 
 export function num(x: unknown, digits = 2): string {
   if (!isNum(x)) return "—";

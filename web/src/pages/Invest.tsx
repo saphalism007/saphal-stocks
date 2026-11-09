@@ -4,7 +4,7 @@
 import { Fragment, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
-import { Card, Stat, Loading, ErrorBox, Tabs, Badge, Notice, Empty, DataTable, Seg } from "../components/ui.tsx";
+import { Card, Stat, Loading, ErrorBox, Tabs, Badge, Notice, Empty, DataTable, Seg, NumInput } from "../components/ui.tsx";
 import { I } from "../components/icons.tsx";
 import { compact, num, nptDate, rs, tone } from "../lib/format.ts";
 
@@ -43,10 +43,10 @@ function Advisor() {
     <div className="col">
       <Card title="I have money available. Where should it go?">
         <div className="form-grid">
-          <label className="field">Amount to invest now (Rs.)<input className="input" type="number" inputMode="decimal" value={amount} onChange={(e) => setAmount(Number(e.target.value) || 0)} /></label>
-          <label className="field">Plus every month (Rs., optional)<input className="input" type="number" inputMode="decimal" value={monthly || ""} onChange={(e) => setMonthly(Number(e.target.value) || 0)} /></label>
+          <label className="field">Amount to invest now (Rs.)<NumInput className="input" value={amount} onChange={(e) => setAmount(Number(e.target.value) || 0)} /></label>
+          <label className="field">Plus every month (Rs., optional)<NumInput className="input" value={monthly || ""} onChange={(e) => setMonthly(Number(e.target.value) || 0)} /></label>
           <label className="field">Risk<select className="input" value={risk} onChange={(e) => setRisk(e.target.value as typeof risk)}><option value="">From My Money ({money.data?.data?.risk ?? "medium"})</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-          <label className="field">Horizon (years)<input className="input" type="number" placeholder={`From My Money (${money.data?.data?.horizonYears ?? 5})`} value={horizon} onChange={(e) => setHorizon(e.target.value === "" ? "" : Number(e.target.value))} /></label>
+          <label className="field">Horizon (years)<NumInput className="input" placeholder={`From My Money (${money.data?.data?.horizonYears ?? 5})`} value={horizon} onChange={(e) => setHorizon(e.target.value === "" ? "" : Number(e.target.value))} /></label>
         </div>
         <div className="row" style={{ marginTop: 10 }}>
           <button className="btn primary" disabled={busy || amount <= 0} onClick={run}>{busy ? <span className="spinner" /> : "Show my plan"}</button>
@@ -116,7 +116,7 @@ function Deposits() {
     <div className="col">
       <Card title="Best fixed deposit for your money" sub="After 6% tax on interest, quarterly compounding; real return after inflation">
         <div className="row">
-          <label className="field">Amount (Rs.)<input className="input" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value) || 0)} /></label>
+          <label className="field">Amount (Rs.)<NumInput className="input" value={amount} onChange={(e) => setAmount(Number(e.target.value) || 0)} /></label>
           <label className="field">Term<select className="input" value={months} onChange={(e) => setMonths(Number(e.target.value))}>{[3, 6, 12, 24, 36, 60].map((m) => <option key={m} value={m}>{m < 12 ? `${m} months` : `${m / 12} year${m > 12 ? "s" : ""}`}</option>)}</select></label>
         </div>
         {!cmp.data ? <Loading /> : cmp.data.rows.length <= 1 && <Notice>Only the NRB average is available. Read the latest bank notices below (AI) or add rates you have checked, to compare institutions.</Notice>}
@@ -156,8 +156,8 @@ function MyRates({ rows, onDel, onVerify, onAdded }: { rows: Any[] | null; onDel
       <div className="row wrap" style={{ marginBottom: 10 }}>
         <input className="input" style={{ flex: "1 1 160px" }} placeholder="Institution" value={f.institution} onChange={(e) => setF({ ...f, institution: e.target.value })} />
         <input className="input" style={{ width: 150 }} placeholder="Product" value={f.product} onChange={(e) => setF({ ...f, product: e.target.value })} />
-        <input className="input" style={{ width: 90 }} type="number" placeholder="Months" value={f.tenor_months} onChange={(e) => setF({ ...f, tenor_months: e.target.value })} />
-        <input className="input" style={{ width: 90 }} type="number" placeholder="Rate %" value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} />
+        <NumInput className="input" style={{ width: 90 }} placeholder="Months" value={f.tenor_months} onChange={(e) => setF({ ...f, tenor_months: e.target.value })} />
+        <NumInput className="input" style={{ width: 90 }} placeholder="Rate %" value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} />
         <input className="input" style={{ width: 150 }} type="date" value={f.effective_from} onChange={(e) => setF({ ...f, effective_from: e.target.value })} title="Effective from" />
         <input className="input" style={{ flex: "1 1 160px" }} placeholder="Source link (notice)" value={f.source_url} onChange={(e) => setF({ ...f, source_url: e.target.value })} />
         <button className="btn sm primary" disabled={!f.institution || !(Number(f.rate) > 0)} onClick={add}><I.plus /> Add</button>
@@ -269,11 +269,11 @@ function LoanVsInvest() {
     <div className="grid g2">
       <Card title="Prepay a loan or invest the money?">
         <div className="form-grid">
-          <label className="field">Amount (Rs.)<input className="input" type="number" value={f.amount} onChange={(e) => setF({ ...f, amount: Number(e.target.value) || 0 })} /></label>
-          <label className="field">Loan interest rate (%)<input className="input" type="number" value={f.loanRatePct} onChange={(e) => setF({ ...f, loanRatePct: Number(e.target.value) || 0 })} /></label>
-          <label className="field">Years<input className="input" type="number" value={f.years} onChange={(e) => setF({ ...f, years: Number(e.target.value) || 1 })} /></label>
+          <label className="field">Amount (Rs.)<NumInput className="input" value={f.amount} onChange={(e) => setF({ ...f, amount: Number(e.target.value) || 0 })} /></label>
+          <label className="field">Loan interest rate (%)<NumInput className="input" value={f.loanRatePct} onChange={(e) => setF({ ...f, loanRatePct: Number(e.target.value) || 0 })} /></label>
+          <label className="field">Years<NumInput className="input" value={f.years} onChange={(e) => setF({ ...f, years: Number(e.target.value) || 1 })} /></label>
           <label className="field">Invest in<select className="input" value={f.investGuaranteed ? "g" : "m"} onChange={(e) => setF({ ...f, investGuaranteed: e.target.value === "g", investReturnPct: 0 })}><option value="g">Fixed deposit (guaranteed)</option><option value="m">Shares / funds (market-linked)</option></select></label>
-          <label className="field">Expected return after tax (%)<input className="input" type="number" placeholder={num(ret)} value={f.investReturnPct || ""} onChange={(e) => setF({ ...f, investReturnPct: Number(e.target.value) || 0 })} /></label>
+          <label className="field">Expected return after tax (%)<NumInput className="input" placeholder={num(ret)} value={f.investReturnPct || ""} onChange={(e) => setF({ ...f, investReturnPct: Number(e.target.value) || 0 })} /></label>
         </div>
         <p className="tiny faint">Default return: {f.investGuaranteed ? `FD ${fdNet != null ? num(fdNet) : "—"}% after tax (${rates?.sources?.fd ?? "NRB"})` : `NEPSE long-run ${rates?.equityLongRunPct ?? "—"}% (not guaranteed)`}.</p>
         <button className="btn primary" onClick={run}>Compare</button>

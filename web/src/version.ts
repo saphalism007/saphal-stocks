@@ -5,15 +5,15 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.7.0";
+export const VERSION = "0.8.0";
 export const RELEASED = "2026-11-09";
 export const NOTES = [
-  "Home now has two pillars, NEPSE Intelligence and My Financial Life, plus an 'Ask AI' button on every page.",
-  "My Money: income, spending by category, savings, FDs, investments and loans, with net worth, cash flow, savings rate, emergency fund cover and specific suggestions worth rupees.",
-  "Where to Invest: 'I have Rs. X' allocation advisor, fixed-deposit comparison after tax and inflation, official bank rate notices (read with AI), NRB rates and inflation, mutual funds, debentures, T-bills, and prepay-or-invest.",
-  "Market Monitor: NRB rate changes, the latest NRB macro report, IPO/FPO and fund issues, reports, dividends and regulatory notices, each with what it could mean for you.",
-  "Charts: daily, weekly and monthly candles, automatic trendlines with breakout and volume confirmation, and demand/supply zones drawn on the chart.",
-  "Daily briefing adds interest-rate changes, attractive opportunities, your money and the smartest action to consider today; goal scenarios now use real FD and NEPSE returns.",
+  "Income & expense tracker (My Money → Daily tracker): add entries in seconds, see them by date and category, monthly totals, a 6-month trend and CSV export; turn your averages into your budget.",
+  "Back up to iCloud Drive or Google Drive in one tap (share sheet → Save to Files), restore on any device, with a weekly reminder.",
+  "Number boxes fixed everywhere: they clear properly, typing replaces the old value, and amounts show as 60,00,000.",
+  "Reports & audit: every stock has a tab with audited results, annual-report filings, auditor and AGM notices and the company website; Reports lists the latest audited filings across NEPSE.",
+  "Cleaner iPhone layout: short greeting with your name, compact header, tidy cards and forms, and the tab bar now reaches the bottom edge.",
+  "Faster start: market-wide analysis is precomputed, so the home screen opens in a few seconds. AI setup explained step by step (Settings → AI).",
 ];
 
 declare const __BUILD__: string;

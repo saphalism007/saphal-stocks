@@ -143,6 +143,21 @@ const MIGRATIONS: string[] = [
   CREATE TABLE rate_notices (url TEXT PRIMARY KEY, symbol TEXT, institution TEXT, inst_type TEXT, title TEXT, published TEXT, image_url TEXT, effective TEXT, fetched_at TEXT);
   CREATE INDEX rate_notices_symbol ON rate_notices(symbol, published);
   `,
+  // 7: official corporate events per company (AGM, auditor, reports); refresh all company details once to fill them and websites
+  `
+  CREATE TABLE company_events (url TEXT PRIMARY KEY, symbol TEXT NOT NULL, title TEXT, published_date TEXT, kind TEXT, fetched_at TEXT);
+  CREATE INDEX company_events_symbol ON company_events(symbol, published_date);
+  UPDATE companies SET info_fetched_at = NULL;
+  `,
+  // 8: income and expense tracker (personal)
+  `
+  CREATE TABLE money_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, type TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, note TEXT, method TEXT, created_at TEXT);
+  CREATE INDEX money_entries_date ON money_entries(date);
+  `,
+  // 9: market-wide computations shipped in the snapshot so phones don't recompute them
+  `
+  CREATE TABLE computed (name TEXT PRIMARY KEY, stamp TEXT, json TEXT, created_at TEXT);
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

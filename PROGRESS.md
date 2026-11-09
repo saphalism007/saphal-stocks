@@ -89,6 +89,14 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 - ✅ Versions and updates: version and code in the app, update check with Update now, `npm run deploy` publishes and prints a TALLY line that matches the app (0.6.1, 9 November 2026)
 - ⬜ Background alerts on iOS (web apps cannot run in the background; alerts are checked when the app opens)
 
+## v0.8: everyday use on iPhone
+- ✅ Income & expense tracker: dated entries with categories and payment method, grouped by day, monthly totals by category, 6-month trend, edit/delete, CSV export, budget from 3-month averages; AI tool get_income_expenses
+- ✅ Backup to iCloud Drive / Google Drive through the share sheet (Mac: download), restore from a file, weekly reminder
+- ✅ Shared number box: clearable, select-on-tap, grouped digits, numeric keypad (84 fields)
+- ✅ Reports & audit: per-company audited/annual filings, NEPSE corporate events (AGM, minutes, auditor appointments), company websites; market-wide latest audited filings
+- ✅ Phone layout pass (header, greeting, cards, forms, chips, tab bar safe area); precomputed factors and setups in the snapshot for fast start
+- ✅ Plain-language AI key setup
+
 ## v0.7: NEPSE intelligence and personal wealth focus
 - ✅ Two-pillar home (NEPSE Intelligence, My Financial Life) and a global Ask AI button that carries the current page
 - ✅ My Money: income, categorised spending, accounts (bank, FD, shares, funds, bonds, debentures, PF/CIT/SSF, insurance, gold, property), loans; net worth, cash flow, savings rate, emergency-fund cover, EMI ratio, guaranteed vs market-linked allocation; savings advisor with rupee impact (expensive debt, emergency fund, spending vs benchmarks, idle cash, inflation, concentration)
