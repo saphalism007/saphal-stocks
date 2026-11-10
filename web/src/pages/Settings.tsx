@@ -9,7 +9,7 @@ import { CloudBackup } from "../components/CloudBackup.tsx";
 import { VERSION, RELEASED, NOTES, CODE, BUILD } from "../version.ts";
 import { check as checkUpdate, update as applyUpdate, type Check } from "../lib/update.ts";
 import { Card, Loading, Badge, Notice, Tabs, DataTable, NumInput } from "../components/ui.tsx";
-import { nptDate, ago, int } from "../lib/format.ts";
+import { nptDate, ago, int, dateMode } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -291,6 +291,10 @@ function AppearanceTab() {
       <Card title="Look and feel" sub="Applies instantly; saved with your data and synced to your other devices if sync is on">
         <div className="col" style={{ gap: 14 }}>
           <div><div className="small muted" style={{ marginBottom: 6 }}>Theme</div><Choice k="theme" options={[{ v: "auto", label: "Match device" }, { v: "light", label: "Light" }, { v: "dark", label: "Dark" }]} /></div>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Dates</div>
+            <div className="seg" style={{ flexWrap: "wrap" }}>{([["bs", "Nepali first (24 Kartik 2083)"], ["ad", "English first (10 Nov 2026)"]] as const).map(([v, label]) => <button key={v} className={dateMode() === v ? "on" : ""} onClick={() => { try { localStorage.setItem("ss-date-mode", v); } catch { /* ignore */ } location.reload(); }}>{label}</button>)}</div>
+            <div className="tiny faint" style={{ marginTop: 4 }}>Nepali dates use the official calendar (projected after BS 2090). The other calendar is shown alongside where space allows.</div>
+          </div>
           <div><div className="small muted" style={{ marginBottom: 6 }}>Accent colour</div>
             <div className="row">{(["emerald", "blue", "violet", "amber", "rose"] as const).map((a) => (
               <button key={a} onClick={() => set("accent", a)} aria-label={a} title={a} style={{ width: 34, height: 34, borderRadius: "50%", cursor: "pointer", border: prefs.accent === a ? "3px solid var(--text)" : "2px solid var(--border-2)", background: { emerald: "#34d399", blue: "#60a5fa", violet: "#a78bfa", amber: "#fbbf24", rose: "#fb7185" }[a] }} />

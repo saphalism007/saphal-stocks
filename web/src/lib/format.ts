@@ -1,3 +1,4 @@
+import { toBS, bsLabel } from "./bs.ts";
 // Nepali number formatting: lakh/crore grouping (en-IN), Rs. prefix, Asia/Kathmandu dates.
 
 export const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
@@ -50,7 +51,8 @@ export function pct(x: unknown, digits = 2, sign = true): string {
 
 export const tone = (x: unknown) => (!isNum(x) || x === 0 ? "" : x > 0 ? "up" : "down");
 
-export function nptDate(iso: string | null | undefined, withTime = false): string {
+/** English (AD) date, e.g. "10 Nov 2026". */
+export function adDate(iso: string | null | undefined, withTime = false): string {
   if (!iso) return "-";
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
     const d = new Date(iso + "T00:00:00Z");
@@ -59,6 +61,30 @@ export function nptDate(iso: string | null | undefined, withTime = false): strin
   const d = new Date(iso);
   return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}), timeZone: "Asia/Kathmandu" });
 }
+/** Nepali dates first (default) or English first; chosen in Settings. */
+export const dateMode = (): "bs" | "ad" => { try { return localStorage.getItem("ss-date-mode") === "ad" ? "ad" : "bs"; } catch { return "bs"; } };
+/** Nepali (BS) date of an ISO date or timestamp (Nepal time), e.g. "24 Kartik 2083", or "" if unavailable. */
+export function bsDate(iso: string | null | undefined, withTime = false): string {
+  if (!iso) return "";
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : new Date(new Date(iso).getTime() + 345 * 60_000).toISOString().slice(0, 10);
+  const b = toBS(day);
+  if (!b) return "";
+  const time = withTime && !/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `, ${new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kathmandu" })}` : "";
+  return `${bsLabel(b)}${time}`;
+}
+/** The app's standard date: Nepali first (falls back to English when a date can't be converted). */
+export function nptDate(iso: string | null | undefined, withTime = false): string {
+  if (!iso) return "-";
+  if (dateMode() === "ad") return adDate(iso, withTime);
+  return bsDate(iso, withTime) || adDate(iso, withTime);
+}
+/** The other calendar's date, for a small second line: English when Nepali is first, and the reverse. */
+export function otherDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  return dateMode() === "ad" ? bsDate(iso) : adDate(iso);
+}
+/** Both, e.g. "24 Kartik 2083 (10 Nov 2026)". */
+export const bothDates = (iso: string | null | undefined) => { const o = otherDate(iso); return o ? `${nptDate(iso)} (${o})` : nptDate(iso); };
 
 export function ago(iso: string | null | undefined): string {
   if (!iso) return "never";

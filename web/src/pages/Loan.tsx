@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, Stat, Notice, NumInput } from "../components/ui.tsx";
-import { compact, num, nptDate, rs } from "../lib/format.ts";
+import { compact, num, nptDate, rs, adDate, otherDate } from "../lib/format.ts";
 import { amortise, buyOrFinance, PER_YEAR, type Freq, type LoanInput, type Method, type Row } from "../../../shared/loan.ts";
 import { toBS, fromBS, fiscalYearOf, bsLabel, bsAvailable, BS_MONTHS } from "../lib/bs.ts";
 
@@ -149,7 +149,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
         <Stat label={`${FREQ_LABEL[res.freq]} instalment`} value={rs(res.installment, 0)} sub={res.freq !== "monthly" && monthlyEq ? `about ${rs(monthlyEq, 0)} a month` : `${res.installments} instalments`} />
         <Stat label="Total interest" value={compact(res.totalInterest)} sub={`${num(res.interestToPrincipalPct, 1)}% of the loan`} tone="down" />
         <Stat label="Total you pay" value={compact(res.totalPaid + res.fees)} sub={res.fees ? `incl. fees ${rs(res.fees, 0)}` : `on a ${compact(res.principal)} loan`} />
-        <Stat label="Loan ends" value={nptDate(res.payoffDate)} sub={`${res.installments} x ${FREQ_LABEL[res.freq].toLowerCase()}`} />
+        <Stat label="Loan ends" value={nptDate(res.payoffDate)} sub={`${otherDate(res.payoffDate)} | ${res.installments} x ${FREQ_LABEL[res.freq].toLowerCase()}`} />
       </div>
       <div className="ln-facts small">
         <span>Loan <b>{rs(res.principal, 0)}</b></span><span>Rate <b>{num(res.ratePct, 3)}%</b></span><span>Effective yearly <b>{num(res.effectiveAnnualPct, 2)}%</b></span>
@@ -201,7 +201,7 @@ const npr = (x: number) => x.toLocaleString("en-IN", { minimumFractionDigits: 2,
 interface Agg { key: string; label: string; sub: string; count: number; opening: number; paid: number; interest: number; principal: number; extra: number; closing: number; firstN: number; projected: boolean }
 function periodOf(view: View, date: string): { key: string; label: string; sub: string; projected: boolean } {
   const b = toBS(date);
-  if (view === "day") return { key: date, label: b ? bsLabel(b) : date, sub: nptDate(date), projected: !!b?.projected };
+  if (view === "day") return { key: date, label: b ? bsLabel(b) : date, sub: adDate(date), projected: !!b?.projected };
   if (!b) return { key: date.slice(0, 4), label: `AD ${date.slice(0, 4)}`, sub: "", projected: false };
   const fy = fiscalYearOf(b), star = b.projected ? "*" : "";
   const fm = (b.m + 8) % 12; // months into the fiscal year: Shrawan = 0 ... Ashadh = 11
@@ -238,8 +238,8 @@ function Schedule({ res }: { res: Extract<ReturnType<typeof amortise>, { ok: tru
   const from = pg * size, to = Math.min(total, from + size);
   const goTo = () => { const n = v(jump); if (!n || n < 1 || n > res.rows.length) return; setView("inst"); setPage(Math.floor((n - 1) / size)); setTimeout(() => document.getElementById(`ln-r${n}`)?.scrollIntoView({ block: "center" }), 120); };
   const csv = () => {
-    if (!agg) download(`loan-schedule-each-instalment.csv`, ["No", "Date (AD)", "Nepali date", "Fiscal year", "Opening balance", "Rate %", "Instalment", "Interest", "Principal", "Extra payment", "Closing balance"],
-      res.rows.map((r) => { const b = toBS(r.date); return [String(r.n), r.date, b ? bsLabel(b) : "", b ? fiscalYearOf(b) : "", r.opening, String(r.rate), r.payment, r.interest, r.principal, r.extra, r.closing]; }));
+    if (!agg) download(`loan-schedule-each-instalment.csv`, ["No", "Nepali date (BS)", "English date (AD)", "Fiscal year", "Opening balance", "Rate %", "Instalment", "Interest", "Principal", "Extra payment", "Closing balance"],
+      res.rows.map((r) => { const b = toBS(r.date); return [String(r.n), b ? bsLabel(b) : "", r.date, b ? fiscalYearOf(b) : "", r.opening, String(r.rate), r.payment, r.interest, r.principal, r.extra, r.closing]; }));
     else download(`loan-schedule-${view}.csv`, ["Period", "Months", "Instalments", "Opening balance", "Paid", "Interest", "Principal", "Extra payment", "Closing balance"], agg.map((a) => [a.label, a.sub, String(a.count), a.opening, a.paid, a.interest, a.principal, a.extra, a.closing]));
   };
   return (
@@ -251,9 +251,9 @@ function Schedule({ res }: { res: Extract<ReturnType<typeof amortise>, { ok: tru
       </div>
       <div className="table-scroll ln-scroll"><table className="t small ln-t">
         {!agg ? <>
-          <thead><tr><th>#</th><th>Date</th><th>Nepali date</th><th className="num">Opening</th><th className="num">Rate</th><th className="num">Instalment</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
+          <thead><tr><th>#</th><th>Nepali date</th><th>English date</th><th className="num">Opening</th><th className="num">Rate</th><th className="num">Instalment</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
           <tbody>{res.rows.slice(from, to).map((r) => { const b = toBS(r.date); return (
-            <tr key={r.n} id={`ln-r${r.n}`}><td>{r.n}</td><td>{nptDate(r.date)}</td><td>{b ? bsLabel(b) : "-"}</td><td className="num">{npr(r.opening)}</td><td className="num">{r.rate}%</td><td className="num">{npr(r.payment)}</td><td className="num down">{npr(r.interest)}</td><td className="num">{npr(r.principal)}</td><td className="num">{r.extra ? npr(r.extra) : "-"}</td><td className="num"><b>{npr(r.closing)}</b></td></tr>
+            <tr key={r.n} id={`ln-r${r.n}`}><td>{r.n}</td><td><b>{b ? bsLabel(b) : "-"}</b></td><td className="faint">{adDate(r.date)}</td><td className="num">{npr(r.opening)}</td><td className="num">{r.rate}%</td><td className="num">{npr(r.payment)}</td><td className="num down">{npr(r.interest)}</td><td className="num">{npr(r.principal)}</td><td className="num">{r.extra ? npr(r.extra) : "-"}</td><td className="num"><b>{npr(r.closing)}</b></td></tr>
           ); })}</tbody>
         </> : <>
           <thead><tr><th>Period</th><th className="num">Instalments</th><th className="num">Opening</th><th className="num">Paid</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>

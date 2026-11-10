@@ -5,10 +5,10 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.19.4";
+export const VERSION = "0.19.5";
 export const RELEASED = "2026-11-10";
 export const NOTES = [
-  "Cleaner text everywhere: removed em dashes and decorative symbols (arrows, sparkles, lightning, dots, curly quotes) from every screen, message and note. Plain hyphens, commas and words are used instead.",
+  "Nepali dates first, everywhere: every date in the app now shows the accurate Nepali (BS) date, with the English date alongside on key figures such as Loan ends. The loan schedule lists the Nepali date first, then the English date. Prefer English first? Settings, Appearance, Dates.",
 ];
 
 declare const __BUILD__: string;
