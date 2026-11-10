@@ -103,3 +103,48 @@ export function picks() {
   const bySector = sectors.map((s) => ({ sector: s, invest: invest.filter((x) => x.sector === s).slice(0, 3), trade: trade.filter((x) => x.sector === s).slice(0, 3) })).filter((x) => x.invest.length || x.trade.length);
   return { asOf: M.latestTradingDate(), investHow: `${inv.name}: ${inv.description}`, tradeHow: `${(tradeSw.length >= 10 ? trd : mom).name}: ${(tradeSw.length >= 10 ? trd : mom).description}`, invest: invest.slice(0, 25), trade: trade.slice(0, 25), both, bySector, inBoth: [...iTop].filter((s) => tTop.has(s)).length };
 }
+
+// ---------- Brokers and mutual funds directory ----------
+const MANAGER_ALIASES: Record<string, string[]> = { "nibl ace": ["nibl"], "machhapuchchhre": ["mbl"], "global ime": ["gbime", "gib", "global ime"], "nic asia": ["nic asia", "nica"], "muktinath": ["mnmf"] };
+/** Matches a fund to its manager by the brand its name starts with (e.g. "NIBL Sahabhagita Fund" → NIBL Ace Capital). */
+export function managerFor(fundName: string, managers: { name: string }[]) {
+  const f = fundName.toLowerCase();
+  let best: { name: string; len: number } | null = null;
+  for (const m of managers) {
+    const brand = m.name.toLowerCase().replace(/&/g, " ").replace(/[^a-z ]/g, " ").split(/\s+/).filter((w) => w && !/^(limited|ltd|pvt|private|capital|investment|investments|banking|banker|merchant|markets?|and)$/.test(w)).join(" ");
+    if (!brand) continue;
+    const keys = [brand, ...(MANAGER_ALIASES[brand] ?? [])];
+    for (const k of keys) if ((f.startsWith(k + " ") || f.startsWith(k + "-") || f === k) && (!best || k.length > best.len)) best = { name: m.name, len: k.length };
+  }
+  return best?.name ?? null;
+}
+
+export function fundDirectory() {
+  const managers = all<{ name: string; address: string | null; phone: string | null; email: string | null; website: string | null; apply_url: string | null; apply_label: string | null; checked_at: string }>("SELECT * FROM fund_managers ORDER BY name");
+  const byName = new Map(managers.map((m) => [m.name, m]));
+  const funds = all<{ symbol: string; name: string; kind: string; fund_size: number | null; maturity_date: string | null; daily_nav: number | null; daily_date: string | null; weekly_nav: number | null; weekly_date: string | null; ltp: number | null; premium_pct: number | null }>("SELECT symbol, name, kind, fund_size, maturity_date, daily_nav, daily_date, weekly_nav, weekly_date, ltp, premium_pct FROM fund_navs WHERE kind IN ('open','active') ORDER BY kind DESC, name");
+  return {
+    managers: managers.map((m) => ({ ...m, parentBank: !!m.website?.startsWith("bank:"), website: m.website?.replace(/^bank:/, "") ?? null })),
+    funds: funds.map((f) => {
+      const mn = managerFor(f.name, managers); const m = mn ? byName.get(mn) : undefined;
+      // A SIP/apply link that names a specific fund belongs only to that fund; SIPs are for open-ended funds.
+      const words = (x: string) => new Set(x.toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !/^(fund|scheme|yojana|sip|nic|asia|the)$/.test(w)));
+      const lw = m?.apply_label ? words(m.apply_label) : new Set<string>(), fw = words(f.name);
+      const specific = lw.size > 0 && [...lw].some((w) => !/^(online|login|registration|form|apply|invest|units?)$/.test(w));
+      const fits = !specific || [...lw].filter((w) => fw.has(w)).length >= 1;
+      const applyUrl = f.kind === "open" && m?.apply_url && fits ? m.apply_url : null;
+      return { ...f, type: f.kind === "open" ? "Open-ended" : "Close-ended", manager: mn, website: m?.website?.replace(/^bank:/, "") ?? null, applyUrl, applyLabel: applyUrl ? m?.apply_label ?? null : null, phone: m?.phone ?? null, email: m?.email ?? null };
+    }),
+  };
+}
+
+export function brokerDirectory() {
+  const list = all<{ name: string; address: string | null; phone: string | null; email: string | null; contact: string | null }>("SELECT name, address, phone, email, contact FROM brokers ORDER BY name");
+  const days = all<{ date: string }>("SELECT DISTINCT date FROM floorsheet_broker ORDER BY date DESC LIMIT 10").map((r) => r.date);
+  const activity = days.length ? all<{ broker: number; buy: number; sell: number; trades: number; stocks: number }>(`SELECT broker, SUM(buy_amt) buy, SUM(sell_amt) sell, SUM(trades) trades, COUNT(DISTINCT symbol) stocks FROM floorsheet_broker WHERE date IN (${days.map(() => "?").join(",")}) GROUP BY broker ORDER BY (SUM(buy_amt) + SUM(sell_amt)) DESC`, ...days) : [];
+  const top = (broker: number, side: "buy" | "sell") => all<{ symbol: string; amt: number }>(`SELECT symbol, SUM(${side}_amt) - SUM(${side === "buy" ? "sell" : "buy"}_amt) amt FROM floorsheet_broker WHERE broker = ? AND date IN (${days.map(() => "?").join(",")}) GROUP BY symbol HAVING amt > 0 ORDER BY amt DESC LIMIT 3`, broker, ...days);
+  return {
+    sebon: list, from: days[days.length - 1] ?? null, to: days[0] ?? null, sessions: days.length,
+    activity: activity.map((a) => ({ ...a, net: a.buy - a.sell, tms: `https://tms${a.broker}.nepsetms.com.np`, accumulating: top(a.broker, "buy"), distributing: top(a.broker, "sell") })),
+  };
+}

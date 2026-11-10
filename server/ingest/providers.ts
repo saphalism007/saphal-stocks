@@ -340,11 +340,11 @@ export async function ssIssues(type: number, max = 200): Promise<IssueRow[]> {
   return out;
 }
 
-export interface FundNavRow { symbol: string; name: string; kind: "active" | "matured"; fundSize: number | null; maturityDate: string | null; maturityPeriod: string | null; dailyNav: number | null; dailyDate: string | null; weeklyNav: number | null; weeklyDate: string | null; monthlyNav: number | null; monthlyDate: string | null; ltp: number | null; ltpDate: string | null; premiumPct: number | null }
+export interface FundNavRow { symbol: string; name: string; kind: "active" | "matured" | "open"; fundSize: number | null; maturityDate: string | null; maturityPeriod: string | null; dailyNav: number | null; dailyDate: string | null; weeklyNav: number | null; weeklyDate: string | null; monthlyNav: number | null; monthlyDate: string | null; ltp: number | null; ltpDate: string | null; premiumPct: number | null }
 
 export async function ssFundNavs(): Promise<FundNavRow[]> {
   const out: FundNavRow[] = [];
-  for (const [type, kind] of [[-1, "active"], [1, "matured"]] as const) {
+  for (const [type, kind] of [[-1, "active"], [1, "matured"], [2, "open"]] as const) {
     const rows: Record<string, unknown>[] = [];
     for (let start = 0; start < 400; start += 50) {
       const j = await fetchJson<{ recordsTotal: number; data: Record<string, unknown>[] }>(`${SS}/mutual-fund-navs?type=${type}&draw=1&start=${start}&length=50`, { headers: { "X-Requested-With": "XMLHttpRequest" }, browserLike: true });

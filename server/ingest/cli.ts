@@ -4,6 +4,7 @@ import { seedReference } from "../seed.ts";
 import { syncListing, syncHistory, syncIndices, syncAllDetails, syncNews, syncForex, syncCompanyDetail, syncIssues, syncFunds, syncRates, syncAuditDocs, syncLinkChecks, syncFloorsheet, syncMetals } from "./jobs.ts";
 import { evaluateAlerts } from "../lib/alerts.ts";
 import { syncCompanyDocs } from "./companyDocs.ts";
+import { syncBrokers, syncFundManagers } from "./sebon.ts";
 
 seedReference();
 const [what = "all", ...symbols] = process.argv.slice(2);
@@ -25,6 +26,7 @@ async function main() {
   if (what === "audit" || what === "all") { try { log(`audit: ${await syncAuditDocs(progress() as never)} audited statements collected`); } catch (e) { log(`audit failed: ${e instanceof Error ? e.message : e}`); } }
   if (what === "floorsheet" || what === "all") { try { log(`floorsheet: ${await syncFloorsheet(progress() as never)} stocks`); } catch (e) { log(`floorsheet failed: ${e instanceof Error ? e.message : e}`); } }
   if (what === "companydocs" || what === "all") { try { log(`company websites: ${await syncCompanyDocs(symbols.length ? { symbols } : {})} checked`); } catch (e) { log(`company websites failed: ${e instanceof Error ? e.message : e}`); } }
+  if (what === "sebon" || what === "all") { try { log(`brokers: ${await syncBrokers()} (SEBON)`); log(`fund managers: ${await syncFundManagers()} (SEBON)`); } catch (e) { log(`sebon failed: ${e instanceof Error ? e.message : e}`); } }
   if (what === "links" || what === "all") { try { log(`links: ${await syncLinkChecks()} checked`); } catch (e) { log(`links failed: ${e instanceof Error ? e.message : e}`); } }
   log(`alerts fired: ${evaluateAlerts()}`);
 }

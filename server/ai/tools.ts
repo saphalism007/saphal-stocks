@@ -10,6 +10,8 @@ import { planGoal, allocateLumpSum } from "../../shared/planner.ts";
 import { positionSize } from "../../shared/portfolio.ts";
 import { roundTrip } from "../../shared/costs.ts";
 import * as MON from "../lib/money.ts";
+import * as DS from "../lib/discover.ts";
+import * as GR from "../lib/growth.ts";
 import { loanVsInvest, debentureYield } from "../../shared/money.ts";
 
 export interface ToolDef { name: string; description: string; input_schema: Record<string, unknown> }
@@ -50,6 +52,12 @@ export const TOOL_DEFS: ToolDef[] = [
   { name: "compare_deposits", description: "Fixed-deposit offers ranked by after-tax maturity for an amount and term: institution rates the user tracks (read from official bank notices by AI or entered/verified by the user, with source links and effective dates) plus the NRB average, with real return after inflation. Also lists the latest official rate notices.", input_schema: obj({ amount: { type: "number" }, months: { type: "integer" } }, ["amount", "months"]) },
   { name: "loan_vs_invest", description: "Compare prepaying a loan with investing the same money over a period: interest saved vs investment gain, and which is better.", input_schema: obj({ amount: { type: "number" }, loan_rate_pct: { type: "number" }, years: { type: "number" }, invest_return_pct: { type: "number", description: "After-tax expected return" }, invest_guaranteed: { type: "boolean" } }, ["amount", "loan_rate_pct", "years", "invest_return_pct", "invest_guaranteed"]) },
   { name: "get_debentures", description: "Listed corporate debentures with coupon, maturity (BS year), last price, current yield, approximate yield to maturity and recent trading volume.", input_schema: obj({}) },
+  { name: "get_fund_directory", description: "Every open-ended and close-ended mutual fund with NAV, price vs NAV, maturity, its fund manager (SEBON list), the manager's verified official website and the online SIP/apply link found on that website. Use for 'which mutual fund', 'how do I start a SIP', 'where do I apply'.", input_schema: obj({}, []) },
+  { name: "get_brokers", description: "All SEBON-licensed stockbrokers (name, address, phone, email) and broker activity by number from the floorsheet (bought, sold, net, stocks most bought and sold, TMS address).", input_schema: obj({}, []) },
+  { name: "get_market_mood", description: "NEPSE Market Mood 0-100 (fear & greed) with its six readings and recent history.", input_schema: obj({}, []) },
+  { name: "get_invest_trade_picks", description: "Best stocks to invest in (fundamentals) and to trade (technical setups), overall and by sector, plus stocks strong on both.", input_schema: obj({}, []) },
+  { name: "get_stock_baskets", description: "Ready-made rule-based stock baskets (quality, dividend, value, momentum, banks, hydropower, low volatility) with members and returns vs NEPSE.", input_schema: obj({}, []) },
+  { name: "get_my_growth", description: "The user's action list for today, wealth roadmap progress and holdings plan (verdict, stop, target, action per holding, XIRR).", input_schema: obj({}, []) },
   { name: "calculate", description: "Deterministic calculators: goal plan (with inflation and scenarios), lump-sum allocation, position size, round-trip trade cost with Nepal fees/CGT.", input_schema: obj({
     kind: { type: "string", enum: ["goal", "allocation", "position_size", "round_trip"] },
     params: { type: "object", description: "goal: {costToday, years, inflationPct, currentSaved, monthlyCapacity}; allocation: {amount, emergencyFundGap, highInterestDebt, horizonYears, risk: low|medium|high, nearTermGoalAmount, nearTermGoalYears}; position_size: {capital, riskPct, entry, stop}; round_trip: {qty, buyPrice, sellPrice, holdingDays}" },
@@ -256,6 +264,12 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
       return { rates, macro: MON.macroLatest(), nepseLongRun: MON.nepseLongRun(), advisorRates: MON.marketRates() };
     }
     case "advise_money_allocation": return MON.allocate(userId, { amount: Number(input.amount), monthly: input.monthly != null ? Number(input.monthly) : undefined, risk: input.risk as "low" | undefined, horizonYears: input.horizon_years != null ? Number(input.horizon_years) : undefined });
+    case "get_fund_directory": return DS.fundDirectory();
+    case "get_brokers": { const b = DS.brokerDirectory(); return { ...b, activity: b.activity.slice(0, 40) }; }
+    case "get_market_mood": return DS.marketMood();
+    case "get_invest_trade_picks": return DS.picks();
+    case "get_stock_baskets": return DS.baskets();
+    case "get_my_growth": return { today: GR.today(userId), roadmap: GR.roadmap(userId), holdings: GR.holdingsPlan(userId) };
     case "compare_deposits": {
       const c = MON.compareDepositsFor(Number(input.amount) || 100000, Number(input.months) || 12);
       let notices: unknown[] = [];

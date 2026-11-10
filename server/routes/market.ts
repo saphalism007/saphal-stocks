@@ -460,6 +460,8 @@ marketRouter.get("/chart/:symbol/analysis", (req, res) => {
   res.json({ ...a, priceInfo: priceInfo() });
 });
 marketRouter.get("/market/mood", (_req, res) => res.json(DS.marketMood()));
+marketRouter.get("/brokers", (_req, res) => res.json(DS.brokerDirectory()));
+marketRouter.get("/funds/directory", (_req, res) => res.json(DS.fundDirectory()));
 marketRouter.get("/picks", (_req, res) => res.json(DS.picks()));
 marketRouter.get("/baskets", (_req, res) => res.json(DS.baskets()));
 marketRouter.get("/stocks/:symbol/card", (req, res) => res.json(DS.stockCard(SYM.parse(req.params.symbol))));

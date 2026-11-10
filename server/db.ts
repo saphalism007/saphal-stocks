@@ -188,6 +188,11 @@ const MIGRATIONS: string[] = [
   `
   CREATE TABLE metal_prices (date TEXT NOT NULL, item TEXT NOT NULL, price REAL NOT NULL, PRIMARY KEY (date, item)) WITHOUT ROWID;
   `,
+  // 16: stockbrokers and mutual fund managers (official SEBON lists), with verified websites and apply links
+  `
+  CREATE TABLE brokers (name TEXT PRIMARY KEY, address TEXT, phone TEXT, email TEXT, contact TEXT, website TEXT, checked_at TEXT);
+  CREATE TABLE fund_managers (name TEXT PRIMARY KEY, address TEXT, phone TEXT, email TEXT, website TEXT, apply_url TEXT, apply_label TEXT, checked_at TEXT);
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

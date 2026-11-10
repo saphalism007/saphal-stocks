@@ -70,6 +70,7 @@ export default function Future() {
               <div className="row" style={{ marginTop: 6 }}>
                 {p.official_url && <a className="btn sm primary" href={p.official_url} target="_blank" rel="noopener noreferrer"><I.external /> Visit provider</a>}
                 {p.info_url && <a className="btn sm" href={p.info_url} target="_blank" rel="noopener noreferrer">Learn more</a>}
+                {/^mf-/.test(p.seed_key ?? "") && <Link className="btn sm" to="/directory">Every fund + apply links</Link>}
               </div>
               <div className="row" style={{ gap: 8 }}><Check c={p.officialCheck} />{p.verified_on && <span className="tiny faint">details verified {p.verified_on}</span>}</div>
             </div>

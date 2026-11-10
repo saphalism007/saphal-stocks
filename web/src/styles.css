@@ -838,3 +838,9 @@ a.gr-item:hover { text-decoration: none; background: var(--panel-2); }
 .ai-suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .ai-suggest .chip { white-space: normal; text-align: left; flex: 0 1 auto; max-width: 100%; }
 @media (max-width: 760px) { .ai-suggest { flex-direction: column; align-items: stretch; } .ai-suggest .chip { border-radius: 12px; } }
+/* v0.18: directory */
+.fd-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 10px; }
+.fd { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fd-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 8px; font-size: 11px; color: var(--text-3); } .fd-kv b { display: block; color: var(--text); font-size: 13px; } .fd-kv em { font-style: normal; font-size: 10.5px; }
+.fd .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) { .fd-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

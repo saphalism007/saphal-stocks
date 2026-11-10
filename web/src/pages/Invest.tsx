@@ -268,6 +268,7 @@ function ChannelsCard({ products }: { products?: Any[] }) {
               <div className="row" style={{ gap: 6 }}>
                 {p.official_url && <a className="btn sm" href={p.official_url} target="_blank" rel="noopener noreferrer"><I.external /> {new URL(p.official_url).host.replace(/^www\./, "")}</a>}
                 {p.info_url && <a className="btn sm ghost" href={p.info_url} target="_blank" rel="noopener noreferrer"><I.external /> {new URL(p.info_url).host.replace(/^www\./, "")}</a>}
+                {/^mf-/.test(p.seed_key ?? "") && <Link className="btn sm primary" to="/directory">Every fund + apply links</Link>}
                 {p.officialCheck && <span className={`tiny ${p.officialCheck.ok ? "up" : "warn"}`}>{p.officialCheck.ok ? "✓ opened" : "couldn't reach"} {nptDate(p.officialCheck.checked_at)}</span>}
               </div>
             </div>))}</div>
