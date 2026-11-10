@@ -38,8 +38,16 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   return <div className="empty"><strong>{title}</strong>{children}</div>;
 }
 
-export function Notice({ tone = "info", children }: { tone?: "info" | "warn" | ""; children: ReactNode }) {
-  return <div className={`notice ${tone}`}>{tone === "warn" ? <I.warn /> : <I.info />}<div>{children}</div></div>;
+// Info boxes can be minimised to a small "note" pill; the choice is remembered on this device (by the box's text).
+const textOf = (n: ReactNode): string => n == null || typeof n === "boolean" ? "" : typeof n === "string" || typeof n === "number" ? String(n) : Array.isArray(n) ? n.map(textOf).join("") : typeof n === "object" && "props" in (n as object) ? textOf((n as { props: { children?: ReactNode } }).props.children) : "";
+const noteKey = (t: string) => { let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return `n${h}`; };
+const readHidden = (): Record<string, 1> => { try { return JSON.parse(localStorage.getItem("ss-hidden-notes") || "{}"); } catch { return {}; } };
+export function Notice({ tone = "info", children, id }: { tone?: "info" | "warn" | ""; children: ReactNode; id?: string }) {
+  const key = id ?? noteKey(textOf(children).slice(0, 160));
+  const [hidden, setHidden] = useState(() => tone !== "warn" && !!readHidden()[key]);
+  const set = (h: boolean) => { setHidden(h); if (tone === "warn") return; try { const m = readHidden(); if (h) m[key] = 1; else delete m[key]; localStorage.setItem("ss-hidden-notes", JSON.stringify(m)); } catch { /* ignore */ } };
+  if (hidden) return <button className={`notice-pill ${tone}`} onClick={() => set(false)} title="Show this note">{tone === "warn" ? <I.warn /> : <I.info />} Note</button>;
+  return <div className={`notice ${tone}`}>{tone === "warn" ? <I.warn /> : <I.info />}<div style={{ flex: 1, minWidth: 0 }}>{children}</div><button className="notice-x" onClick={() => set(true)} aria-label="Minimise this note" title="Minimise">✕</button></div>;
 }
 
 export function Loading({ label = "Loading" }: { label?: string }) {

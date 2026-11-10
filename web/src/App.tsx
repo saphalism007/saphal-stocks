@@ -92,6 +92,8 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
 function BootScreen({ children }: { children: React.ReactNode }) {
   const [st, setSt] = useState(backendState);
   useEffect(() => onBackendEvent(() => setSt({ ...backendState })), []);
+  // On phones page descriptions show two lines; tap to read the rest.
+  useEffect(() => { const h = (e: MouseEvent) => { const p = (e.target as HTMLElement | null)?.closest?.(".page-head p"); if (p && !(e.target as HTMLElement).closest("a,button")) p.classList.toggle("open"); }; document.addEventListener("click", h); return () => document.removeEventListener("click", h); }, []);
   if (!BROWSER_BACKEND || st.status === "ready") return <>{children}</>;
   return (
     <div className="auth-wrap">

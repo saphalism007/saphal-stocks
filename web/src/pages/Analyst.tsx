@@ -81,7 +81,7 @@ export default function Analyst() {
           <button className="btn" onClick={() => { setConvId(null); setMsgs([]); setErr(null); }}><I.plus /> New chat</button>
         </div>
       </div>
-      {status.data && !status.data.available && <Notice><strong>Basic mode.</strong> You can still ask questions: answers come straight from the app's data as tables and reports. For full conversation (follow-up questions, explanations in plain words, reading notices), connect Claude once on this device: <Link to="/settings?tab=ai">Settings → AI</Link> (takes 2 minutes).</Notice>}
+      {status.data && !status.data.available && <Notice id="ai-basic-mode"><strong>Basic mode.</strong> You can still ask questions: answers come straight from the app's data as tables and reports. For full conversation (follow-up questions, explanations in plain words, reading notices), connect Claude once on this device: <Link to="/settings?tab=ai">Settings → AI</Link> (takes 2 minutes).</Notice>}
       <div className="chat">
         <Card title="Conversations" flush>
           <div className="list" style={{ maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}>
@@ -99,7 +99,7 @@ export default function Analyst() {
               <div className="col" style={{ margin: "auto", maxWidth: 760, textAlign: "center", gap: 14 }}>
                 <div style={{ fontSize: 34 }}>✦</div>
                 <h2>What would you like to analyse?</h2>
-                <div className="row" style={{ justifyContent: "center" }}>{SUGGESTIONS.map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}</div>
+                <div className="ai-suggest">{SUGGESTIONS.map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}</div>
               </div>
             )}
             {msgs.map((m, i) => (
