@@ -23,6 +23,7 @@ const Discover = lazy(() => import("./pages/Discover.tsx"));
 const Picks = lazy(() => import("./pages/Picks.tsx"));
 const Purchases = lazy(() => import("./pages/Purchases.tsx"));
 const Directory = lazy(() => import("./pages/Directory.tsx"));
+const Loan = lazy(() => import("./pages/Loan.tsx"));
 const Fundamental = lazy(() => import("./pages/Fundamental.tsx"));
 const Technical = lazy(() => import("./pages/Technical.tsx"));
 const Analyst = lazy(() => import("./pages/Analyst.tsx"));
@@ -76,6 +77,7 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/invest", label: "Investment Planner", icon: "invest" },
   { to: "/future", label: "Long-Term Investing", icon: "planner" },
   { to: "/purchases", label: "Purchase Planner", icon: "money" },
+  { to: "/loan", label: "Loan & EMI Planner", icon: "planner" },
   { to: "/calculators", label: "Money Calculators", icon: "planner" },
   { to: "/planner", label: "Goals & Planning", icon: "planner" },
   { to: "/opportunities", label: "Investment Directory", icon: "opportunities" },
@@ -257,6 +259,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
               <Route path="/picks" element={<Picks />} />
               <Route path="/purchases" element={<Purchases />} />
               <Route path="/directory" element={<Directory />} />
+              <Route path="/loan" element={<Loan />} />
               <Route path="/fundamental" element={<Fundamental />} />
               <Route path="/technical" element={<Technical />} />
               <Route path="/analyst" element={<Analyst />} />

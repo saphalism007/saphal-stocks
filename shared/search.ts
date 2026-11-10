@@ -111,6 +111,7 @@ export const FEATURES: { label: string; to: string; words: string }[] = [
   { label: "Watchlist", to: "/watchlist", words: "watchlist favourites follow" },
   { label: "Trading journal", to: "/journal", words: "journal thesis diary trades log" },
   { label: "Wealth management (income, spending, net worth)", to: "/money", words: "money budget expense income net worth emergency fund spending salary" },
+  { label: "Loan & EMI planner (amortisation schedule)", to: "/loan", words: "loan emi amortisation amortization schedule home loan car loan installment instalment interest principal prepayment floating rate buy cash or loan" },
   { label: "Mutual funds: every fund with apply links", to: "/directory", words: "mutual fund funds sip open ended close ended nav apply fund manager units invest monthly" },
   { label: "Stockbrokers list (all licensed brokers)", to: "/directory?tab=brokers", words: "broker brokers stockbroker list tms open account contact phone sebon" },
   { label: "Broker activity (who is buying/selling)", to: "/directory?tab=activity", words: "broker activity accumulation smart money buying selling broker number" },

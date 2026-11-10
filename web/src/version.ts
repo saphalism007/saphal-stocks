@@ -5,10 +5,12 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.18.1";
+export const VERSION = "0.19.0";
 export const RELEASED = "2026-11-10";
 export const NOTES = [
-  "Clearer investment-channel links: every button now says what it does ('Register a business', 'Tax on rent (IRD)', 'Apply in MeroShare', 'Check IPO result', 'Today's official gold rates'…) instead of a bare web address, with the most useful in-app tool first (e.g. Rent vs buy calculator, Every fund + apply links). 'Your own business' now links to the Office of the Company Registrar.",
+  "Loan & EMI Planner (new page): bank-style amortisation with daily, weekly, fortnightly, monthly, quarterly, half-yearly or yearly payments; EMI, equal principal, interest-only or balloon; interest per instalment or daily on actual days (365); grace period; extra and lump-sum prepayments (finish sooner or lower the EMI); floating rate changes; processing fees and the true cost with fees. Leave one of amount, rate, tenure or instalment empty and it is calculated.",
+  "Schedules of any length (a daily loan over 100 years has 36,500+ rows) are grouped by year, open one year at a time, jump to any instalment number, and download as CSV. A yearly summary shows interest and principal paid each year.",
+  "Pay cash or take the loan and invest the rest? Compares your money at the end both ways, checks the EMI against your income, and explains when borrowing to invest makes sense.",
 ];
 
 declare const __BUILD__: string;

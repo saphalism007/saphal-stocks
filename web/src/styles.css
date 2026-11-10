@@ -844,3 +844,22 @@ a.gr-item:hover { text-decoration: none; background: var(--panel-2); }
 .fd-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 8px; font-size: 11px; color: var(--text-3); } .fd-kv b { display: block; color: var(--text); font-size: 13px; } .fd-kv em { font-style: normal; font-size: 10.5px; }
 .fd .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 760px) { .fd-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* v0.19: loan planner */
+.ln-grid { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.ln-in { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 8px; max-height: calc(100dvh - 90px); overflow-y: auto; padding-right: 2px; }
+.ln-out { min-width: 0; }
+.ln-sec { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.ln-sec-h { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: none; border: 0; color: var(--text); cursor: pointer; font: inherit; }
+.ln-sec-b { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ln-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .ln-two .field { min-width: 0; }
+.seg-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.ln-facts { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--text-2); }
+.ln-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--panel-2); } .ln-bar i { display: block; height: 100%; } .ln-bar i.i { background: var(--down); opacity: .7; } .ln-bar i.p { background: var(--up); opacity: .8; }
+.ln-sched { display: flex; flex-direction: column; gap: 6px; }
+.ln-group { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.ln-gh { width: 100%; display: flex; gap: 10px; align-items: center; padding: 8px 10px; background: var(--panel-2); border: 0; color: var(--text); cursor: pointer; font: inherit; font-size: 12.5px; text-align: left; }
+.ln-gh span:nth-child(2) { flex: 1; color: var(--text-2); }
+.ln-t td, .ln-t th { white-space: nowrap; }
+@media (max-width: 900px) { .ln-grid { grid-template-columns: minmax(0, 1fr); } .ln-in { position: static; max-height: none; overflow: visible; } }
+.ln-in, .ln-sec, .ln-sec-b, .ln-sec-b .field, .ln-sec-b .input { min-width: 0; max-width: 100%; }
+.ln-sec-b .input { width: 100%; }
