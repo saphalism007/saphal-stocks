@@ -59,13 +59,13 @@ function Profile() {
           <label className="field">Investment horizon (years)<NumInput className="input" value={f.horizon ?? ""} onChange={(e) => setF({ ...f, horizon: e.target.value })} /></label>
           <label className="field">Dependents<NumInput className="input" value={f.dependents ?? ""} onChange={(e) => setF({ ...f, dependents: e.target.value })} /></label>
         </div>
-        <label className="field" style={{ marginTop: 12 }}>Preferences and obligations<textarea className="input" value={f.notes ?? ""} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="e.g. prefer dividend stocks, avoid hydropower, family obligations…" /></label>
+        <label className="field" style={{ marginTop: 12 }}>Preferences and obligations<textarea className="input" value={f.notes ?? ""} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="e.g. prefer dividend stocks, avoid hydropower, family obligations..." /></label>
         <div className="row" style={{ marginTop: 10 }}><button className="btn primary" onClick={save}>Save profile</button>{saved && <span className="small up">Saved</span>}</div>
       </Card>
       <div className="col">
         <Stat label="Monthly surplus" value={compact(surplus)} tone={tone(surplus)} sub="Income − expenses − EMIs" />
-        <Stat label="Emergency fund (6 months)" value={compact(ef.target)} sub={ef.gap > 0 ? <span className="warn">Gap {compact(ef.gap)} · covers {num(ef.coveredMonths, 1)} months</span> : <span className="up">Fully funded</span>} />
-        <Stat label="Debt-to-income (EMIs)" value={dti != null ? `${num(dti, 0)}%` : "—"} sub={dti != null ? (dti > 40 ? <span className="down">High: above 40%</span> : dti > 30 ? <span className="warn">Moderate</span> : <span className="up">Comfortable</span>) : ""} />
+        <Stat label="Emergency fund (6 months)" value={compact(ef.target)} sub={ef.gap > 0 ? <span className="warn">Gap {compact(ef.gap)}, covers {num(ef.coveredMonths, 1)} months</span> : <span className="up">Fully funded</span>} />
+        <Stat label="Debt-to-income (EMIs)" value={dti != null ? `${num(dti, 0)}%` : "-"} sub={dti != null ? (dti > 40 ? <span className="down">High: above 40%</span> : dti > 30 ? <span className="warn">Moderate</span> : <span className="up">Comfortable</span>) : ""} />
         <Card title="Priorities from your numbers">
           <ol className="small" style={{ margin: 0, paddingLeft: 18 }}>
             {n("highInterestDebt") > 0 && <li>Pay down high-interest debt ({compact(n("highInterestDebt"))}) before investing in shares.</li>}
@@ -115,7 +115,7 @@ function Goals() {
               <div key={x.id} style={{ marginBottom: 10, cursor: "pointer", padding: 8, borderRadius: 8, background: sel === x.id ? "var(--panel-3)" : undefined }} onClick={() => { setSel(x.id); setF(x.data); }}>
                 <div className="row between"><strong className="small">{x.data.name}</strong><button className="btn ghost sm" onClick={async (e) => { e.stopPropagation(); await api(`/vault/goal/${x.id}`, { method: "DELETE" }); if (sel === x.id) setSel(null); g.reload(); }}><I.trash /></button></div>
                 <div className="bar"><span style={{ width: `${prog}%` }} /></div>
-                <div className="tiny faint">{compact(+x.data.currentSaved)} of {compact(p.targetFutureCost)} ({num(prog, 0)}%) · need {compact(p.scenarios[1].requiredMonthly)}/month (moderate)</div>
+                <div className="tiny faint">{compact(+x.data.currentSaved)} of {compact(p.targetFutureCost)} ({num(prog, 0)}%), need {compact(p.scenarios[1].requiredMonthly)}/month (moderate)</div>
               </div>
             );
           }) : <Empty title="No saved goals" />}
@@ -123,7 +123,7 @@ function Goals() {
         </Card>
         <Card title="Goal details">
           <div className="col">
-            <label className="field">Goal<select className="input" value={f.name in GOAL_PRESETS ? f.name : "custom"} onChange={(e) => e.target.value !== "custom" && setF({ ...f, name: e.target.value, ...GOAL_PRESETS[e.target.value] })}>{Object.keys(GOAL_PRESETS).map((k) => <option key={k}>{k}</option>)}<option value="custom">Custom…</option></select></label>
+            <label className="field">Goal<select className="input" value={f.name in GOAL_PRESETS ? f.name : "custom"} onChange={(e) => e.target.value !== "custom" && setF({ ...f, name: e.target.value, ...GOAL_PRESETS[e.target.value] })}>{Object.keys(GOAL_PRESETS).map((k) => <option key={k}>{k}</option>)}<option value="custom">Custom...</option></select></label>
             <label className="field">Name<input className="input" value={f.name} onChange={set("name")} /></label>
             <div className="grid g2">
               <label className="field">Cost today (Rs.)<NumInput className="input" value={f.costToday} onChange={set("costToday")} /></label>
@@ -142,20 +142,20 @@ function Goals() {
       {plan && (
         <div className="col span2">
           <div className="grid g3">
-            <Stat label="Future cost (with inflation)" value={compact(plan.targetFutureCost)} sub={`${rs(+f.costToday, 0)} today · ${f.years} years at ${f.inflationPct}%`} />
+            <Stat label="Future cost (with inflation)" value={compact(plan.targetFutureCost)} sub={`${rs(+f.costToday, 0)} today, ${f.years} years at ${f.inflationPct}%`} />
             <Stat label="Return needed with your monthly amount" value={plan.requiredReturnPct != null ? `${num(plan.requiredReturnPct, 1)}%/yr` : "Not reachable"} sub={plan.requiredReturnPct != null && plan.requiredReturnPct > 13 ? <span className="warn">Unrealistic: increase savings or extend the timeline</span> : "After costs and tax"} />
             <Stat label="Moderate plan: monthly needed" value={compact(plan.scenarios[1].requiredMonthly)} sub={`You plan ${compact(+f.monthlyCapacity)}`} />
           </div>
           <Card title="Scenarios" flush>
-            <table className="t"><thead><tr><th>Scenario</th><th className="num">Assumed return</th><th className="num">Monthly needed</th><th className="num">Projected with your plan</th><th className="num">Shortfall</th><th className="num">Time needed</th><th className="num">Chance of reaching goal</th><th className="num">Range (10th–90th pct)</th></tr></thead>
+            <table className="t"><thead><tr><th>Scenario</th><th className="num">Assumed return</th><th className="num">Monthly needed</th><th className="num">Projected with your plan</th><th className="num">Shortfall</th><th className="num">Time needed</th><th className="num">Chance of reaching goal</th><th className="num">Range (10th-90th pct)</th></tr></thead>
               <tbody>{plan.scenarios.map((s) => (
-                <tr key={s.name}><td><strong>{s.name}</strong><div className="tiny faint">{s.description}</div></td><td className="num">{num(s.effectiveReturnPct, 1)}%</td><td className="num">{compact(s.requiredMonthly)}</td><td className="num">{compact(s.projectedWithCapacity)}</td><td className={`num ${s.shortfall > 0 ? "down" : "up"}`}>{s.shortfall > 0 ? compact(s.shortfall) : "None"}</td><td className="num">{s.monthsNeededWithCapacity != null ? `${num(s.monthsNeededWithCapacity / 12, 1)} y` : "> 50 y"}</td><td className="num">{num(s.simulated.probabilityOfSuccess * 100, 0)}%</td><td className="num tiny">{compact(s.simulated.p10)} – {compact(s.simulated.p90)}</td></tr>
+                <tr key={s.name}><td><strong>{s.name}</strong><div className="tiny faint">{s.description}</div></td><td className="num">{num(s.effectiveReturnPct, 1)}%</td><td className="num">{compact(s.requiredMonthly)}</td><td className="num">{compact(s.projectedWithCapacity)}</td><td className={`num ${s.shortfall > 0 ? "down" : "up"}`}>{s.shortfall > 0 ? compact(s.shortfall) : "None"}</td><td className="num">{s.monthsNeededWithCapacity != null ? `${num(s.monthsNeededWithCapacity / 12, 1)} y` : "> 50 y"}</td><td className="num">{num(s.simulated.probabilityOfSuccess * 100, 0)}%</td><td className="num tiny">{compact(s.simulated.p10)} - {compact(s.simulated.p90)}</td></tr>
               ))}</tbody></table>
           </Card>
           <Card title="Projected savings (moderate scenario)" sub="Dashed line: inflation-adjusted target"><LineChart data={curve} height={220} baseline={plan.targetFutureCost} theme={theme} /></Card>
           <Card title="Suitable products for this timeline">
             {+f.years <= 3 ? <p className="small">Under 3 years: keep this money safe and liquid. Fixed deposits matched to the goal date, debentures from strong issuers, development bonds. Avoid putting it in shares.</p>
-              : +f.years <= 7 ? <p className="small">3–7 years: a balance of fixed deposits/bonds and diversified equity (open-ended mutual fund SIPs or a diversified basket of strong NEPSE stocks). Shift to safer assets as the date approaches.</p>
+              : +f.years <= 7 ? <p className="small">3-7 years: a balance of fixed deposits/bonds and diversified equity (open-ended mutual fund SIPs or a diversified basket of strong NEPSE stocks). Shift to safer assets as the date approaches.</p>
                 : <p className="small">7+ years: equity can be the growth engine (diversified NEPSE stocks, equity mutual funds, dividend stocks), with fixed income for stability. Rebalance yearly.</p>}
             <p className="tiny faint">Simulated chances assume returns vary randomly around the assumed average with the scenario's volatility (2,000 runs). Real markets can do worse. <Link to="/opportunities">Browse products</Link>.</p>
           </Card>
@@ -178,17 +178,17 @@ function CarPlanner() {
       </Card>
       <div className="col span2">
         <div className="grid g2">
-          <Card title="Option A · Finance now">
+          <Card title="Option A, Finance now">
             <dl className="kv">
               <dt>Down payment</dt><dd>{rs(r.financed.downPayment, 0)}</dd><dt>Loan</dt><dd>{rs(r.financed.loan, 0)}</dd>
               <dt>EMI</dt><dd><strong>{rs(r.financed.emi, 0)}</strong>/month</dd><dt>Total interest</dt><dd className="down">{rs(r.financed.totalInterest, 0)}</dd>
-              <dt>Total cost</dt><dd>{rs(r.financed.totalCost, 0)}</dd><dt>EMI vs your capacity</dt><dd className={r.financed.emiShareOfCapacity && r.financed.emiShareOfCapacity > 0.8 ? "down" : ""}>{r.financed.emiShareOfCapacity != null ? pct(r.financed.emiShareOfCapacity * 100, 0, false) : "—"}</dd>
-              <dt>Down-payment gap</dt><dd>{r.financed.downPaymentGap > 0 ? <span className="warn">{rs(r.financed.downPaymentGap, 0)} · ~{r.financed.monthsToSaveDownPayment} months to save</span> : <span className="up">Ready</span>}</dd>
+              <dt>Total cost</dt><dd>{rs(r.financed.totalCost, 0)}</dd><dt>EMI vs your capacity</dt><dd className={r.financed.emiShareOfCapacity && r.financed.emiShareOfCapacity > 0.8 ? "down" : ""}>{r.financed.emiShareOfCapacity != null ? pct(r.financed.emiShareOfCapacity * 100, 0, false) : "-"}</dd>
+              <dt>Down-payment gap</dt><dd>{r.financed.downPaymentGap > 0 ? <span className="warn">{rs(r.financed.downPaymentGap, 0)}, ~{r.financed.monthsToSaveDownPayment} months to save</span> : <span className="up">Ready</span>}</dd>
             </dl>
           </Card>
-          <Card title="Option B · Save and buy outright">
+          <Card title="Option B, Save and buy outright">
             <dl className="kv">
-              <dt>Months to save</dt><dd><strong>{r.cash.monthsToSave ?? "—"}</strong> ({r.cash.monthsToSave != null ? num(r.cash.monthsToSave / 12, 1) : "—"} years)</dd>
+              <dt>Months to save</dt><dd><strong>{r.cash.monthsToSave ?? "-"}</strong> ({r.cash.monthsToSave != null ? num(r.cash.monthsToSave / 12, 1) : "-"} years)</dd>
               <dt>Price by then</dt><dd>{rs(r.cash.priceAtPurchase, 0)}</dd>
               <dt>Interest paid</dt><dd className="up">Rs. 0</dd>
               <dt>Insurance estimate</dt><dd>{rs(r.yearlyInsuranceEstimate, 0)}/yr</dd>
@@ -232,7 +232,7 @@ function Allocation() {
         <Card title={`Suggested allocation of ${compact(f.amount)}`} sub="Rules: debt first, then emergency fund, near-term goals, then long-term split by risk and horizon">
           {r.steps.map((s) => (
             <div key={s.bucket} style={{ marginBottom: 12 }}>
-              <div className="row between"><strong>{s.bucket}</strong><span className="mono">{compact(s.amount)} · {num((s.amount / f.amount) * 100, 0)}%</span></div>
+              <div className="row between"><strong>{s.bucket}</strong><span className="mono">{compact(s.amount)}, {num((s.amount / f.amount) * 100, 0)}%</span></div>
               <div className="bar" style={{ margin: "4px 0" }}><span style={{ width: `${(s.amount / f.amount) * 100}%` }} /></div>
               <div className="small muted">{s.why}</div>
               <div className="row" style={{ marginTop: 4 }}>{s.vehicles.map((v) => <Badge key={v}>{v}</Badge>)}</div>
@@ -241,7 +241,7 @@ function Allocation() {
         </Card>
         <Card title="Compare risk levels" flush>
           <table className="t"><thead><tr><th>Risk</th><th className="num">Equity</th><th className="num">Fixed income & safety</th><th>Trade-off</th></tr></thead><tbody>
-            {compare.map(({ risk, a }) => { const eq = a.steps.find((s) => s.bucket.startsWith("Equity"))?.amount ?? 0; return <tr key={risk}><td><strong>{risk}</strong></td><td className="num">{compact(eq)}</td><td className="num">{compact(f.amount - eq)}</td><td className="small muted">{risk === "low" ? "Smaller swings, lower expected growth; inflation can erode real value." : risk === "medium" ? "Balanced growth and stability." : "Highest expected growth, but a 30–40% fall in a bad year is possible."}</td></tr>; })}
+            {compare.map(({ risk, a }) => { const eq = a.steps.find((s) => s.bucket.startsWith("Equity"))?.amount ?? 0; return <tr key={risk}><td><strong>{risk}</strong></td><td className="num">{compact(eq)}</td><td className="num">{compact(f.amount - eq)}</td><td className="small muted">{risk === "low" ? "Smaller swings, lower expected growth; inflation can erode real value." : risk === "medium" ? "Balanced growth and stability." : "Highest expected growth, but a 30-40% fall in a bad year is possible."}</td></tr>; })}
           </tbody></table>
         </Card>
         <Notice>This is a starting framework, not personal advice. It never puts everything into stocks. For tax or complex situations, consult a licensed professional.</Notice>
@@ -315,7 +315,7 @@ function Calculators() {
       <Calc title="Risk / reward" fields={[["e", "Entry", 500], ["s", "Stop", 470], ["t", "Target", 580]]} compute={(v) => [["Risk / share", rs(v.e - v.s)], ["Reward / share", rs(v.t - v.e)], ["R:R", num((v.t - v.e) / (v.e - v.s), 2)], ["Win rate needed to break even", `${num((1 / (1 + (v.t - v.e) / (v.e - v.s))) * 100, 0)}%`]]} />
       <Calc title="Intrinsic value: DCF" sub="Two-stage; per-share cash flow (e.g. EPS or FCF)" fields={[["cf", "Cash flow / share now", 30], ["g", "Growth % (stage 1)", 10], ["n", "Years of stage 1", 5], ["tg", "Terminal growth %", 4], ["d", "Discount rate %", 12]]} compute={(v) => { const x = dcf({ cashFlow0: v.cf, growthRate: v.g / 100, growthYears: v.n, terminalGrowth: v.tg / 100, discountRate: v.d / 100 }); return x ? [["Intrinsic value / share", rs(x.value)], ["From terminal value", `${num(x.terminalShare * 100, 0)}%`]] : [["Error", "Discount rate must exceed terminal growth"]]; }} />
       <Calc title="Dividend discount model" fields={[["d", "Last cash dividend / share (Rs.)", 12], ["g", "Dividend growth %", 5], ["r", "Required return %", 12]]} compute={(v) => [["Value / share", rs(dividendDiscount(v.d, v.g / 100, v.r / 100))]]} />
-      <Calc title="Graham number" sub="√(22.5 × EPS × BVPS)" fields={[["e", "EPS", 30], ["b", "Book value / share", 230]]} compute={(v) => [["Graham number", rs(grahamNumber(v.e, v.b))]]} />
+      <Calc title="Graham number" sub="√(22.5 x EPS x BVPS)" fields={[["e", "EPS", 30], ["b", "Book value / share", 230]]} compute={(v) => [["Graham number", rs(grahamNumber(v.e, v.b))]]} />
     </div>
   );
 }

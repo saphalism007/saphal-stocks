@@ -39,7 +39,7 @@ export function RankingPanel({ kinds, defaultKey }: { kinds: string[]; defaultKe
               <div key={w.factor} className="col" style={{ gap: 2, marginBottom: 6 }}>
                 <div className="row between small"><span>{w.label} {w.higherIsBetter ? "↑" : "↓"}</span><span className="mono">{num(weights[w.factor] ?? w.weight, 2)}</span></div>
                 <input type="range" min={0} max={1} step={0.05} value={weights[w.factor] ?? w.weight} onChange={(e) => setW(w.factor, +e.target.value)} />
-                <div className="tiny faint">Scaled {w.lo} → {w.hi}{w.higherIsBetter ? "" : " (lower is better)"}</div>
+                <div className="tiny faint">Scaled {w.lo} &gt; {w.hi}{w.higherIsBetter ? "" : " (lower is better)"}</div>
               </div>
             ))}
             {Object.keys(weights).length > 0 && <button className="btn sm" onClick={() => { setWeights({}); try { localStorage.removeItem(`ss-weights-${key}`); } catch { /* ignore */ } }}>Reset to defaults</button>}
@@ -47,7 +47,7 @@ export function RankingPanel({ kinds, defaultKey }: { kinds: string[]; defaultKe
             <ul className="small muted" style={{ margin: 0, paddingLeft: 18 }}>{strat.filters.length ? strat.filters.map((f) => <li key={f}>{f}</li>) : <li>None</li>}</ul>
             <label className="field" style={{ marginTop: 10 }}>Sector<select className="input" value={sector} onChange={(e) => setSector(e.target.value)}><option value="">All sectors</option>{sectors.data?.map((s) => <option key={s.sector}>{s.sector}</option>)}</select></label>
           </Card>
-          <Card title="Ranking" className="span2" flush sub={r.data ? <><Fresh date={r.data.asOf} /> · {r.data.ranked.length} ranked of {r.data.universe}; {r.data.excluded} excluded by filters or missing data</> : undefined}>
+          <Card title="Ranking" className="span2" flush sub={r.data ? <><Fresh date={r.data.asOf} />, {r.data.ranked.length} ranked of {r.data.universe}; {r.data.excluded} excluded by filters or missing data</> : undefined}>
             {r.loading && !r.data ? <Loading /> : r.error ? <ErrorBox error={r.error} /> : (
               <DataTable rows={r.data?.ranked ?? []} onRow={(x: any) => nav(`/stocks/${x.symbol}`)} maxHeight={620} empty="No stocks pass this model's filters with enough data yet" cols={[
                 { key: "rank", label: "#", num: true },

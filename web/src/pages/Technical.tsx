@@ -27,7 +27,7 @@ export default function Technical() {
             <SetupTable rows={rows.slice(0, 80)} onSelect={setSel} />
           )}
         </Card>
-        <Card title={sel ? `${sel.symbol} · ${sel.type}` : "Setup details"} actions={sel && <Link className="btn sm" to={`/stocks/${sel.symbol}`}>Open stock</Link>}>
+        <Card title={sel ? `${sel.symbol}, ${sel.type}` : "Setup details"} actions={sel && <Link className="btn sm" to={`/stocks/${sel.symbol}`}>Open stock</Link>}>
           {sel ? <SetupCard s={sel} /> : <p className="muted small">Select a setup to see the full reasoning, levels and invalidation conditions.</p>}
           <Disclaimer />
         </Card>

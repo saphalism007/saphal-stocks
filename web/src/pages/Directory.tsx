@@ -35,11 +35,11 @@ function Funds() {
   return (
     <div className="col">
       <div className="row" style={{ gap: 8 }}>
-        <input className="input" placeholder="Search fund or manager…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: "1 1 180px", maxWidth: 300 }} />
+        <input className="input" placeholder="Search fund or manager..." value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: "1 1 180px", maxWidth: 300 }} />
         <div className="chips">{(["all", "Open-ended", "Close-ended"] as const).map((t) => <button key={t} className={`chip ${type === t ? "on" : ""}`} onClick={() => setType(t)}>{t === "all" ? "All" : t}</button>)}</div>
       </div>
       <Notice id="fund-how">
-        <b>Open-ended</b> funds: buy or redeem units directly from the fund manager at the day's NAV — start a SIP (monthly plan) on their website or at their office/partner bank. <b>Close-ended</b> funds: listed on NEPSE, bought and sold through your broker (TMS) like shares; compare price with NAV (a discount means you pay less than the fund is worth).
+        <b>Open-ended</b> funds: buy or redeem units directly from the fund manager at the day's NAV, start a SIP (monthly plan) on their website or at their office/partner bank. <b>Close-ended</b> funds: listed on NEPSE, bought and sold through your broker (TMS) like shares; compare price with NAV (a discount means you pay less than the fund is worth).
       </Notice>
       <div className="fd-list">{list.map((f: Any) => (
         <div key={f.symbol} className="fd">
@@ -48,16 +48,16 @@ function Funds() {
             <Badge tone={f.type === "Open-ended" ? "up" : "accent"}>{f.type}</Badge>
           </div>
           <div className="fd-kv">
-            <span>NAV <b>{f.daily_nav ?? f.weekly_nav ?? "—"}</b><em>{f.daily_date ? nptDate(f.daily_date) : f.weekly_date ? nptDate(f.weekly_date) : ""}</em></span>
+            <span>NAV <b>{f.daily_nav ?? f.weekly_nav ?? "-"}</b><em>{f.daily_date ? nptDate(f.daily_date) : f.weekly_date ? nptDate(f.weekly_date) : ""}</em></span>
             {f.type === "Close-ended" ? <>
-              <span>Price <b>{f.ltp ?? "—"}</b></span>
-              <span>vs NAV <b className={tone(f.premium_pct != null ? -f.premium_pct : null)}>{f.premium_pct != null ? `${f.premium_pct > 0 ? "+" : ""}${num(f.premium_pct, 1)}%` : "—"}</b><em>{f.premium_pct != null ? (f.premium_pct < 0 ? "discount" : "premium") : ""}</em></span>
-              <span>Matures <b>{f.maturity_date ? f.maturity_date.slice(0, 4) : "—"}</b></span>
-            </> : <span>Fund size <b>{f.fund_size ? compact(f.fund_size) : "—"}</b></span>}
+              <span>Price <b>{f.ltp ?? "-"}</b></span>
+              <span>vs NAV <b className={tone(f.premium_pct != null ? -f.premium_pct : null)}>{f.premium_pct != null ? `${f.premium_pct > 0 ? "+" : ""}${num(f.premium_pct, 1)}%` : "-"}</b><em>{f.premium_pct != null ? (f.premium_pct < 0 ? "discount" : "premium") : ""}</em></span>
+              <span>Matures <b>{f.maturity_date ? f.maturity_date.slice(0, 4) : "-"}</b></span>
+            </> : <span>Fund size <b>{f.fund_size ? compact(f.fund_size) : "-"}</b></span>}
           </div>
           <div className="row" style={{ gap: 6 }}>
-            {f.type === "Open-ended" && f.applyUrl && <a className="btn sm primary" href={f.applyUrl} target="_blank" rel="noopener noreferrer">Apply / SIP online ↗</a>}
-            {f.website && <a className="btn sm" href={f.website} target="_blank" rel="noopener noreferrer">{host(f.website)} ↗</a>}
+            {f.type === "Open-ended" && f.applyUrl && <a className="btn sm primary" href={f.applyUrl} target="_blank" rel="noopener noreferrer">Apply / SIP online</a>}
+            {f.website && <a className="btn sm" href={f.website} target="_blank" rel="noopener noreferrer">{host(f.website)}</a>}
             {f.type === "Close-ended" && <Link className="btn sm" to={`/stocks/${f.symbol}`}>Buy via broker (TMS)</Link>}
             {!f.website && f.phone && <a className="btn sm ghost" href={`tel:${String(f.phone).split(/[,/]/)[0].replace(/[^0-9+]/g, "")}`}>Call {String(f.phone).split(/[,/]/)[0]}</a>}
           </div>
@@ -77,12 +77,12 @@ function Brokers() {
   const list = d.data.sebon.filter((b: Any) => !q || `${b.name} ${b.address ?? ""}`.toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="col">
-      <input className="input" placeholder="Search broker name or place (e.g. Pokhara)…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 360 }} />
+      <input className="input" placeholder="Search broker name or place (e.g. Pokhara)..." value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 360 }} />
       <p className="small muted" style={{ margin: 0 }}>{d.data.sebon.length} brokers licensed by SEBON. To open a trading account you need a demat account (MeroShare) and a broker; most brokers offer online KYC through their TMS.</p>
       <div className="fd-list">{list.map((b: Any) => (
         <div key={b.name} className="fd">
           <b>{b.name}</b>
-          <div className="tiny muted">{b.address ?? "—"}</div>
+          <div className="tiny muted">{b.address ?? "-"}</div>
           <div className="row" style={{ gap: 6 }}>
             {b.phone && <a className="btn sm" href={`tel:${String(b.phone).split(/[,/]/)[0].replace(/[^0-9+]/g, "")}`}>📞 {String(b.phone).split(/[,/]/)[0]}</a>}
             {b.email && <a className="btn sm ghost" href={`mailto:${b.email}`}>✉ {b.email}</a>}
@@ -103,7 +103,7 @@ function Activity() {
   if (!a.activity.length) return <Notice>No floorsheet data stored yet.</Notice>;
   return (
     <div className="col">
-      <p className="small muted" style={{ margin: 0 }}>Buying and selling by broker number over {a.sessions} session{a.sessions === 1 ? "" : "s"} ({a.from ? nptDate(a.from) : ""}{a.to && a.to !== a.from ? ` – ${nptDate(a.to)}` : ""}), from the floorsheet. Net buying across many sessions can signal accumulation by big players.</p>
+      <p className="small muted" style={{ margin: 0 }}>Buying and selling by broker number over {a.sessions} session{a.sessions === 1 ? "" : "s"} ({a.from ? nptDate(a.from) : ""}{a.to && a.to !== a.from ? ` - ${nptDate(a.to)}` : ""}), from the floorsheet. Net buying across many sessions can signal accumulation by big players.</p>
       <div className="table-scroll"><table className="t small">
         <thead><tr><th>Broker</th><th className="num">Bought</th><th className="num">Sold</th><th className="num">Net</th><th>Buying most</th><th>Selling most</th><th>TMS</th></tr></thead>
         <tbody>{a.activity.map((x: Any) => (
@@ -111,7 +111,7 @@ function Activity() {
             <td><b>#{x.broker}</b></td><td className="num">{compact(x.buy)}</td><td className="num">{compact(x.sell)}</td><td className={`num ${tone(x.net)}`}>{compact(x.net)}</td>
             <td>{x.accumulating.map((s: Any) => <Link key={s.symbol} className="mono" to={`/stocks/${s.symbol}?tab=brokers`} style={{ marginRight: 6 }}>{s.symbol}</Link>)}</td>
             <td>{x.distributing.map((s: Any) => <Link key={s.symbol} className="mono" to={`/stocks/${s.symbol}?tab=brokers`} style={{ marginRight: 6 }}>{s.symbol}</Link>)}</td>
-            <td><a href={x.tms} target="_blank" rel="noopener noreferrer" className="tiny">tms{x.broker} ↗</a></td>
+            <td><a href={x.tms} target="_blank" rel="noopener noreferrer" className="tiny">tms{x.broker}</a></td>
           </tr>
         ))}</tbody>
       </table></div>
@@ -131,8 +131,8 @@ function Managers() {
         <div className="tiny muted">{m.address ?? ""}</div>
         <div className="tiny">{d.data.funds.filter((f: Any) => f.manager === m.name).map((f: Any) => f.symbol).join(", ") || "No funds matched"}</div>
         <div className="row" style={{ gap: 6 }}>
-          {m.website ? <a className="btn sm" href={m.website} target="_blank" rel="noopener noreferrer">{host(m.website)} ↗</a> : <span className="tiny faint">Website not confirmed</span>}
-          {m.apply_url && <a className="btn sm primary" href={m.apply_url} target="_blank" rel="noopener noreferrer">{m.apply_label ?? "Apply"} ↗</a>}
+          {m.website ? <a className="btn sm" href={m.website} target="_blank" rel="noopener noreferrer">{host(m.website)}</a> : <span className="tiny faint">Website not confirmed</span>}
+          {m.apply_url && <a className="btn sm primary" href={m.apply_url} target="_blank" rel="noopener noreferrer">{m.apply_label ?? "Apply"}</a>}
           {m.phone && <a className="btn sm ghost" href={`tel:${String(m.phone).split(/[,/]/)[0].replace(/[^0-9+]/g, "")}`}>📞 {String(m.phone).split(/[,/]/)[0]}</a>}
         </div>
       </div>

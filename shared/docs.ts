@@ -1,7 +1,7 @@
 // Company documents from official websites: find the investor / reports / notices / news /
 // downloads pages, collect document links, and classify each one strictly:
 //   quarterly  = interim (usually unaudited) statements for a stated quarter
-//   annual     = the company's annual report (may contain audited statements, management review…)
+//   annual     = the company's annual report (may contain audited statements, management review...)
 //   audited    = audited financial statements / independent auditor's report for a fiscal year
 //   unclassified = clearly financial but the type can't be verified from its title, file name or folder
 // A quarterly report is never labelled audited just because it contains financial statements.

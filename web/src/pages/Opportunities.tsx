@@ -46,10 +46,10 @@ export default function Opportunities() {
           {products.loading ? <Loading /> : (
             <div className="grid g2">
               {shown.map((p) => (
-                <Card key={p.id} title={p.name} sub={`${p.category} · ${p.provider ?? ""}`} actions={<Badge tone={p.risk?.toLowerCase().includes("high") ? "down" : p.risk?.toLowerCase().includes("low") ? "up" : "warn"}>Risk: {p.risk}</Badge>}>
+                <Card key={p.id} title={p.name} sub={`${p.category}, ${p.provider ?? ""}`} actions={<Badge tone={p.risk?.toLowerCase().includes("high") ? "down" : p.risk?.toLowerCase().includes("low") ? "up" : "warn"}>Risk: {p.risk}</Badge>}>
                   <p className="small">{p.description}</p>
                   <div className="row" style={{ margin: "6px 0" }}><Badge tone={RT[p.return_type]?.tone}>{RT[p.return_type]?.label ?? "Return"}</Badge><span className="small">{p.return_text}</span></div>
-                  {p.verified_on && <div className="small up">Recorded by you: verified {p.verified_on} {p.source && p.source !== "Curated (Saphal Stocks seed); verify on the official site" ? `· ${p.source}` : ""}</div>}
+                  {p.verified_on && <div className="small up">Recorded by you: verified {p.verified_on} {p.source && p.source !== "Curated (Saphal Stocks seed); verify on the official site" ? `, ${p.source}` : ""}</div>}
                   <details className="small" style={{ marginTop: 6 }}>
                     <summary className="muted">Eligibility, minimum, lock-in, liquidity, tax, how to apply</summary>
                     <dl className="kv" style={{ marginTop: 8, gridTemplateColumns: "140px 1fr" }}>
@@ -142,12 +142,12 @@ function Issues() {
             { key: "statusLabel", label: "Status", render: (r: any) => <Badge tone={tones[r.statusLabel]}>{r.statusLabel}</Badge> },
             { key: "symbol", label: "Company", render: (r: any) => <>{r.symbol ? <Link to={`/stocks/${r.symbol}`} className="sym">{r.symbol}</Link> : null}<div className="small">{r.company}</div><div className="tiny faint">{r.sector ?? ""}</div></> },
             { key: "units", label: "Units", num: true, render: (r: any) => int(r.units) },
-            { key: "price", label: "Price", num: true, render: (r: any) => r.price_low ? `${num(r.price_low)}–${num(r.price_high)}` : num(r.price) },
-            { key: "ratio", label: "Ratio", render: (r: any) => r.ratio ?? "—" },
-            { key: "opening_date", label: "Opens", render: (r: any) => r.opening_date ? nptDate(r.opening_date) : "—" },
-            { key: "closing_date", label: "Closes", render: (r: any) => r.closing_date ? nptDate(r.final_date || r.closing_date) : "—" },
-            { key: "listing_date", label: "Listed", render: (r: any) => r.listing_date ? nptDate(r.listing_date) : "—" },
-            { key: "perf", label: "Since issue", num: true, sort: (r: any) => r.performance?.sinceIssuePct, render: (r: any) => r.performance?.sinceIssuePct != null ? <span className={tone(r.performance.sinceIssuePct)}>{pct(r.performance.sinceIssuePct, 0)}</span> : <span className="tiny faint" title={r.performance?.note}>{r.performance?.note ? "no early data" : "—"}</span> },
+            { key: "price", label: "Price", num: true, render: (r: any) => r.price_low ? `${num(r.price_low)}-${num(r.price_high)}` : num(r.price) },
+            { key: "ratio", label: "Ratio", render: (r: any) => r.ratio ?? "-" },
+            { key: "opening_date", label: "Opens", render: (r: any) => r.opening_date ? nptDate(r.opening_date) : "-" },
+            { key: "closing_date", label: "Closes", render: (r: any) => r.closing_date ? nptDate(r.final_date || r.closing_date) : "-" },
+            { key: "listing_date", label: "Listed", render: (r: any) => r.listing_date ? nptDate(r.listing_date) : "-" },
+            { key: "perf", label: "Since issue", num: true, sort: (r: any) => r.performance?.sinceIssuePct, render: (r: any) => r.performance?.sinceIssuePct != null ? <span className={tone(r.performance.sinceIssuePct)}>{pct(r.performance.sinceIssuePct, 0)}</span> : <span className="tiny faint" title={r.performance?.note}>{r.performance?.note ? "no early data" : "-"}</span> },
             { key: "issue_manager", label: "Issue manager", render: (r: any) => <span className="small muted">{r.issue_manager}</span> },
           ]} />
         )}

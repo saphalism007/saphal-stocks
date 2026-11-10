@@ -1,6 +1,6 @@
 # Progress
 
-Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜ not started.
+Status as of 8 November 2026 (version 0.5.0). ✅ working, 🟡 partial, ⬜ not started.
 
 ## Data infrastructure
 - ✅ Company database, daily OHLCV history (nepse-data), latest prices, 18 indices, dividends, announcements, quarterly statements, NRB forex
@@ -17,7 +17,7 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 
 ## Market & stocks
 - ✅ Economy: one year of official NRB exchange rates, USD/NPR chart, 1M/1Y changes for major and remittance currencies
-- ✅ Total market capitalisation; sector rotation table (1W–1Y returns, relative to NEPSE, distance from 52-week high)
+- ✅ Total market capitalisation; sector rotation table (1W-1Y returns, relative to NEPSE, distance from 52-week high)
 - ✅ Sector peers on every stock page with rank among peers
 - ✅ Stock comparison page (up to 6 stocks): rebased price chart, valuation, profitability, health, dividends, performance, best-in-row highlighting, cross-sector warning
 - ✅ Market dashboard: indices, breadth, turnover, gainers/losers, turnover/volume leaders, 52-week highs/lows, sector performance and sub-index heat map, NEPSE trend, breadth history
@@ -84,7 +84,7 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 - ✅ Encrypted sync between devices through a secret GitHub Gist (AES-256-GCM, passphrase never leaves the device), with conflict choice
 - ✅ Device backup download/restore (AI key excluded)
 - ✅ Appearance settings per device: theme, accent, text size, density, number style, start page, menu items, phone tab bar, sidebar rail, chart defaults
-- ✅ Layouts checked at iPhone Pro Max (440×956), iPad Pro 13" (1032×1376) and MacBook Air 13" sizes: phone tab bar and bottom-sheet dialogs, tablet rail, safe areas, 16 px inputs (no iOS zoom), larger touch targets
+- ✅ Layouts checked at iPhone Pro Max (440x956), iPad Pro 13" (1032x1376) and MacBook Air 13" sizes: phone tab bar and bottom-sheet dialogs, tablet rail, safe areas, 16 px inputs (no iOS zoom), larger touch targets
 - ✅ GitHub Actions pipeline: daily full refresh, 15-minute price refresh in market hours, tests, build, deploy to GitHub Pages
 - ✅ Versions and updates: version and code in the app, update check with Update now, `npm run deploy` publishes and prints a TALLY line that matches the app (0.6.1, 9 November 2026)
 - ⬜ Background alerts on iOS (web apps cannot run in the background; alerts are checked when the app opens)
@@ -94,7 +94,7 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 - ✅ Start Investing guide with official links checked daily (shared/guide.ts)
 
 ## v0.9: trading opportunities and professional wealth management
-- ✅ Trading Opportunities (shared/opportunities.ts, tested): BUY/SELL/HOLD/WATCH/AVOID/INSUFFICIENT per stock from stored data; rules: ≥120 sessions, fresh prices, liquidity ≥ Rs. 10 lakh/day, setup quality ≥ 60, R:R ≥ 1.8 before and ≥ 1.5 after costs, stop below the buy range and ≥ 1.5% away, oversold bounces need a confirmed reversal; three targets (setup, next resistance, then marked R-projections); review date
+- ✅ Trading Opportunities (shared/opportunities.ts, tested): BUY/SELL/HOLD/WATCH/AVOID/INSUFFICIENT per stock from stored data; rules: >=120 sessions, fresh prices, liquidity at least Rs. 10 lakh/day, setup quality at least 60, R:R at least 1.8 before and at least 1.5 after costs, stop below the buy range and at least 1.5% away, oversold bounces need a confirmed reversal; three targets (setup, next resistance, then marked R-projections); review date
 - ✅ Track record: walk-forward replay of the BUY rule (no look-ahead, next-open fills, fees and CGT) and a daily forward signal log judged against later prices; confidence tempered by each setup type's results
 - ✅ Trade planner (capital, risk per trade, max position) with exact charges, CGT, net P/L at targets/stop, breakeven, net reward/risk; paper trading and alerts from a signal
 - ✅ Invest for the Future, provider websites with automatic daily link checks, long-term ideas judged on fundamentals
@@ -114,7 +114,7 @@ Status as of 8 November 2026 (version 0.5.0). ✅ working · 🟡 partial · ⬜
 ## v0.7: NEPSE intelligence and personal wealth focus
 - ✅ Two-pillar home (NEPSE Intelligence, My Financial Life) and a global Ask AI button that carries the current page
 - ✅ My Money: income, categorised spending, accounts (bank, FD, shares, funds, bonds, debentures, PF/CIT/SSF, insurance, gold, property), loans; net worth, cash flow, savings rate, emergency-fund cover, EMI ratio, guaranteed vs market-linked allocation; savings advisor with rupee impact (expensive debt, emergency fund, spending vs benchmarks, idle cash, inflation, concentration)
-- ✅ Where to Invest: allocation advisor for a lump sum and/or monthly amount (debt → safety → near-term goals → fixed income / growth, never all in shares), deposit comparison after tax and inflation, official rate notices with AI reading, NRB rates and inflation, mutual funds (NAV discount, returns), debentures (coupon, current yield, approximate YTM), T-bills, prepay-or-invest
+- ✅ Where to Invest: allocation advisor for a lump sum and/or monthly amount (debt > safety > near-term goals > fixed income / growth, never all in shares), deposit comparison after tax and inflation, official rate notices with AI reading, NRB rates and inflation, mutual funds (NAV discount, returns), debentures (coupon, current yield, approximate YTM), T-bills, prepay-or-invest
 - ✅ Market Monitor: NRB rate changes with explanations, macro report, IPO/FPO/fund issues, reports, dividends, AGM, regulatory and fund notices, holdings/watchlist news
 - ✅ Charts: daily/weekly/monthly, automatic trendlines with breakout and volume confirmation, demand/supply zones and pattern outlines drawn on the chart
 - ✅ Daily briefing items 5-8 (rate changes, opportunities, my money, smartest action today); goal scenarios from real FD and NEPSE returns

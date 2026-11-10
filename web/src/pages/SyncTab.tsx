@@ -40,11 +40,11 @@ export function SyncTab() {
         ) : (
           <div className="col">
             <ol className="small" style={{ margin: 0, paddingLeft: 18 }}>
-              <li>On GitHub, open <a href="https://github.com/settings/tokens/new?scopes=gist&description=Saphal%20Stocks%20sync" target="_blank" rel="noopener noreferrer">Settings → Developer settings → Tokens (classic)</a>, tick only <strong>gist</strong>, set an expiry you like, and create the token.</li>
+              <li>On GitHub, open <a href="https://github.com/settings/tokens/new?scopes=gist&description=Saphal%20Stocks%20sync" target="_blank" rel="noopener noreferrer">Settings, then Developer settings, then Tokens (classic)</a>, tick only <strong>gist</strong>, set an expiry you like, and create the token.</li>
               <li>Choose a <strong>sync passphrase</strong> (10+ characters). Use the same passphrase and token on your iPhone, iPad and Mac.</li>
               <li>Enter both below. The first device uploads; the others download.</li>
             </ol>
-            <label className="field">GitHub token<input className="input" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value.trim())} placeholder="ghp_…" /></label>
+            <label className="field">GitHub token<input className="input" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value.trim())} placeholder="ghp_..." /></label>
             <label className="field">Sync passphrase<input className="input" type="password" autoComplete="new-password" value={pass} onChange={(e) => setPass(e.target.value)} /></label>
             <button className="btn primary" disabled={busy || !token || pass.length < 10} onClick={() => run(async () => {
               const r = await connect(token, pass);
@@ -64,7 +64,7 @@ export function SyncTab() {
           <li>GitHub only stores scrambled data. Without your passphrase nobody, including GitHub, can read it. If you forget the passphrase, synced data can't be recovered (each device still has its own copy).</li>
           <li>Your AI key, GitHub token and passphrase are never uploaded; they stay on each device.</li>
           <li>Automatic sync runs when the app opens and about 20 seconds after you change something. If two devices changed data since the last sync, you choose which copy to keep.</li>
-          <li>Also keep a backup file now and then (Settings → Security & privacy).</li>
+          <li>Also keep a backup file now and then (Settings, Security & privacy).</li>
         </ul>
       </Card>
     </div>

@@ -50,8 +50,8 @@ export default function StrategyLab() {
           </>}
           <label className="field">Strategy<select className="input" value={f.strategy} onChange={(e) => { setF({ ...f, strategy: e.target.value }); setParams({}); }}>{strategies.data?.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
           {def && Object.entries(def.defaults).map(([k, v]) => <label key={k} className="field">{k}<NumInput className="input" value={params[k] ?? (v as number)} onChange={(e) => setParams({ ...params, [k]: +e.target.value })} /></label>)}
-          <label className="field">Stocks<select className="input" value={f.universe} onChange={(e) => setF({ ...f, universe: e.target.value })}><option value="liquid">Liquid stocks (≥ Rs. 50 L/day)</option><option value="all">All stocks</option><option value="sector">One sector</option><option value="symbols">My list</option></select></label>
-          {f.universe === "sector" && <label className="field">Sector<select className="input" value={f.sector} onChange={(e) => setF({ ...f, sector: e.target.value })}><option value="">Choose…</option>{sectors.data?.map((x) => <option key={x.sector}>{x.sector}</option>)}</select></label>}
+          <label className="field">Stocks<select className="input" value={f.universe} onChange={(e) => setF({ ...f, universe: e.target.value })}><option value="liquid">Liquid stocks (at least Rs. 50 L/day)</option><option value="all">All stocks</option><option value="sector">One sector</option><option value="symbols">My list</option></select></label>
+          {f.universe === "sector" && <label className="field">Sector<select className="input" value={f.sector} onChange={(e) => setF({ ...f, sector: e.target.value })}><option value="">Choose...</option>{sectors.data?.map((x) => <option key={x.sector}>{x.sector}</option>)}</select></label>}
           {f.universe === "symbols" && <label className="field">Symbols<input className="input" value={f.symbols} placeholder="NABIL, EBL, UPPER" onChange={(e) => setF({ ...f, symbols: e.target.value })} /></label>}
           <label className="field">Years<NumInput className="input" value={f.years} onChange={(e) => setF({ ...f, years: +e.target.value })} /></label>
           <label className="field">Stop-loss %<NumInput className="input" placeholder="none" value={f.stopLossPct} onChange={(e) => setF({ ...f, stopLossPct: e.target.value })} /></label>
@@ -59,7 +59,7 @@ export default function StrategyLab() {
           <label className="field">Max holding days<NumInput className="input" placeholder="none" value={f.maxHoldDays} onChange={(e) => setF({ ...f, maxHoldDays: e.target.value })} /></label>
         </div>
         {def && <p className="small muted" style={{ marginTop: 8 }}>{def.description}</p>}
-        <button className="btn primary" onClick={run} disabled={busy} style={{ marginTop: 6 }}>{busy ? <><span className="spinner" /> Testing…</> : "Run across stocks"}</button>
+        <button className="btn primary" onClick={run} disabled={busy} style={{ marginTop: 6 }}>{busy ? <><span className="spinner" /> Testing...</> : "Run across stocks"}</button>
         {err && <div style={{ marginTop: 8 }}><Notice tone="warn">{err}</Notice></div>}
       </Card>
       {mode === "portfolio" && pres && <PortfolioResult r={pres} theme={theme} />}
@@ -71,8 +71,8 @@ export default function StrategyLab() {
           <div className="grid g6">
             <Stat label="Median strategy return" value={pct(s.medianReturnPct, 1)} tone={tone(s.medianReturnPct)} sub={`Mean ${pct(s.meanReturnPct, 1)}`} />
             <Stat label="Median buy & hold" value={pct(s.medianBuyHoldPct, 1)} tone={tone(s.medianBuyHoldPct)} />
-            <Stat label="Beat buy & hold" value={`${s.pctBeatBuyHold ?? "—"}%`} sub={`${s.pctStocksProfitable ?? "—"}% of stocks profitable`} />
-            <Stat label="Trade win rate" value={s.winRatePct != null ? `${num(s.winRatePct, 1)}%` : "—"} sub={`${s.totalTrades} trades · avg ${pct(s.avgTradePct, 1)}`} />
+            <Stat label="Beat buy & hold" value={`${s.pctBeatBuyHold ?? "-"}%`} sub={`${s.pctStocksProfitable ?? "-"}% of stocks profitable`} />
+            <Stat label="Trade win rate" value={s.winRatePct != null ? `${num(s.winRatePct, 1)}%` : "-"} sub={`${s.totalTrades} trades, avg ${pct(s.avgTradePct, 1)}`} />
             <Stat label="Profit factor" value={num(s.profitFactor)} sub={`Median hold ${num(s.medianHoldingDays, 0)} days`} />
             <Stat label="Median max drawdown" value={`-${num(s.medianMaxDrawdownPct, 1)}%`} tone="down" />
           </div>
@@ -118,7 +118,7 @@ function PortfolioResult({ r, theme }: { r: any; theme: string }) {
         <Stat label="Portfolio return" value={pct(s.totalReturnPct, 1)} tone={tone(s.totalReturnPct)} sub={`CAGR ${pct(s.cagrPct, 1)}`} />
         <Stat label="NEPSE index" value={pct(s.benchmarkReturnPct, 1)} tone={tone(s.benchmarkReturnPct)} />
         <Stat label="Max drawdown" value={`-${num(s.maxDrawdownPct, 1)}%`} tone="down" />
-        <Stat label="Trades · win rate" value={`${s.trades} · ${num(s.winRatePct, 0)}%`} sub={`Avg ${pct(s.avgTradePct, 1)} · PF ${num(s.profitFactor)}`} />
+        <Stat label="Trades, win rate" value={`${s.trades}, ${num(s.winRatePct, 0)}%`} sub={`Avg ${pct(s.avgTradePct, 1)}, PF ${num(s.profitFactor)}`} />
         <Stat label="Avg positions held" value={num(s.avgPositions, 1)} sub={`In market ${num(s.exposurePct, 0)}% of days`} />
         <Stat label="Costs & tax" value={compact(s.totalCosts + s.totalTax)} sub={`${s.skippedSignals} signals skipped (no free slot/cash)`} />
       </div>

@@ -72,10 +72,10 @@ function OverviewTab({ s, o, advice, onEdit }: { s: MoneySummary; o: Overview; a
     <div className="col">
       {!s.income && start}
       <div className="grid g4">
-        <Stat label="Net worth" value={compact(s.netWorth)} sub={`Assets ${compact(s.assets)} · loans ${compact(s.liabilities)}`} />
+        <Stat label="Net worth" value={compact(s.netWorth)} sub={`Assets ${compact(s.assets)}, loans ${compact(s.liabilities)}`} />
         <Stat label="Monthly cash flow" value={compact(s.cashFlow)} tone={tone(s.cashFlow)} sub={`Income ${compact(s.income)} − spending ${compact(s.expenses)} − EMIs ${compact(s.emi)}`} />
-        <Stat label="Savings rate" value={s.savingsRatePct != null ? `${num(s.savingsRatePct, 1)}%` : "—"} sub={s.savingsRatePct == null ? "Add income" : s.savingsRatePct >= 30 ? <span className="up">Excellent</span> : s.savingsRatePct >= 20 ? <span className="up">Healthy</span> : <span className="warn">Aim for 20%+</span>} />
-        <Stat label="Emergency fund" value={s.emergencyMonthsCovered != null ? `${num(s.emergencyMonthsCovered, 1)} months` : "—"} sub={s.emergencyTarget === 0 ? "Add your monthly spending" : s.emergencyGap > 0 ? <span className="warn">Short by {compact(s.emergencyGap)}</span> : <span className="up">Covered ({compact(s.emergencyTarget)} target)</span>} />
+        <Stat label="Savings rate" value={s.savingsRatePct != null ? `${num(s.savingsRatePct, 1)}%` : "-"} sub={s.savingsRatePct == null ? "Add income" : s.savingsRatePct >= 30 ? <span className="up">Excellent</span> : s.savingsRatePct >= 20 ? <span className="up">Healthy</span> : <span className="warn">Aim for 20%+</span>} />
+        <Stat label="Emergency fund" value={s.emergencyMonthsCovered != null ? `${num(s.emergencyMonthsCovered, 1)} months` : "-"} sub={s.emergencyTarget === 0 ? "Add your monthly spending" : s.emergencyGap > 0 ? <span className="warn">Short by {compact(s.emergencyGap)}</span> : <span className="up">Covered ({compact(s.emergencyTarget)} target)</span>} />
       </div>
       <DashboardExtras s={s} o={o} />
       <div className="grid g3">
@@ -88,9 +88,9 @@ function OverviewTab({ s, o, advice, onEdit }: { s: MoneySummary; o: Overview; a
           {o.portfolioValue > 0 && <p className="tiny faint">Includes your Portfolio holdings at the latest prices ({compact(o.portfolioValue)}).</p>}
         </Card>
         <div className="col">
-          <Stat label="EMIs / income" value={s.debtServicePct != null ? `${num(s.debtServicePct, 1)}%` : "—"} sub={s.debtServicePct == null ? "" : s.debtServicePct > 40 ? <span className="down">High (above 40%)</span> : s.debtServicePct > 30 ? <span className="warn">Moderate</span> : <span className="up">Comfortable</span>} />
+          <Stat label="EMIs / income" value={s.debtServicePct != null ? `${num(s.debtServicePct, 1)}%` : "-"} sub={s.debtServicePct == null ? "" : s.debtServicePct > 40 ? <span className="down">High (above 40%)</span> : s.debtServicePct > 30 ? <span className="warn">Moderate</span> : <span className="up">Comfortable</span>} />
           <Stat label="Average loan rate" value={s.weightedDebtRatePct != null ? `${num(s.weightedDebtRatePct, 1)}%` : "No loans"} />
-          <Stat label="Shares in investable money" value={s.equityPct != null ? `${num(s.equityPct, 0)}%` : "—"} sub="Cash + guaranteed + market-linked" />
+          <Stat label="Shares in investable money" value={s.equityPct != null ? `${num(s.equityPct, 0)}%` : "-"} sub="Cash + guaranteed + market-linked" />
         </div>
       </div>
       <Card title="What to do next" sub="From your numbers and current official rates; each line says how much it is worth" actions={<Link className="btn sm" to="/invest"><I.opportunities /> Where to invest</Link>}>
@@ -140,7 +140,7 @@ function CashTab({ d, set, s }: { d: MoneyData; set: (d: MoneyData) => void; s: 
         <div className="row between small" style={{ marginTop: 8 }}><span>Total income</span><strong className="mono">{compact(s.income)}</strong></div>
       </Card>
       <Card title="Monthly spending" sub="Loan EMIs go under Loans" actions={<button className="btn sm" onClick={() => set({ ...d, expenses: [...d.expenses, { id: uid(), label: "", amount: 0, category: "other", essential: true }] })}><I.plus /> Add</button>}>
-        {d.expenses.length === 0 && <Empty title="Add rent, food, transport, school fees, phone, eating out…" />}
+        {d.expenses.length === 0 && <Empty title="Add rent, food, transport, school fees, phone, eating out..." />}
         {d.expenses.map((x, i) => {
           const up = (p: Partial<typeof x>) => { const l = [...d.expenses]; l[i] = { ...x, ...p }; set({ ...d, expenses: l }); };
           return (
@@ -159,7 +159,7 @@ function CashTab({ d, set, s }: { d: MoneyData; set: (d: MoneyData) => void; s: 
         {s.income === 0 || byCat.size === 0 ? <Empty title="Add income and spending to see your budget" /> : (
           <table className="t small"><thead><tr><th>Category</th><th className="num">Monthly</th><th className="num">% of income</th><th className="num">Yearly</th></tr></thead>
             <tbody>{[...byCat.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => <tr key={k}><td>{EXPENSE_CATEGORIES.find((c) => c.key === k)?.label ?? k}</td><td className="num">{compact(v)}</td><td className="num">{pct((v / s.income) * 100, 1, false)}</td><td className="num muted">{compact(v * 12)}</td></tr>)}
-              <tr><td><strong>Left to save or invest</strong></td><td className={`num ${tone(s.cashFlow)}`}><strong>{compact(s.cashFlow)}</strong></td><td className="num">{s.savingsRatePct != null ? `${num(s.savingsRatePct, 1)}%` : "—"}</td><td className="num muted">{compact(s.cashFlow * 12)}</td></tr>
+              <tr><td><strong>Left to save or invest</strong></td><td className={`num ${tone(s.cashFlow)}`}><strong>{compact(s.cashFlow)}</strong></td><td className="num">{s.savingsRatePct != null ? `${num(s.savingsRatePct, 1)}%` : "-"}</td><td className="num muted">{compact(s.cashFlow * 12)}</td></tr>
             </tbody></table>
         )}
       </Card>
@@ -170,9 +170,9 @@ function CashTab({ d, set, s }: { d: MoneyData; set: (d: MoneyData) => void; s: 
 function AccountsTab({ d, set, portfolioValue }: { d: MoneyData; set: (d: MoneyData) => void; portfolioValue: number }) {
   const add = (type: AccountType) => set({ ...d, accounts: [...d.accounts, { id: uid(), name: CLASS[type].label, type, balance: 0 }] });
   return (
-    <Card title="Savings, deposits and investments" sub="Current values in NPR" actions={<select className="input" value="" onChange={(e) => e.target.value && add(e.target.value as AccountType)}><option value="">+ Add…</option>{(Object.keys(CLASS) as AccountType[]).map((t) => <option key={t} value={t}>{CLASS[t].label}</option>)}</select>}>
+    <Card title="Savings, deposits and investments" sub="Current values in NPR" actions={<select className="input" value="" onChange={(e) => e.target.value && add(e.target.value as AccountType)}><option value="">+ Add...</option>{(Object.keys(CLASS) as AccountType[]).map((t) => <option key={t} value={t}>{CLASS[t].label}</option>)}</select>}>
       {portfolioValue > 0 && !d.accounts.some((a) => a.type === "stocks") && <Notice>Your Portfolio holdings ({compact(portfolioValue)} at latest prices) are counted automatically as NEPSE shares.</Notice>}
-      {d.accounts.length === 0 && <Empty title="Add bank balances, fixed deposits, shares, mutual funds, PF/CIT/SSF, gold, property…" />}
+      {d.accounts.length === 0 && <Empty title="Add bank balances, fixed deposits, shares, mutual funds, PF/CIT/SSF, gold, property..." />}
       {d.accounts.map((a, i) => {
         const up = (p: Partial<typeof a>) => { const l = [...d.accounts]; l[i] = { ...a, ...p }; set({ ...d, accounts: l }); };
         return (
@@ -190,7 +190,7 @@ function AccountsTab({ d, set, portfolioValue }: { d: MoneyData; set: (d: MoneyD
       })}
       {d.accounts.some((a) => a.type === "fd" && a.maturity) && (
         <div style={{ marginTop: 12 }}><div className="small muted">Upcoming FD / bond maturities</div>
-          {d.accounts.filter((a) => a.maturity).sort((a, b) => String(a.maturity).localeCompare(String(b.maturity))).map((a) => <div key={a.id} className="row between small"><span>{a.name} {a.institution ? `· ${a.institution}` : ""}</span><span className="mono">{nptDate(a.maturity!)} · {compact(a.balance)}</span></div>)}
+          {d.accounts.filter((a) => a.maturity).sort((a, b) => String(a.maturity).localeCompare(String(b.maturity))).map((a) => <div key={a.id} className="row between small"><span>{a.name} {a.institution ? `, ${a.institution}` : ""}</span><span className="mono">{nptDate(a.maturity!)}, {compact(a.balance)}</span></div>)}
         </div>
       )}
     </Card>
@@ -216,7 +216,7 @@ function LoansTab({ d, set }: { d: MoneyData; set: (d: MoneyData) => void }) {
           </div>
         );
       })}
-      <p className="tiny faint" style={{ marginTop: 8 }}>Use <Link to="/invest">Where to invest → Prepay or invest?</Link> to compare paying a loan early with investing the money. Save, then plan your payoff below.</p>
+      <p className="tiny faint" style={{ marginTop: 8 }}>Use <Link to="/invest">Where to invest &gt; Prepay or invest?</Link> to compare paying a loan early with investing the money. Save, then plan your payoff below.</p>
     </Card>
   );
 }
@@ -233,7 +233,7 @@ function PrefsTab({ d, set, goals }: { d: MoneyData; set: (d: MoneyData) => void
         </div>
       </Card>
       <Card title="Your goals" actions={<Link className="btn sm" to="/planner">Manage goals</Link>}>
-        {goals.length === 0 ? <Empty title="No goals yet"><Link to="/planner">Add a goal</Link> (car, house, land, education, retirement…)</Empty> : (
+        {goals.length === 0 ? <Empty title="No goals yet"><Link to="/planner">Add a goal</Link> (car, house, land, education, retirement...)</Empty> : (
           <table className="t small"><tbody>{goals.map((g, i) => <tr key={i}><td>{g.name}</td><td className="num">{compact(g.amount)}</td><td className="num muted">in {num(g.years, 0)} yr</td></tr>)}</tbody></table>
         )}
         <p className="tiny faint">Goals within 3 years are kept out of shares by the allocation advisor.</p>
@@ -280,7 +280,7 @@ function DashboardExtras({ s, o }: { s: MoneySummary; o: Overview }) {
       <Card title="Net worth history">
         <div className="row between small" style={{ marginBottom: 4 }}><span className="muted">Now</span><strong className="mono">{compact(s.netWorth)}</strong></div>
         <Spark points={hist} />
-        {hist.length >= 2 && <div className="tiny faint">{hist[0].month} → {hist[hist.length - 1].month}: {compact(hist[hist.length - 1].netWorth - hist[0].netWorth)}</div>}
+        {hist.length >= 2 && <div className="tiny faint">{hist[0].month} &gt; {hist[hist.length - 1].month}: {compact(hist[hist.length - 1].netWorth - hist[0].netWorth)}</div>}
       </Card>
       <Card title="Investments" sub="Real portfolios at latest prices">
         {o.returns.invested === 0 ? <p className="small muted">Add your share purchases under <Link to="/portfolio">Portfolio</Link> to track returns.</p> : (
@@ -312,7 +312,7 @@ function DebtPlanner({ hasLoans }: { hasLoans: boolean }) {
           {r.snowball?.feasible && <Stat label="Snowball (smallest first)" value={months(r.snowball.months)} sub={`Saves ${compact(r.base.totalInterest - r.snowball.totalInterest)}`} />}
         </div>
       )}
-      {r?.avalanche?.feasible && <table className="t small" style={{ marginTop: 8 }}><thead><tr><th>Order (avalanche)</th><th className="num">Rate</th><th className="num">Paid off in</th><th className="num">Interest</th></tr></thead><tbody>{r.avalanche.order.map((l: any) => <tr key={l.id}><td>{l.name}</td><td className="num">{l.ratePct}%</td><td className="num">{l.paidOffMonth ? months(l.paidOffMonth) : "—"}</td><td className="num">{compact(l.interest)}</td></tr>)}</tbody></table>} {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
+      {r?.avalanche?.feasible && <table className="t small" style={{ marginTop: 8 }}><thead><tr><th>Order (avalanche)</th><th className="num">Rate</th><th className="num">Paid off in</th><th className="num">Interest</th></tr></thead><tbody>{r.avalanche.order.map((l: any) => <tr key={l.id}><td>{l.name}</td><td className="num">{l.ratePct}%</td><td className="num">{l.paidOffMonth ? months(l.paidOffMonth) : "-"}</td><td className="num">{compact(l.interest)}</td></tr>)}</tbody></table>} {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
       {r && r.base && !r.base.feasible && <p className="small warn">With these EMIs the loans would not be repaid in 50 years. Check the EMI amounts.</p>}
       <p className="tiny faint">Avalanche saves the most interest; snowball clears loans sooner one by one, which some find motivating. Check prepayment fees with your bank.</p>
     </Card>

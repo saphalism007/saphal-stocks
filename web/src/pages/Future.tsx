@@ -56,16 +56,16 @@ export default function Future() {
         <div className="opt-grid">
           {products.map((p: Any) => (
             <div key={p.id} className="opt">
-              <div className="row between" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}><strong style={{ minWidth: 0 }}>{p.name}</strong><Badge tone={/low/i.test(p.risk ?? "") ? "up" : /high/i.test(p.risk ?? "") ? "down" : "warn"}>{(p.risk ?? "—").replace(/\s*\(.*$/, "")} risk</Badge></div>
-              <div className="tiny faint">{p.category}{p.provider ? ` · ${p.provider}` : ""}</div>
+              <div className="row between" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}><strong style={{ minWidth: 0 }}>{p.name}</strong><Badge tone={/low/i.test(p.risk ?? "") ? "up" : /high/i.test(p.risk ?? "") ? "down" : "warn"}>{(p.risk ?? "-").replace(/\s*\(.*$/, "")} risk</Badge></div>
+              <div className="tiny faint">{p.category}{p.provider ? `, ${p.provider}` : ""}</div>
               {p.risk && /\(/.test(p.risk) && <div className="tiny muted">Risk: {p.risk}</div>}
               <dl className="kv text small">
-                <dt>Return</dt><dd>{p.return_text ?? "—"} {p.return_type === "contractual" ? <Badge tone="up">contractual</Badge> : p.return_type ? <Badge>{p.return_type}</Badge> : null}</dd>
-                <dt>Minimum</dt><dd>{p.min_investment ?? "—"}</dd>
-                <dt>Period</dt><dd>{[p.duration, p.lock_in && p.lock_in !== "None" ? `lock-in: ${p.lock_in}` : null].filter(Boolean).join(" · ") || "—"}</dd>
-                <dt>Liquidity</dt><dd>{p.liquidity ?? "—"}</dd>
-                <dt>Tax & fees</dt><dd>{p.tax ?? "—"}</dd>
-                <dt>How to start</dt><dd>{p.how_to_apply ?? "—"}</dd>
+                <dt>Return</dt><dd>{p.return_text ?? "-"} {p.return_type === "contractual" ? <Badge tone="up">contractual</Badge> : p.return_type ? <Badge>{p.return_type}</Badge> : null}</dd>
+                <dt>Minimum</dt><dd>{p.min_investment ?? "-"}</dd>
+                <dt>Period</dt><dd>{[p.duration, p.lock_in && p.lock_in !== "None" ? `lock-in: ${p.lock_in}` : null].filter(Boolean).join(", ") || "-"}</dd>
+                <dt>Liquidity</dt><dd>{p.liquidity ?? "-"}</dd>
+                <dt>Tax & fees</dt><dd>{p.tax ?? "-"}</dd>
+                <dt>How to start</dt><dd>{p.how_to_apply ?? "-"}</dd>
                 {p.suitableFor && <><dt>Suits</dt><dd>{p.suitableFor}</dd></>}
               </dl>
               <div className="row" style={{ marginTop: 6 }}>
@@ -85,14 +85,14 @@ export default function Future() {
             <DataTable rows={f.data.providers} rowKey={(p: Any) => p.symbol} maxHeight={420} cols={[
               { key: "name", label: "Provider", render: (p: Any) => <span><span className="sym">{p.symbol}</span> <span className="small">{p.name}</span><span className="tiny faint" style={{ display: "block" }}>{p.sector}</span></span> },
               { key: "website", label: "", render: (p: Any) => <span className="col" style={{ gap: 2 }}><a className="btn sm" href={p.website} target="_blank" rel="noopener noreferrer"><I.external /> Visit</a><Check c={p.check} /></span> },
-              { key: "notice", label: "Rates", render: (p: Any) => p.rateNotice ? <a className="small" href={p.rateNotice.image_url ?? p.rateNotice.url} target="_blank" rel="noopener noreferrer">Notice {nptDate(p.rateNotice.published)}</a> : <span className="tiny faint">—</span> },
+              { key: "notice", label: "Rates", render: (p: Any) => p.rateNotice ? <a className="small" href={p.rateNotice.image_url ?? p.rateNotice.url} target="_blank" rel="noopener noreferrer">Notice {nptDate(p.rateNotice.published)}</a> : <span className="tiny faint">-</span> },
             ]} />
           )}
         </Card>
         <Card title="Long-term stock ideas" sub="Strong fundamentals, no red flags, reasonable valuation" actions={<Link className="btn sm" to="/trading?tab=longterm">All</Link>}>
           {f.data.longTerm.length === 0 ? <p className="small muted">None meet every condition today.</p> : <div className="list">{f.data.longTerm.map((x: Any) => (
             <Link key={x.symbol} to={`/stocks/${x.symbol}`} className="list-row" style={{ color: "inherit", textDecoration: "none" }}>
-              <span style={{ flex: 1 }}><span className="sym">{x.symbol}</span> <span className="small">{x.name}</span><span className="tiny faint" style={{ display: "block" }}>Score {x.fundamentalScore} · P/E {num(x.pe, 1)} · ROE {num(x.roe, 1)}%{x.cashYield != null ? ` · cash yield ${num(x.cashYield, 1)}%` : ""}</span></span>
+              <span style={{ flex: 1 }}><span className="sym">{x.symbol}</span> <span className="small">{x.name}</span><span className="tiny faint" style={{ display: "block" }}>Score {x.fundamentalScore}, P/E {num(x.pe, 1)}, ROE {num(x.roe, 1)}%{x.cashYield != null ? `, cash yield ${num(x.cashYield, 1)}%` : ""}</span></span>
               <span className="mono small">{num(x.price)}</span>
             </Link>
           ))}</div>}

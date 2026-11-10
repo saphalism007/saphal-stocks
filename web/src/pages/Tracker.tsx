@@ -43,9 +43,9 @@ export function Tracker({ onUseAsBudget }: { onUseAsBudget: (avg: { income: numb
     <div className="col">
       <AddEntry onAdded={() => m.reload()} />
       <div className="row between" style={{ flexWrap: "nowrap" }}>
-        <button className="btn ghost" aria-label="Previous month" onClick={() => setMonth(shift(month, -1))}>‹</button>
+        <button className="btn ghost" aria-label="Previous month" onClick={() => setMonth(shift(month, -1))}></button>
         <strong style={{ fontSize: 17 }}>{monthName(month)}</strong>
-        <button className="btn ghost" aria-label="Next month" disabled={month >= today().slice(0, 7)} onClick={() => setMonth(shift(month, 1))}>›</button>
+        <button className="btn ghost" aria-label="Next month" disabled={month >= today().slice(0, 7)} onClick={() => setMonth(shift(month, 1))}></button>
       </div>
       {!m.data ? <Loading /> : (
         <>
@@ -53,7 +53,7 @@ export function Tracker({ onUseAsBudget }: { onUseAsBudget: (avg: { income: numb
             <Stat label="Income" value={compact(s!.income)} sub={m.data.previous.income ? `${shortMonth(m.data.previous.month)}: ${compact(m.data.previous.income)}` : undefined} />
             <Stat label="Spending" value={compact(s!.spending)} sub={m.data.previous.spending ? <span className={s!.spending > m.data.previous.spending ? "down" : "up"}>{shortMonth(m.data.previous.month)}: {compact(m.data.previous.spending)}</span> : undefined} />
             <Stat label="Left over" value={compact(s!.net)} tone={tone(s!.net)} sub={s!.savingsRatePct != null ? `${num(s!.savingsRatePct, 0)}% of income` : "Add income"} />
-            <Stat label="Saved / invested" value={compact(s!.invested)} sub={s!.emi ? `EMIs ${compact(s!.emi)}` : "Category “Saved / invested”"} />
+            <Stat label="Saved / invested" value={compact(s!.invested)} sub={s!.emi ? `EMIs ${compact(s!.emi)}` : "Category 'Saved / invested'"} />
           </div>
           <div className="grid g2">
             <Card title="Entries" sub={`${m.data.entries.length} this month`} actions={<button className="btn sm" onClick={() => downloadFromApi("/api/money/entries.csv")}><I.download /> CSV</button>}>
@@ -69,7 +69,7 @@ export function Tracker({ onUseAsBudget }: { onUseAsBudget: (avg: { income: numb
                       <button key={e.id} className="entry-row" onClick={() => setEdit(e)}>
                         <span style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
                           <span className="small">{label(e.type, e.category)}</span>
-                          {(e.note || e.method) && <span className="tiny faint" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[e.note, e.method].filter(Boolean).join(" · ")}</span>}
+                          {(e.note || e.method) && <span className="tiny faint" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[e.note, e.method].filter(Boolean).join(", ")}</span>}
                         </span>
                         <span className={`mono ${e.type === "income" ? "up" : ""}`}>{e.type === "income" ? "+" : "−"}{rs(e.amount, 0)}</span>
                       </button>
@@ -120,7 +120,7 @@ function EntryFields({ v, set }: { v: Entry; set: (v: Entry) => void }) {
       <div className="chips">{cats.map((c) => <button key={c.key} type="button" className={`chip ${v.category === c.key ? "on" : ""}`} onClick={() => set({ ...v, category: c.key })}>{c.label}</button>)}</div>
       <div className="form-grid">
         <label className="field">Date<input className="input" type="date" value={v.date} max={today()} onChange={(e) => set({ ...v, date: e.target.value || today() })} /></label>
-        <label className="field">Paid with / received in<select className="input" value={v.method ?? ""} onChange={(e) => set({ ...v, method: e.target.value || null })}><option value="">—</option>{PAY_METHODS.map((p) => <option key={p}>{p}</option>)}</select></label>
+        <label className="field">Paid with / received in<select className="input" value={v.method ?? ""} onChange={(e) => set({ ...v, method: e.target.value || null })}><option value="">-</option>{PAY_METHODS.map((p) => <option key={p}>{p}</option>)}</select></label>
       </div>
       <label className="field">Note (optional)<input className="input" value={v.note ?? ""} maxLength={300} placeholder="e.g. Bhatbhateni groceries" onChange={(e) => set({ ...v, note: e.target.value })} /></label>
     </>

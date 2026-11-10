@@ -149,7 +149,7 @@ export function savingsAdvice(d: MoneyData, s: MoneySummary, rates: MarketRates)
   if (fdNet != null && rates.inflationPct != null && fdNet < rates.inflationPct && (s.byKind.guaranteed + s.byKind.cash) > 0) {
     out.push({ priority: 3, area: "inflation", title: `Deposits are losing to inflation (${fdNet.toFixed(2)}% after tax vs ${rates.inflationPct}% inflation)`, detail: rates.equityLongRunPct != null && rates.equityLongRunPct > rates.inflationPct + 1
       ? `Fine for safety money and near-term goals. For goals five or more years away, NEPSE returned about ${rates.equityLongRunPct.toFixed(1)}% a year (with dividends) over the last decade, above inflation, but with large falls along the way.`
-      : `Fine for safety money and near-term goals. Note that NEPSE also returned only about ${rates.equityLongRunPct != null ? rates.equityLongRunPct.toFixed(1) : "—"}% a year (with dividends) over the last decade, so no option reliably beats inflation; match each rupee to its time horizon, pick the best verified deposit rate, and keep costs low.` });
+      : `Fine for safety money and near-term goals. Note that NEPSE also returned only about ${rates.equityLongRunPct != null ? rates.equityLongRunPct.toFixed(1) : "-"}% a year (with dividends) over the last decade, so no option reliably beats inflation; match each rupee to its time horizon, pick the best verified deposit rate, and keep costs low.` });
   }
   const cap = equityCap(d.risk, d.horizonYears);
   if (d.accounts.some((a) => a.type !== "stocks") && s.equityPct != null && s.equityPct > cap + 10) out.push({ priority: 2, area: "investing", title: `Shares are ${s.equityPct}% of your investable money (your guide: about ${cap}%)`, detail: "Consider taking some profits into fixed income so a market fall does not derail near-term plans." });
@@ -372,10 +372,10 @@ export function compareProfiles(amount: number, rates: MarketRates) {
   return [
     mk("Conservative", "Protect capital: most money in deposits; a little in funds for growth.", [
       { option: "Savings / call deposit (emergency, instant access)", pct: 20, rate: sav, protectedCapital: true, liquidity: "Instant" },
-      { option: "Fixed deposits (1–2 years, best verified rate)", pct: 60, rate: fd, protectedCapital: true, liquidity: "At maturity (early break with penalty)" },
+      { option: "Fixed deposits (1-2 years, best verified rate)", pct: 60, rate: fd, protectedCapital: true, liquidity: "At maturity (early break with penalty)" },
       { option: "Mutual funds (diversified)", pct: 20, rate: eq, protectedCapital: false, liquidity: "Days (sell on NEPSE / redeem)" },
     ]),
-    mk("Balanced", "Half safety, half growth: suits 3–7 year goals.", [
+    mk("Balanced", "Half safety, half growth: suits 3-7 year goals.", [
       { option: "Savings / call deposit", pct: 10, rate: sav, protectedCapital: true, liquidity: "Instant" },
       { option: "Fixed deposits / debentures", pct: 40, rate: fd, protectedCapital: true, liquidity: "At maturity" },
       { option: "Mutual funds (SIP)", pct: 25, rate: eq, protectedCapital: false, liquidity: "Days" },

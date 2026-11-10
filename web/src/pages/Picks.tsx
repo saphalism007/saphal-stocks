@@ -21,14 +21,14 @@ function Row({ r, mode }: { r: Any; mode: "invest" | "trade" | "both" }) {
         <div className="tiny muted pk-name">{r.name}</div>
         <div className="pk-kv">
           {mode !== "trade" ? <>
-            <span>P/E <b>{r.pe != null && r.pe > 0 ? num(r.pe, 1) : "—"}</b></span><span>ROE <b>{r.roe != null ? `${num(r.roe, 1)}%` : "—"}</b></span><span>Div. yield <b>{r.cashYield != null ? `${num(r.cashYield, 1)}%` : "—"}</b></span><span>1 year <b className={tone(r.return1y)}>{pct(r.return1y)}</b></span>
+            <span>P/E <b>{r.pe != null && r.pe > 0 ? num(r.pe, 1) : "-"}</b></span><span>ROE <b>{r.roe != null ? `${num(r.roe, 1)}%` : "-"}</b></span><span>Div. yield <b>{r.cashYield != null ? `${num(r.cashYield, 1)}%` : "-"}</b></span><span>1 year <b className={tone(r.return1y)}>{pct(r.return1y)}</b></span>
           </> : <>
-            <span>Trend <b className={r.trend === "uptrend" ? "up" : r.trend === "downtrend" ? "down" : ""}>{r.trend ?? "—"}</b></span><span>RSI <b>{r.rsi != null ? num(r.rsi, 0) : "—"}</b></span><span>Setup <b>{r.setup ?? "—"}</b></span><span>3 months <b className={tone(r.return3m)}>{pct(r.return3m)}</b></span>
+            <span>Trend <b className={r.trend === "uptrend" ? "up" : r.trend === "downtrend" ? "down" : ""}>{r.trend ?? "-"}</b></span><span>RSI <b>{r.rsi != null ? num(r.rsi, 0) : "-"}</b></span><span>Setup <b>{r.setup ?? "-"}</b></span><span>3 months <b className={tone(r.return3m)}>{pct(r.return3m)}</b></span>
           </>}
         </div>
         {r.why?.length > 0 && <div className="tiny faint">Strongest on: {r.why.join(", ")}</div>}
       </div>
-      <Link className="btn sm" to={`/terminal/${r.symbol}`} title="Chart and ⚡ buy/sell signal">⚡</Link>
+      <Link className="btn sm" to={`/terminal/${r.symbol}`} title="Chart and buy/sell signal"></Link>
     </div>
   );
 }
@@ -46,7 +46,7 @@ export default function Picks() {
       <Tabs value={tab} onChange={(t) => setSp({ tab: t })} tabs={[{ key: "invest", label: "Best to invest" }, { key: "trade", label: "Best to trade" }, { key: "both", label: "Strong on both" }, { key: "sector", label: "By sector" }]} />
       {!p ? <Loading label="Ranking every stock" /> : (
         <>
-          <p className="tiny faint" style={{ margin: 0 }}>Scores 0–100 from prices and financial statements as of {p.asOf ? nptDate(p.asOf) : "—"}. {tab === "trade" ? p.tradeHow : tab === "invest" ? p.investHow : ""}</p>
+          <p className="tiny faint" style={{ margin: 0 }}>Scores 0-100 from prices and financial statements as of {p.asOf ? nptDate(p.asOf) : "-"}. {tab === "trade" ? p.tradeHow : tab === "invest" ? p.investHow : ""}</p>
           {tab === "invest" && <div className="pk-list">{p.invest.map((r: Any) => <Row key={r.symbol} r={r} mode="invest" />)}</div>}
           {tab === "trade" && <div className="pk-list">{p.trade.map((r: Any) => <Row key={r.symbol} r={r} mode="trade" />)}</div>}
           {tab === "both" && (p.both.length ? <div className="pk-list">{p.both.map((r: Any, i: number) => <Row key={r.symbol} r={{ ...r, rank: i + 1 }} mode="both" />)}</div> : <p className="small muted">No stock is in the top 30% of both lists today.</p>)}
@@ -66,7 +66,7 @@ export default function Picks() {
           )}
           <div className="pk-help">
             <div><b>Investing</b><span>Buy strong businesses at fair prices and hold for years. Check P/E against the sector, steady profits and dividends. Add slowly; don't panic in falls.</span></div>
-            <div><b>Trading</b><span>Buy a setup (breakout, pullback to support) with a stop-loss and a target, risking 1–2% of capital. Exit at the stop — no exceptions. Use the ⚡ signal for exact prices.</span></div>
+            <div><b>Trading</b><span>Buy a setup (breakout, pullback to support) with a stop-loss and a target, risking 1-2% of capital. Exit at the stop, no exceptions. Use the signal for exact prices.</span></div>
           </div>
         </>
       )}

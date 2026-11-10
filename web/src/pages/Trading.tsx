@@ -34,9 +34,9 @@ export default function Trading() {
       <Card title="How these rules have actually done" sub="Past year, after all fees and tax" actions={<button className="btn sm" onClick={() => setSp({ tab: "track" })}>Details</button>}>
         <div className="grid g4">
           <Stat label="Past BUY signals" value={t.trades} sub="judged on later prices" />
-          <Stat label="Profitable" value={t.winRatePct != null ? `${num(t.winRatePct, 0)}%` : "—"} sub={`Target hit ${num(t.targetHitPct, 0)}% · stop hit ${num(t.stopHitPct, 0)}%`} />
-          <Stat label="Average result" value={t.avgNetPct != null ? `${num(t.avgNetPct, 2)}%` : "—"} tone={tone(t.avgNetPct)} sub="per trade, net of costs" />
-          <Stat label="Best setup type" value={<span className="stat-text">{[...t.byType].filter((x: Any) => x.trades >= 10).sort((a: Any, b: Any) => (b.avgNetPct ?? -99) - (a.avgNetPct ?? -99))[0]?.type ?? "—"}</span>} sub="by average result" />
+          <Stat label="Profitable" value={t.winRatePct != null ? `${num(t.winRatePct, 0)}%` : "-"} sub={`Target hit ${num(t.targetHitPct, 0)}%, stop hit ${num(t.stopHitPct, 0)}%`} />
+          <Stat label="Average result" value={t.avgNetPct != null ? `${num(t.avgNetPct, 2)}%` : "-"} tone={tone(t.avgNetPct)} sub="per trade, net of costs" />
+          <Stat label="Best setup type" value={<span className="stat-text">{[...t.byType].filter((x: Any) => x.trades >= 10).sort((a: Any, b: Any) => (b.avgNetPct ?? -99) - (a.avgNetPct ?? -99))[0]?.type ?? "-"}</span>} sub="by average result" />
         </div>
         {t.avgNetPct != null && t.avgNetPct < 0 && <Notice tone="warn">These rules lost money on average over the past year (a weak, sideways NEPSE). Treat signals as a starting point for your own judgement, keep position sizes small, and use the paper-trading account to test them before risking real money.</Notice>}
       </Card>
@@ -51,33 +51,33 @@ export default function Trading() {
           <select className="input" value={sector} onChange={(e) => setSector(e.target.value)}><option value="">All sectors</option>{sectors.map((s) => <option key={s}>{s}</option>)}</select>
           {(tab === "buy" || tab === "watch") && <select className="input" value={minConf} onChange={(e) => setMinConf(Number(e.target.value))}><option value={0}>Any confidence</option><option value={55}>Medium+</option><option value={75}>High</option></select>}
         </>}>
-          {rows.length === 0 ? <Empty title="No stocks in this group right now">{tab === "buy" ? "No stock meets every BUY condition today (setup quality, reward/risk ≥ 1.8, price in the entry zone, liquidity). That is a normal result." : ""}</Empty> : (
+          {rows.length === 0 ? <Empty title="No stocks in this group right now">{tab === "buy" ? "No stock meets every BUY condition today (setup quality, reward/risk at least 1.8, price in the entry zone, liquidity). That is a normal result." : ""}</Empty> : (
             <DataTable rows={rows} rowKey={(r: Any) => r.symbol} onRow={(r: Any) => setOpen(r.symbol)} maxHeight={640} initialSort={{ key: "confidence", dir: -1 }} cols={[
               { key: "symbol", label: "Stock", render: (r: Any) => <span><span className="sym">{r.symbol}</span> <span className="tiny faint">{r.sector}</span></span> },
               { key: "price", label: "Price", num: true, render: (r: Any) => <span>{num(r.price)}<span className="tiny faint" style={{ display: "block" }}>{r.priceDate}</span></span> },
               { key: "action", label: "Action", render: (r: Any) => <Badge tone={ACTION_TONE[r.action]}>{r.action === "INSUFFICIENT" ? "NO DATA" : r.action}</Badge> },
               ...(tab === "buy" || tab === "watch" ? [
-                { key: "entryLow", label: "Buy range", num: true, render: (r: Any) => r.entryLow != null ? `${num(r.entryLow)}–${num(r.entryHigh)}` : "—" },
-                { key: "stop", label: "Stop", num: true, render: (r: Any) => r.stop != null ? num(r.stop) : "—" },
-                { key: "t", label: "Targets", num: true, render: (r: Any) => r.targets.length ? r.targets.map((x: Any) => num(x.price, 0)).join(" / ") : "—" },
-                { key: "netRiskReward", label: "R:R net", num: true, render: (r: Any) => r.netRiskReward != null ? <span title={`Before costs ${num(r.riskReward, 2)}`}>{num(r.netRiskReward, 2)}</span> : "—" },
-                { key: "holdingPeriod", label: "Hold", render: (r: Any) => <span className="small">{r.holdingPeriod ?? "—"}</span> },
-              ] : [{ key: "stop", label: tab === "hold" ? "Exit below" : "Stop / invalidation", num: true, render: (r: Any) => r.stop != null ? num(r.stop) : "—" }]),
-              { key: "confidence", label: "Confidence", num: true, render: (r: Any) => r.confidenceLabel === "—" ? "—" : <span title={`${r.confidence}/100`}>{r.confidenceLabel}</span> },
+                { key: "entryLow", label: "Buy range", num: true, render: (r: Any) => r.entryLow != null ? `${num(r.entryLow)}-${num(r.entryHigh)}` : "-" },
+                { key: "stop", label: "Stop", num: true, render: (r: Any) => r.stop != null ? num(r.stop) : "-" },
+                { key: "t", label: "Targets", num: true, render: (r: Any) => r.targets.length ? r.targets.map((x: Any) => num(x.price, 0)).join(" / ") : "-" },
+                { key: "netRiskReward", label: "R:R net", num: true, render: (r: Any) => r.netRiskReward != null ? <span title={`Before costs ${num(r.riskReward, 2)}`}>{num(r.netRiskReward, 2)}</span> : "-" },
+                { key: "holdingPeriod", label: "Hold", render: (r: Any) => <span className="small">{r.holdingPeriod ?? "-"}</span> },
+              ] : [{ key: "stop", label: tab === "hold" ? "Exit below" : "Stop / invalidation", num: true, render: (r: Any) => r.stop != null ? num(r.stop) : "-" }]),
+              { key: "confidence", label: "Confidence", num: true, render: (r: Any) => r.confidenceLabel === "-" ? "-" : <span title={`${r.confidence}/100`}>{r.confidenceLabel}</span> },
               { key: "headline", label: "Why", render: (r: Any) => <span className="small">{r.headline}</span> },
             ]} />
           )}
           <p className="tiny faint" style={{ marginTop: 8 }}>Tap a stock for the full plan, trade planner, paper trading and alerts. Review signals after each trading day; levels change when prices do.</p>
         </Card>
       )}
-      {open && <Modal title={`${open} · trade plan`} onClose={() => setOpen(null)}><Detail symbol={open} /></Modal>}
+      {open && <Modal title={`${open}, trade plan`} onClose={() => setOpen(null)}><Detail symbol={open} /></Modal>}
     </div>
   );
 }
 
 const TAB_TITLE: Record<string, string> = { buy: "Buy opportunities", sell: "Sell / exit signals", watch: "Watch: wait for a better entry", hold: "Hold", avoid: "High risk / avoid for now", insufficient: "Insufficient data" };
 const TAB_SUB: Record<string, string> = {
-  buy: "A rule-based setup with quality ≥ 60, reward/risk ≥ 1.8 before and ≥ 1.5 after all costs, liquid, stop below the buy range, and price inside the entry zone today",
+  buy: "A rule-based setup with quality at least 60, reward/risk at least 1.8 before and at least 1.5 after all costs, liquid, stop below the buy range, and price inside the entry zone today",
   sell: "Breakdown or overbought-at-resistance signals: for holders to exit or trim (NEPSE has no short selling)",
   watch: "A setup is forming or price is outside the entry zone: wait for the stated condition",
   hold: "Uptrend intact without a fresh entry: keep holdings, exit below the stated level",
@@ -97,7 +97,7 @@ function Detail({ symbol }: { symbol: string }) {
   const paperTrade = async () => {
     if (!paper || !qty) return;
     try {
-      await api(`/portfolios/${paper.id}/transactions`, { body: { symbol, type: "buy", date: todayNpt(), quantity: qty.q, price: qty.e, notes: `Paper trade from Trading Opportunities (${d.setupType ?? d.action}); stop ${d.stop ?? "—"}, T1 ${d.targets[0]?.price ?? "—"}` } });
+      await api(`/portfolios/${paper.id}/transactions`, { body: { symbol, type: "buy", date: todayNpt(), quantity: qty.q, price: qty.e, notes: `Paper trade from Trading Opportunities (${d.setupType ?? d.action}); stop ${d.stop ?? "-"}, T1 ${d.targets[0]?.price ?? "-"}` } });
       if (d.stop) await api("/alerts", { body: { type: "price_below", symbol, params: { price: d.stop }, note: "Paper trade stop-loss" } });
       if (d.targets[0]) await api("/alerts", { body: { type: "price_above", symbol, params: { price: d.targets[0].price }, note: "Paper trade target 1" } });
       setMsg({ t: `Paper-bought ${qty.q} ${symbol} at Rs. ${num(qty.e)} in "${paper.name}", with stop and target alerts.` });
@@ -115,38 +115,38 @@ function Detail({ symbol }: { symbol: string }) {
   return (
     <div className="col" style={{ gap: 12 }}>
       <div className="row between">
-        <div><strong style={{ fontSize: 18 }}>{d.name}</strong> <span className="small muted">{d.sector}</span><div className="small">Rs. {num(d.price)} · {d.priceDate} · <span className="faint">{d.priceInfo?.kind === "delayed" ? "delayed intraday (about 15 min)" : "end-of-day price"}</span></div></div>
+        <div><strong style={{ fontSize: 18 }}>{d.name}</strong> <span className="small muted">{d.sector}</span><div className="small">Rs. {num(d.price)}, {d.priceDate}, <span className="faint">{d.priceInfo?.kind === "delayed" ? "delayed intraday (about 15 min)" : "end-of-day price"}</span></div></div>
         <Badge tone={ACTION_TONE[d.action]}>{d.action === "INSUFFICIENT" ? "INSUFFICIENT DATA" : d.action}</Badge>
       </div>
       <Notice tone={d.action === "BUY" ? "info" : "warn"}>{d.headline}{d.buyNow === "wait" && d.waitFor ? ` Wait for ${d.waitFor}.` : d.buyNow === "now" ? " Entry conditions are met now." : ""}</Notice>
       {d.entryLow != null && (
         <div className="plan-grid">
-          <div><span>Buy range</span><strong>{num(d.entryLow)}–{num(d.entryHigh)}</strong><em>entry ≈ {num(d.entry)}</em></div>
+          <div><span>Buy range</span><strong>{num(d.entryLow)}-{num(d.entryHigh)}</strong><em>entry about {num(d.entry)}</em></div>
           <div><span>Stop-loss</span><strong className="down">{num(d.stop)}</strong><em>{num(d.riskPct, 1)}% below entry</em></div>
           {d.targets.map((t: Any, i: number) => <div key={i}><span>Target {i + 1}</span><strong className="up">{num(t.price)}</strong><em>{t.basis}</em></div>)}
-          <div><span>Reward : risk</span><strong>{num(d.riskReward, 2)}</strong><em>before costs · <strong>{d.netRiskReward != null ? num(d.netRiskReward, 2) : "—"}</strong> after costs{d.netAtT1Pct != null ? ` (net ${num(d.netAtT1Pct, 1)}% at T1)` : ""}</em></div>
+          <div><span>Reward : risk</span><strong>{num(d.riskReward, 2)}</strong><em>before costs, <strong>{d.netRiskReward != null ? num(d.netRiskReward, 2) : "-"}</strong> after costs{d.netAtT1Pct != null ? ` (net ${num(d.netAtT1Pct, 1)}% at T1)` : ""}</em></div>
           <div><span>Holding period</span><strong className="stat-text">{d.holdingPeriod}</strong><em>review by {nptDate(d.reviewBy)}</em></div>
           <div><span>Confidence</span><strong className="stat-text">{d.confidenceLabel} ({d.confidence}/100)</strong><em>{d.history ? `${d.setupType}: ${d.history.trades} past trades, ${num(d.history.winRatePct, 0)}% profitable, avg ${num(d.history.avgNetPct, 1)}%` : "no track record for this setup yet"}</em></div>
         </div>
       )}
       <div className="grid g2">
-        <div><h4 className="small muted">Technical reasons</h4><ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{(d.techReasons.length ? d.techReasons : ["—"]).map((x: string) => <li key={x}>{x}</li>)}</ul></div>
+        <div><h4 className="small muted">Technical reasons</h4><ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{(d.techReasons.length ? d.techReasons : ["-"]).map((x: string) => <li key={x}>{x}</li>)}</ul></div>
         <div><h4 className="small muted">Fundamentals</h4><ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{(d.fundReasons.length ? d.fundReasons : ["No statements stored."]).map((x: string) => <li key={x}>{x}</li>)}</ul></div>
       </div>
       <table className="t small"><tbody>
-        <tr><td>Support</td><td>{d.supports.length ? d.supports.map((x: number) => num(x)).join(" · ") : "—"}</td></tr>
-        <tr><td>Resistance</td><td>{d.resistances.length ? d.resistances.map((x: number) => num(x)).join(" · ") : "—"}</td></tr>
-        <tr><td>RSI (14)</td><td>{num(ind.rsi, 1)}{ind.rsi != null ? (ind.rsi > 70 ? " · overbought" : ind.rsi < 30 ? " · oversold" : "") : ""}</td></tr>
-        <tr><td>MACD</td><td>{ind.macd ?? "—"}</td></tr>
-        <tr><td>Moving averages</td><td>SMA20 {num(ind.sma20)} · SMA50 {num(ind.sma50)} · SMA200 {num(ind.sma200)} · {ind.maPosition ?? "—"}</td></tr>
-        <tr><td>Trend / ADX</td><td>{ind.trend ?? "—"} · ADX {num(ind.adx, 0)}</td></tr>
-        <tr><td>Volume</td><td>{num(ind.volumeRatio, 2)}× 20-day average{ind.volumeConfirmed != null ? (ind.volumeConfirmed ? " · confirmed" : " · not confirmed") : ""}{ind.obv ? ` · OBV ${ind.obv}` : ""}</td></tr>
-        <tr><td>Liquidity</td><td>{d.avgTurnover ? `${compact(d.avgTurnover)} average daily turnover` : "—"}</td></tr>
+        <tr><td>Support</td><td>{d.supports.length ? d.supports.map((x: number) => num(x)).join(", ") : "-"}</td></tr>
+        <tr><td>Resistance</td><td>{d.resistances.length ? d.resistances.map((x: number) => num(x)).join(", ") : "-"}</td></tr>
+        <tr><td>RSI (14)</td><td>{num(ind.rsi, 1)}{ind.rsi != null ? (ind.rsi > 70 ? ", overbought" : ind.rsi < 30 ? ", oversold" : "") : ""}</td></tr>
+        <tr><td>MACD</td><td>{ind.macd ?? "-"}</td></tr>
+        <tr><td>Moving averages</td><td>SMA20 {num(ind.sma20)}, SMA50 {num(ind.sma50)}, SMA200 {num(ind.sma200)}, {ind.maPosition ?? "-"}</td></tr>
+        <tr><td>Trend / ADX</td><td>{ind.trend ?? "-"}, ADX {num(ind.adx, 0)}</td></tr>
+        <tr><td>Volume</td><td>{num(ind.volumeRatio, 2)}x 20-day average{ind.volumeConfirmed != null ? (ind.volumeConfirmed ? ", confirmed" : ", not confirmed") : ""}{ind.obv ? `, OBV ${ind.obv}` : ""}</td></tr>
+        <tr><td>Liquidity</td><td>{d.avgTurnover ? `${compact(d.avgTurnover)} average daily turnover` : "-"}</td></tr>
       </tbody></table>
       {d.invalidation.length > 0 && <div><h4 className="small muted">What would invalidate this</h4><ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{d.invalidation.map((x: string) => <li key={x}>{x}</li>)}</ul></div>}
       {d.longTerm && <Notice>Long-term view: fundamentals qualify (score {d.longTerm.fundamentalScore}/100). {d.longTerm.entryNote}</Notice>}
       <h4 className="small muted" style={{ marginBottom: 0 }}>Trade planner</h4>
-      <TradePlanner key={symbol} entry={d.entry ?? d.price} stop={d.stop} targets={d.targets.map((t: Any) => t.price)} holdingDays={d.holdingPeriod?.startsWith("1–4") ? 21 : 90} fees={d.fees} onQty={(q, e) => setQty({ q, e })} />
+      <TradePlanner key={symbol} entry={d.entry ?? d.price} stop={d.stop} targets={d.targets.map((t: Any) => t.price)} holdingDays={d.holdingPeriod?.startsWith("1-4") ? 21 : 90} fees={d.fees} onQty={(q, e) => setQty({ q, e })} />
       <div className="row">
         {paper && d.action !== "SELL" && d.action !== "INSUFFICIENT" && <button className="btn primary" disabled={!qty} onClick={paperTrade}><I.portfolio /> Paper trade this</button>}
         {d.action !== "INSUFFICIENT" && <button className="btn" onClick={setAlerts}><I.alerts /> Set alerts</button>}
@@ -160,15 +160,15 @@ function Detail({ symbol }: { symbol: string }) {
 
 function LongTerm({ rows }: { rows: Any[] }) {
   return (
-    <Card title="Long-term investment ideas" sub="Judged on the business, separately from short-term trades: fundamental score ≥ 65, no red flags, reasonable valuation, liquid">
+    <Card title="Long-term investment ideas" sub="Judged on the business, separately from short-term trades: fundamental score at least 65, no red flags, reasonable valuation, liquid">
       {rows.length === 0 ? <Empty title="No stock meets every long-term condition today" /> : (
         <DataTable rows={rows} rowKey={(r: Any) => r.symbol} maxHeight={600} initialSort={{ key: "fundamentalScore", dir: -1 }} cols={[
           { key: "symbol", label: "Stock", render: (r: Any) => <span><Link className="sym" to={`/stocks/${r.symbol}`}>{r.symbol}</Link> <span className="tiny faint">{r.sector}</span></span> },
           { key: "price", label: "Price", num: true, render: (r: Any) => num(r.price) },
           { key: "fundamentalScore", label: "Fund. score", num: true },
           { key: "pe", label: "P/E", num: true, render: (r: Any) => num(r.pe, 1) }, { key: "pb", label: "P/B", num: true, render: (r: Any) => num(r.pb, 2) },
-          { key: "roe", label: "ROE", num: true, render: (r: Any) => r.roe != null ? `${num(r.roe, 1)}%` : "—" },
-          { key: "cashYield", label: "Cash yield", num: true, render: (r: Any) => r.cashYield != null ? `${num(r.cashYield, 1)}%` : "—" },
+          { key: "roe", label: "ROE", num: true, render: (r: Any) => r.roe != null ? `${num(r.roe, 1)}%` : "-" },
+          { key: "cashYield", label: "Cash yield", num: true, render: (r: Any) => r.cashYield != null ? `${num(r.cashYield, 1)}%` : "-" },
           { key: "yearsPaid5", label: "Div. yrs (5)", num: true },
           { key: "entryNote", label: "Approach", render: (r: Any) => <span className="small">{r.entryNote}{r.cautions.length ? ` Caution: ${r.cautions.join("; ")}.` : ""}</span> },
         ]} />
@@ -198,13 +198,13 @@ function TrackRecord() {
           { key: "netPct", label: "Net", num: true, render: (r: Any) => <span className={tone(r.netPct)}>{pct(r.netPct, 2)}</span> },
         ]} />
       </Card>
-      <Card title="Live signal log" sub={log.summary?.sinceDate ? `Signals recorded each day since ${log.summary.sinceDate}; ${log.summary.closed} BUY signals closed, ${log.summary.targetHitPct ?? "—"}% hit a target` : "Signals are recorded each trading day from now on and judged against later prices"}>
+      <Card title="Live signal log" sub={log.summary?.sinceDate ? `Signals recorded each day since ${log.summary.sinceDate}; ${log.summary.closed} BUY signals closed, ${log.summary.targetHitPct ?? "-"}% hit a target` : "Signals are recorded each trading day from now on and judged against later prices"}>
         {log.rows.length === 0 ? <Empty title="No live signals recorded yet" /> : (
           <DataTable rows={log.rows} rowKey={(r: Any) => `${r.date}-${r.symbol}`} maxHeight={420} cols={[
             { key: "date", label: "Date", render: (r: Any) => <span className="small">{r.date}</span> }, { key: "symbol", label: "Stock", render: (r: Any) => <Link className="sym" to={`/stocks/${r.symbol}`}>{r.symbol}</Link> },
             { key: "action", label: "Signal", render: (r: Any) => <Badge tone={ACTION_TONE[r.action]}>{r.action}</Badge> }, { key: "price", label: "Price then", num: true, render: (r: Any) => num(r.price) },
             { key: "lastClose", label: "Now", num: true, render: (r: Any) => <span>{num(r.lastClose)} <span className={tone(r.changePct)}>{r.changePct != null ? `(${pct(r.changePct, 1)})` : ""}</span></span> },
-            { key: "status", label: "Status", render: (r: Any) => <span className="small">{r.status}{r.on ? ` · ${r.on}` : ""}</span> },
+            { key: "status", label: "Status", render: (r: Any) => <span className="small">{r.status}{r.on ? `, ${r.on}` : ""}</span> },
           ]} />
         )}
       </Card>

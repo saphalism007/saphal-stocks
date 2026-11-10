@@ -23,7 +23,7 @@ export interface Opportunity {
   techReasons: string[]; fundReasons: string[];
   supports: number[]; resistances: number[];
   indicators: { rsi: number | null; macd: string | null; trend: string | null; adx: number | null; sma20: number | null; sma50: number | null; sma200: number | null; maPosition: string | null; volumeRatio: number | null; volumeConfirmed: boolean | null; obv: string | null };
-  invalidation: string[]; confidence: number; confidenceLabel: "High" | "Medium" | "Low" | "—";
+  invalidation: string[]; confidence: number; confidenceLabel: "High" | "Medium" | "Low" | "-";
   reviewBy: string | null; avgTurnover: number | null; fundamentalScore: number | null;
   netAtT1Pct: number | null;
   netRiskReward: number | null; // reward/risk after broker, SEBON, DP charges and CGT
@@ -81,7 +81,7 @@ export function evaluate(inp: OpportunityInput): Opportunity {
     entryLow: null, entryHigh: null, entry: null, stop: null, targets: [], riskReward: null, riskPct: null, buyNow: null, waitFor: null,
     techReasons: [], fundReasons: [], supports: [], resistances: [],
     indicators: { rsi: null, macd: null, trend: null, adx: null, sma20: null, sma50: null, sma200: null, maPosition: null, volumeRatio: null, volumeConfirmed: null, obv: null },
-    invalidation: [], confidence: 0, confidenceLabel: "—", reviewBy: null, avgTurnover: inp.avgTurnover20, fundamentalScore: fa?.score ?? null, netAtT1Pct: null, netRiskReward: null,
+    invalidation: [], confidence: 0, confidenceLabel: "-", reviewBy: null, avgTurnover: inp.avgTurnover20, fundamentalScore: fa?.score ?? null, netAtT1Pct: null, netRiskReward: null,
   };
   if (!last || bars.length < RULES.minBars) return { ...base, headline: `Insufficient data: ${bars.length} trading days of history (needs ${RULES.minBars}).` };
   const stale = (Date.parse(inp.latestMarketDate) - Date.parse(last.date)) / 86_400_000;
@@ -141,15 +141,15 @@ export function evaluate(inp: OpportunityInput): Opportunity {
     const net = nrr.netT1Pct;
     const costsOk = nrr.rr != null && nrr.rr >= RULES.buyMinNetRR;
     const plan = {
-      ...common, setupType: b.type, horizon: b.horizon, holdingPeriod: b.horizon.startsWith("swing") ? "1–4 weeks" : "1–6 months",
+      ...common, setupType: b.type, horizon: b.horizon, holdingPeriod: b.horizon.startsWith("swing") ? "1-4 weeks" : "1-6 months",
       entryLow: r2(b.entryLow), entryHigh: r2(b.entryHigh), entry, stop: r2(b.stopLoss), targets, riskReward: r2(rr), riskPct: r2(b.riskPct),
       techReasons: b.reasoning, invalidation: b.invalidation, indicators: { ...indicators, volumeConfirmed: b.volume.confirmed },
       confidence: conf, confidenceLabel: (conf >= 75 ? "High" : conf >= 55 ? "Medium" : "Low") as Opportunity["confidenceLabel"], netAtT1Pct: net, netRiskReward: nrr.rr,
     };
     const qualifies = qualifiesBeforeCosts && costsOk;
-    if (qualifies && inZone) return { ...plan, action: "BUY", bucket: "buy", buyNow: b.volume.confirmed ? "now" : "wait", waitFor: b.volume.confirmed ? null : "a close inside the entry zone on above-average volume", headline: `${b.type}: price is in the entry zone (Rs. ${r2(b.entryLow)}–${r2(b.entryHigh)}), stop Rs. ${r2(b.stopLoss)}, R:R ${r2(rr)}.` };
-    if (qualifies) return { ...plan, action: "WATCH", bucket: "watch", buyNow: "wait", waitFor: snap.close > b.entryHigh ? `a pullback into Rs. ${r2(b.entryLow)}–${r2(b.entryHigh)} (price is ${r2(((snap.close - b.entryHigh) / b.entryHigh) * 100)}% above the zone)` : `price to recover into the entry zone`, headline: `${b.type} setup, but price is outside the entry zone: wait for a better entry.` };
-    const why = qualifiesBeforeCosts && !costsOk ? `after broker, SEBON, DP charges and tax the reward/risk is only ${nrr.rr != null ? r2(nrr.rr) : "—"} (needs ${RULES.buyMinNetRR}); the move is too small for the costs` : !levelsOk ? `the stop (Rs. ${r2(b.stopLoss)}) is too close to or inside the buy range, so risk can't be controlled` : !oversoldOk ? "it has fallen but has not yet shown a confirmed reversal" : rr < RULES.buyMinRR ? `reward/risk is only ${r2(rr)} (needs ${RULES.buyMinRR})` : `setup quality ${b.quality}/100 is below ${RULES.buyMinQuality}`;
+    if (qualifies && inZone) return { ...plan, action: "BUY", bucket: "buy", buyNow: b.volume.confirmed ? "now" : "wait", waitFor: b.volume.confirmed ? null : "a close inside the entry zone on above-average volume", headline: `${b.type}: price is in the entry zone (Rs. ${r2(b.entryLow)}-${r2(b.entryHigh)}), stop Rs. ${r2(b.stopLoss)}, R:R ${r2(rr)}.` };
+    if (qualifies) return { ...plan, action: "WATCH", bucket: "watch", buyNow: "wait", waitFor: snap.close > b.entryHigh ? `a pullback into Rs. ${r2(b.entryLow)}-${r2(b.entryHigh)} (price is ${r2(((snap.close - b.entryHigh) / b.entryHigh) * 100)}% above the zone)` : `price to recover into the entry zone`, headline: `${b.type} setup, but price is outside the entry zone: wait for a better entry.` };
+    const why = qualifiesBeforeCosts && !costsOk ? `after broker, SEBON, DP charges and tax the reward/risk is only ${nrr.rr != null ? r2(nrr.rr) : "-"} (needs ${RULES.buyMinNetRR}); the move is too small for the costs` : !levelsOk ? `the stop (Rs. ${r2(b.stopLoss)}) is too close to or inside the buy range, so risk can't be controlled` : !oversoldOk ? "it has fallen but has not yet shown a confirmed reversal" : rr < RULES.buyMinRR ? `reward/risk is only ${r2(rr)} (needs ${RULES.buyMinRR})` : `setup quality ${b.quality}/100 is below ${RULES.buyMinQuality}`;
     return { ...plan, action: "WATCH", bucket: "watch", buyNow: "wait", waitFor: !oversoldOk ? "a reversal: MACD bullish cross or a close above the 20-day EMA, on volume" : "a stronger setup (better reward/risk or confirmation)", headline: `${b.type} forming, not a buy yet: ${why}.` };
   }
 

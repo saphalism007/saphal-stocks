@@ -36,7 +36,7 @@ const SCHEMA = {
 
 export async function extractNoticeRates(imageUrl: string): Promise<NoticeExtraction> {
   const key = (config.ai as { apiKey?: string }).apiKey;
-  if (!config.ai.hasKey) throw Object.assign(new Error("Add your Anthropic API key in Settings → AI to read rate notices."), { status: 400 });
+  if (!config.ai.hasKey) throw Object.assign(new Error("Add your Anthropic API key in Settings > AI to read rate notices."), { status: 400 });
   const client = key ? new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true }) : new Anthropic();
   const params: Record<string, unknown> = {
     model: config.ai.model,

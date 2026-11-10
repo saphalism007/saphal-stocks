@@ -168,7 +168,7 @@ export default function ChartPane(p: PaneProps) {
       for (const l of kept) main.createPriceLine({ price: l.price, color: l.color, lineWidth: l.width, lineStyle: l.style, axisLabelVisible: true, title: l.title });
       // Today's action on the last bar.
       const lastD = shown[shown.length - 1].date;
-      if (/BUY/.test(a.verdict) && bz) markers.push({ time: T(lastD), position: "belowBar", color: up, shape: "arrowUp", text: `${a.verdict} ${bz.lo}–${bz.hi}` });
+      if (/BUY/.test(a.verdict) && bz) markers.push({ time: T(lastD), position: "belowBar", color: up, shape: "arrowUp", text: `${a.verdict} ${bz.lo}-${bz.hi}` });
       else if (/SELL/.test(a.verdict)) markers.push({ time: T(lastD), position: "aboveBar", color: down, shape: "arrowDown", text: a.verdict });
       else markers.push({ time: T(lastD), position: "aboveBar", color: "#f59e0b", shape: "circle", text: a.verdict });
       // Past buy signals from the same rules: B at the entry, S at the exit (snapped to the bar that contains the date).
@@ -378,12 +378,12 @@ export default function ChartPane(p: PaneProps) {
   // ---------- legend ----------
   const hi = hover ?? data.length - 1, bar = data[hi], pb = data[hi - 1];
   const chg = bar && pb ? ((bar.close - pb.close) / pb.close) * 100 : null;
-  const val = (vals: (number | null)[]) => { const v = vals[hi]; return v == null ? "—" : fmtP(v); };
+  const val = (vals: (number | null)[]) => { const v = vals[hi]; return v == null ? "-" : fmtP(v); };
   let sub = 0;
   return (
     <div className={`term-pane ${p.active ? "on" : ""}`} onPointerDown={p.onFocus}>
       <div ref={host} style={{ position: "absolute", inset: 0 }} />
-      {!p.bars && <div className="term-msg">Loading prices…</div>}
+      {!p.bars && <div className="term-msg">Loading prices...</div>}
       {p.bars && data.length < 2 && <div className="term-msg">No price history stored for {p.symbol}.</div>}
       {mapper && w > 0 && h > 0 && (
         <svg className="draw-layer" width={w} height={h} style={{ position: "absolute", left: 0, top: 0, zIndex: 5, pointerEvents: p.tool === "cursor" ? "none" : "all", touchAction: p.tool === "cursor" ? "auto" : "none", cursor: p.tool === "cursor" ? "default" : "crosshair", overflow: "hidden" }}
@@ -396,7 +396,7 @@ export default function ChartPane(p: PaneProps) {
       {bar && (
         <div className="term-legend">
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-            <strong>{p.symbol}</strong><span className="faint">· {p.tf === "D" ? "1D" : p.tf === "W" ? "1W" : "1M"} · {bar.date}</span>
+            <strong>{p.symbol}</strong><span className="faint">{p.tf === "D" ? "1D" : p.tf === "W" ? "1W" : "1M"} | {bar.date}</span>
             <span className={bar.close >= bar.open ? "up" : "down"} style={{ fontVariantNumeric: "tabular-nums" }}>O {fmtP(bar.open)} H {fmtP(bar.high)} L {fmtP(bar.low)} C {fmtP(bar.close)} {chg != null ? `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%` : ""}</span>
             <span className="faint">Vol {fmtP(bar.volume)}</span>
           </div>

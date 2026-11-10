@@ -29,9 +29,9 @@ export function MarketHome() {
       <div className="grid g3">
         <Card title="Turnover" sub={d.date ? nptDate(d.date) : undefined}>
           <div className="mono" style={{ fontSize: 24, fontWeight: 600 }}>{compact(t.today)}</div>
-          <div className="small muted">{int(t.shares)} shares · {t.traded} stocks traded</div>
+          <div className="small muted">{int(t.shares)} shares, {t.traded} stocks traded</div>
           {t.changePct != null && <div className={`small ${tone(t.changePct)}`} style={{ marginTop: 6 }}>{t.changePct >= 0 ? "Up" : "Down"} {num(Math.abs(t.changePct), 1)}% on the previous session ({compact(t.previous)})</div>}
-          <div className="row small" style={{ marginTop: 6, gap: 12 }}><span className="up">▲ {d.breadth.advancers}</span><span className="down">▼ {d.breadth.decliners}</span><span className="faint">— {d.breadth.unchanged}</span></div>
+          <div className="row small" style={{ marginTop: 6, gap: 12 }}><span className="up">▲ {d.breadth.advancers}</span><span className="down">▼ {d.breadth.decliners}</span><span className="faint">, {d.breadth.unchanged}</span></div>
         </Card>
         <Card title="Market leaders">
           <div className="leaders">
@@ -42,7 +42,7 @@ export function MarketHome() {
             <Leader label="Near 52-week low" x={L.near52Low} extra={pct(L.near52Low?.changePct)} />
           </div>
         </Card>
-        <Card title="Corporate disclosures" sub="Dividends & bonus · upcoming AGMs" actions={<Link className="small" to="/monitor">All</Link>}>
+        <Card title="Corporate disclosures" sub="Dividends & bonus, upcoming AGMs" actions={<Link className="small" to="/monitor">All</Link>}>
           <div className="disc">
             {d.disclosures.agms.slice(0, 4).map((a: Any) => <a key={a.url} href={a.url} target="_blank" rel="noopener noreferrer" className="row between small"><span><span className="sym">{a.symbol}</span> AGM</span><span className="faint">{nptDate(a.date)}</span></a>)}
             {d.disclosures.dividends.slice(0, 8).map((x: Any) => <Link key={x.symbol + x.fiscal_year} to={`/stocks/${x.symbol}`} className="row between small"><span><span className="sym">{x.symbol}</span> {[x.bonus_pct ? `${num(x.bonus_pct, 2)}% bonus` : null, x.cash_pct ? `${num(x.cash_pct, 2)}% cash` : null].filter(Boolean).join(", ")}</span><span className="faint">{nptDate(x.announcement_date)}</span></Link>)}
@@ -50,7 +50,7 @@ export function MarketHome() {
           </div>
         </Card>
       </div>
-      <Card title="Sector heatmap" sub="Average move of each sector's stocks · tap a sector" actions={<Seg value={period} onChange={setPeriod} options={[{ key: "1D", label: "1D" }, { key: "1W", label: "1W" }, { key: "1M", label: "1M" }, { key: "1Y", label: "1Y" }]} />}>
+      <Card title="Sector heatmap" sub="Average move of each sector's stocks, tap a sector" actions={<Seg value={period} onChange={setPeriod} options={[{ key: "1D", label: "1D" }, { key: "1W", label: "1W" }, { key: "1M", label: "1M" }, { key: "1Y", label: "1Y" }]} />}>
         {!heat.data ? <Loading /> : (
           <div className="heatmap">
             {heat.data.map((s: Any) => (
@@ -58,7 +58,7 @@ export function MarketHome() {
                 <span className="small" style={{ fontWeight: 600 }}>{s.sector}</span>
                 <span className="tiny">{s.stocks} stocks</span>
                 <strong className="mono">{pct(s.changePct)}</strong>
-                <span className="tiny">▲ {s.up} ▼ {s.down}{s.best ? ` · ${s.best.symbol} ${pct(s.best.ret, 1)}` : ""}</span>
+                <span className="tiny">▲ {s.up} ▼ {s.down}{s.best ? `, ${s.best.symbol} ${pct(s.best.ret, 1)}` : ""}</span>
               </button>
             ))}
           </div>
@@ -68,7 +68,7 @@ export function MarketHome() {
         {mv === "results" ? (!results.data ? <Loading /> : (
           <div className="mover-grid">{results.data.rows.slice(0, 24).map((r: Any) => (
             <Link key={r.symbol} to={`/stocks/${r.symbol}`} className="mover"><span className="sym">{r.symbol}</span><span className="small mono">{compact(r.profit * 1000)}</span><span className={`small ${tone(r.yoyPct)}`}>{r.yoyPct != null ? pct(r.yoyPct, 1) : "new"}</span></Link>
-          ))}<Link to="/results" className="small" style={{ alignSelf: "center" }}>All results →</Link></div>
+          ))}<Link to="/results" className="small" style={{ alignSelf: "center" }}>All results</Link></div>
         )) : (
           <div className="mover-grid">{d.movers[mv].slice(0, 24).map((x: Any) => (
             <Link key={x.symbol} to={`/stocks/${x.symbol}`} className="mover"><span className="sym">{x.symbol}</span><span className="small mono">Rs. {num(x.close)}</span><span className={`small ${tone(x.changePct)}`}>{mv === "volume" ? `${int(x.volume)}` : mv === "turnover" ? compact(x.turnover) : pct(x.changePct)}</span></Link>

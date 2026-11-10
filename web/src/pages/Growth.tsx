@@ -35,7 +35,7 @@ function Today() {
   const t = d.data;
   return (
     <div className="col">
-      <p className="small muted" style={{ margin: 0 }}>Based on prices of {t.date ? nptDate(t.date) : "—"} · {t.holdings} holding{t.holdings === 1 ? "" : "s"} · {t.watch} on your watchlist.</p>
+      <p className="small muted" style={{ margin: 0 }}>Based on prices of {t.date ? nptDate(t.date) : "-"}, {t.holdings} holding{t.holdings === 1 ? "" : "s"}, {t.watch} on your watchlist.</p>
       {t.items.length === 0 ? (
         <Empty title="Nothing needs you today">No stops hit, no buy zones reached, no dates due. {t.holdings + t.watch === 0 && <>Add stocks to a <Link to="/portfolio">portfolio</Link> or <Link to="/watchlist">watchlist</Link> so this list can watch them for you.</>}</Empty>
       ) : (
@@ -61,7 +61,7 @@ function Roadmap() {
     <div className="col">
       <Card title="Your wealth roadmap" sub="Do the steps in order: each one protects the next. They tick themselves from My Money, Portfolio and your journal.">
         <div className="rm-prog"><i style={{ width: `${(done / st.length) * 100}%` }} /></div>
-        <p className="small" style={{ margin: "6px 0 0" }}><b>{done} of {st.length}</b> steps done{d.data.saved ? <> · net worth {compact(d.data.netWorth)}{d.data.savingsRatePct != null ? ` · saving ${d.data.savingsRatePct}% of income` : ""}</> : ""}.</p>
+        <p className="small" style={{ margin: "6px 0 0" }}><b>{done} of {st.length}</b> steps done{d.data.saved ? <>, net worth {compact(d.data.netWorth)}{d.data.savingsRatePct != null ? `, saving ${d.data.savingsRatePct}% of income` : ""}</> : ""}.</p>
       </Card>
       <ol className="rm">{st.map((x: Any) => (
         <li key={x.n} className={`rm-${x.status}`}>
@@ -85,31 +85,31 @@ function Holdings() {
   return (
     <div className="col">
       <div className="grid g4 gr-stats">
-        <Stat label="Portfolio value" value={compact(h.total)} sub={`prices of ${h.asOf ? nptDate(h.asOf) : "—"}`} />
-        <Stat label="Your yearly return (XIRR)" value={h.xirrPct != null ? `${h.xirrPct > 0 ? "+" : ""}${num(h.xirrPct, 1)}%` : "—"} tone={tone(h.xirrPct)} sub="money-weighted, after fees, incl. dividends" />
+        <Stat label="Portfolio value" value={compact(h.total)} sub={`prices of ${h.asOf ? nptDate(h.asOf) : "-"}`} />
+        <Stat label="Your yearly return (XIRR)" value={h.xirrPct != null ? `${h.xirrPct > 0 ? "+" : ""}${num(h.xirrPct, 1)}%` : "-"} tone={tone(h.xirrPct)} sub="money-weighted, after fees, incl. dividends" />
         <Stat label="Need action" value={urgent} tone={urgent ? "down" : "up"} sub={urgent ? "see the top of the list" : "all holdings fine"} />
-        <Stat label="Biggest sector" value={h.sectors[0] ? `${num(h.sectors[0].pct, 0)}%` : "—"} sub={h.sectors[0]?.sector ?? ""} tone={h.sectors[0]?.pct > 40 ? "down" : ""} />
-        <Stat label="Dividend income (est.)" value={h.expectedDividends ? rs(h.expectedDividends, 0) : "—"} sub="if last year's cash dividend repeats, after 5% tax" />
+        <Stat label="Biggest sector" value={h.sectors[0] ? `${num(h.sectors[0].pct, 0)}%` : "-"} sub={h.sectors[0]?.sector ?? ""} tone={h.sectors[0]?.pct > 40 ? "down" : ""} />
+        <Stat label="Dividend income (est.)" value={h.expectedDividends ? rs(h.expectedDividends, 0) : "-"} sub="if last year's cash dividend repeats, after 5% tax" />
       </div>
       {h.rows.some((r: Any) => r.paper) && <label className="small row" style={{ gap: 6 }}><input type="checkbox" checked={paper} onChange={(e) => setPaper(e.target.checked)} /> Include paper portfolios</label>}
       <div className="gr-holds">{rows.map((r: Any, i: number) => (
         <div key={i} className={`gr-hold ${LV[r.level]?.cls ?? ""}`}>
           <div className="row between" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}>
-            <div style={{ minWidth: 0 }}><Link to={`/terminal/${r.symbol}`} className="mono" style={{ fontWeight: 700, fontSize: 15 }}>{r.symbol}</Link> <span className="tiny faint">{r.sector}{r.paper ? " · paper" : ""}</span></div>
+            <div style={{ minWidth: 0 }}><Link to={`/terminal/${r.symbol}`} className="mono" style={{ fontWeight: 700, fontSize: 15 }}>{r.symbol}</Link> <span className="tiny faint">{r.sector}{r.paper ? ", paper" : ""}</span></div>
             {r.verdict && <Badge tone={/BUY/.test(r.verdict) ? "up" : /SELL/.test(r.verdict) ? "down" : "warn"}>{r.verdict}</Badge>}
           </div>
           <div className="gr-action"><b>{r.action}</b><span>{r.why}</span></div>
           <div className="gr-kv">
-            <span>Qty <b>{num(r.qty, 0)}</b></span><span>Cost <b>{num(r.wacc)}</b></span><span>Price <b>{r.price != null ? num(r.price) : "—"}</b></span>
-            <span>P/L <b className={tone(r.pnl)}>{r.pnl != null ? compact(r.pnl) : "—"} {r.pnlPct != null ? `(${num(r.pnlPct, 1)}%)` : ""}</b></span>
+            <span>Qty <b>{num(r.qty, 0)}</b></span><span>Cost <b>{num(r.wacc)}</b></span><span>Price <b>{r.price != null ? num(r.price) : "-"}</b></span>
+            <span>P/L <b className={tone(r.pnl)}>{r.pnl != null ? compact(r.pnl) : "-"} {r.pnlPct != null ? `(${num(r.pnlPct, 1)}%)` : ""}</b></span>
             <span>Weight <b className={r.weightPct > 25 ? "down" : ""}>{num(r.weightPct, 1)}%</b></span>
-            <span>Stop <b className="down">{r.stop != null ? num(r.stop) : "—"}</b></span><span>Target <b className="up">{r.t1 != null ? num(r.t1) : "—"}</b></span>
-            <span>Support <b>{r.support != null ? num(r.support) : "—"}</b></span><span>Resistance <b>{r.resistance != null ? num(r.resistance) : "—"}</b></span>
+            <span>Stop <b className="down">{r.stop != null ? num(r.stop) : "-"}</b></span><span>Target <b className="up">{r.t1 != null ? num(r.t1) : "-"}</b></span>
+            <span>Support <b>{r.support != null ? num(r.support) : "-"}</b></span><span>Resistance <b>{r.resistance != null ? num(r.resistance) : "-"}</b></span>
           </div>
-          <div className="tiny faint">If sold today: fees {r.sellCharges != null ? rs(r.sellCharges, 0) : "—"}, capital gains tax {r.cgt != null ? rs(r.cgt, 0) : "—"} ({r.held != null && r.held > 365 ? "held over a year: 7.5%" : "held a year or less: 10%"}) → you receive {r.netIfSold != null ? rs(r.netIfSold, 0) : "—"}.{r.expDividend ? ` Expected dividend ${rs(r.expDividend, 0)} (based on ${r.divYear}).` : ""}</div>
+          <div className="tiny faint">If sold today: fees {r.sellCharges != null ? rs(r.sellCharges, 0) : "-"}, capital gains tax {r.cgt != null ? rs(r.cgt, 0) : "-"} ({r.held != null && r.held > 365 ? "held over a year: 7.5%" : "held a year or less: 10%"}) &gt; you receive {r.netIfSold != null ? rs(r.netIfSold, 0) : "-"}.{r.expDividend ? ` Expected dividend ${rs(r.expDividend, 0)} (based on ${r.divYear}).` : ""}</div>
         </div>
       ))}</div>
-      <p className="tiny faint">Stops, targets and verdicts come from the same chart analysis as the ⚡ Buy/Sell signal. Tax rates are Nepal's individual CGT on listed shares as set in Settings → Fees.</p>
+      <p className="tiny faint">Stops, targets and verdicts come from the same chart analysis as the Buy/Sell signal. Tax rates are Nepal's individual CGT on listed shares as set in Settings &gt; Fees.</p>
     </div>
   );
 }
@@ -148,7 +148,7 @@ function Coach() {
           <div className="col" style={{ marginTop: 12, gap: 8 }}>
             <div className={`gr-go ${chk.go === "GO" ? "gr-ok" : chk.go === "CAREFUL" ? "gr-act" : "gr-urgent"}`}>
               <b>{chk.go}</b>
-              <span>{chk.symbol} at Rs. {num(chk.price)} · verdict {chk.verdict}. {chk.qty > 0 ? <>Buy <b>{num(chk.qty, 0)} shares</b> (Rs. {num(chk.cost, 0)}), stop Rs. {chk.stop != null ? num(chk.stop) : "—"}, target Rs. {chk.target != null ? num(chk.target) : "—"}. If the stop is hit you lose about Rs. {num(chk.riskRs, 0)}.</> : "No valid stop below the price, so no position size can be worked out."}</span>
+              <span>{chk.symbol} at Rs. {num(chk.price)}, verdict {chk.verdict}. {chk.qty > 0 ? <>Buy <b>{num(chk.qty, 0)} shares</b> (Rs. {num(chk.cost, 0)}), stop Rs. {chk.stop != null ? num(chk.stop) : "-"}, target Rs. {chk.target != null ? num(chk.target) : "-"}. If the stop is hit you lose about Rs. {num(chk.riskRs, 0)}.</> : "No valid stop below the price, so no position size can be worked out."}</span>
             </div>
             <ul className="gr-checks">{chk.checks.map((x: Any, i: number) => <li key={i} className={x.ok === true ? "ok" : x.ok === false ? "bad" : "unk"}><span>{x.ok === true ? "✓" : x.ok === false ? "✕" : "?"}</span><div><b>{x.label}</b><em>{x.detail}</em></div></li>)}</ul>
             <div className="small"><b>Your own check</b></div>
@@ -167,9 +167,9 @@ function Coach() {
           <>
             <div className="grid g4">
               <Stat label="Closed trades" value={h.closed} sub={`${h.open} open`} />
-              <Stat label="Win rate" value={h.winRatePct != null ? `${h.winRatePct}%` : "—"} />
-              <Stat label="Avg win / avg loss" value={h.avgWinPct != null || h.avgLossPct != null ? `${h.avgWinPct ?? "—"}% / ${h.avgLossPct ?? "—"}%` : "—"} />
-              <Stat label="Average per trade" value={h.expectancyPct != null ? `${h.expectancyPct > 0 ? "+" : ""}${h.expectancyPct}%` : "—"} tone={tone(h.expectancyPct)} sub={h.holdWinDays != null ? `hold winners ${h.holdWinDays}d, losers ${h.holdLossDays ?? "—"}d` : undefined} />
+              <Stat label="Win rate" value={h.winRatePct != null ? `${h.winRatePct}%` : "-"} />
+              <Stat label="Avg win / avg loss" value={h.avgWinPct != null || h.avgLossPct != null ? `${h.avgWinPct ?? "-"}% / ${h.avgLossPct ?? "-"}%` : "-"} />
+              <Stat label="Average per trade" value={h.expectancyPct != null ? `${h.expectancyPct > 0 ? "+" : ""}${h.expectancyPct}%` : "-"} tone={tone(h.expectancyPct)} sub={h.holdWinDays != null ? `hold winners ${h.holdWinDays}d, losers ${h.holdLossDays ?? "-"}d` : undefined} />
             </div>
             <div className="gr-list" style={{ marginTop: 10 }}>{h.insights.map((x: Any, i: number) => (
               <div key={i} className={`gr-item ${x.tone === "good" ? "gr-ok" : x.tone === "bad" ? "gr-urgent" : "gr-info"}`}><span className="gr-lv">{x.tone === "good" ? "Good" : x.tone === "bad" ? "Fix" : "Note"}</span><span className="gr-txt"><b>{x.title}</b><span>{x.text}</span></span></div>
@@ -181,7 +181,7 @@ function Coach() {
 
       <Card title="The rules that keep traders in the game">
         <ol className="small" style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
-          <li>Risk at most 1–2% of your capital on any one trade.</li>
+          <li>Risk at most 1-2% of your capital on any one trade.</li>
           <li>Set the stop-loss before you buy, and sell when a day closes below it.</li>
           <li>Only take trades where the target is at least twice as far as the stop.</li>
           <li>Never add money to a losing trade to "average down".</li>
@@ -208,7 +208,7 @@ function Calendar() {
       <Card title="Upcoming book closures" sub="Hold the shares through the book-closure date to receive the dividend or bonus">
         {f(c.bookClosures).length === 0 ? <p className="small muted">{all ? "No upcoming book closures in the data." : "None for your stocks. Tick the box above to see the whole market."}</p> : (
           <div className="table-scroll"><table className="t small"><thead><tr><th>Stock</th><th>Book closure</th><th className="num">Cash</th><th className="num">Bonus</th><th>Year</th></tr></thead>
-            <tbody>{f(c.bookClosures).map((b: Any, i: number) => <tr key={i}><td><Link className="mono" to={`/stocks/${b.symbol}?tab=dividends`}>{b.symbol}</Link> {tag(b.mine)}</td><td>{nptDate(b.bookclose_date)} <span className="tiny faint">{bsOf(b.bookclose_date)} · </span><span className="tiny faint">{b.days === 0 ? "today" : b.days > 0 ? `in ${b.days}d` : `${-b.days}d ago`}</span></td><td className="num">{b.cash_pct ? `${num(b.cash_pct)}%` : "—"}</td><td className="num">{b.bonus_pct ? `${num(b.bonus_pct)}%` : "—"}</td><td>{b.fiscal_year}</td></tr>)}</tbody></table></div>
+            <tbody>{f(c.bookClosures).map((b: Any, i: number) => <tr key={i}><td><Link className="mono" to={`/stocks/${b.symbol}?tab=dividends`}>{b.symbol}</Link> {tag(b.mine)}</td><td>{nptDate(b.bookclose_date)} <span className="tiny faint">{bsOf(b.bookclose_date)}, </span><span className="tiny faint">{b.days === 0 ? "today" : b.days > 0 ? `in ${b.days}d` : `${-b.days}d ago`}</span></td><td className="num">{b.cash_pct ? `${num(b.cash_pct)}%` : "-"}</td><td className="num">{b.bonus_pct ? `${num(b.bonus_pct)}%` : "-"}</td><td>{b.fiscal_year}</td></tr>)}</tbody></table></div>
         )}
       </Card>
       <Card title="IPOs, right shares and other issues" sub="Open now or opening soon (apply in MeroShare)">
@@ -220,7 +220,7 @@ function Calendar() {
       <Card title="AGM, dividend and book-closure notices (last 30 days)" sub="Dates in Nepali (BS) are shown exactly as announced">
         {f(c.notices).length === 0 ? <p className="small muted">{all ? "No notices in the last 30 days." : "No notices for your stocks in the last 30 days."}</p> : (
           <div className="gr-notices">{f(c.notices).map((n: Any, i: number) => (
-            <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" className="gr-notice"><span className="tiny faint">{nptDate(n.published_date)} · {n.category} {n.symbol ? `· ${n.symbol}` : ""}</span><span className="small">{n.title}</span>{tag(n.mine)}</a>
+            <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" className="gr-notice"><span className="tiny faint">{nptDate(n.published_date)}, {n.category} {n.symbol ? `, ${n.symbol}` : ""}</span><span className="small">{n.title}</span>{tag(n.mine)}</a>
           ))}</div>
         )}
       </Card>

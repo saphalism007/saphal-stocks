@@ -1,6 +1,6 @@
 # Data sources
 
-Checked on 8 November 2026. Every stored record carries its source, and every dataset's freshness (source, data date, last successful fetch, last error) is tracked in the `data_freshness` table and shown on **Settings → Data**.
+Checked on 8 November 2026. Every stored record carries its source, and every dataset's freshness (source, data date, last successful fetch, last error) is tracked in the `data_freshness` table and shown on **Settings > Data**.
 
 ## In use
 
@@ -17,7 +17,7 @@ Checked on 8 November 2026. Every stored record carries its source, and every da
 | Corporate events (AGM notices and minutes, statutory auditor appointments, book closures, dividend declarations) | ShareSansar `company-events` (mirrors NEPSE filings) | JSON (POST, as above, 50 per page) | Stored in `company_events` with a category; shown on each stock's Reports & audit tab. Full annual reports with the auditor's report are on company websites (the website link is read from the company page). |
 | Latest quarterly statements (balance sheet, P&L, key metrics such as EPS, NPL, CAR, solvency) | ShareSansar `company-quarterly-report` | HTML fragment (POST, as above) | Only the latest quarter is offered, so history accumulates as the app keeps fetching each quarter. Values are in Rs. '000 as published by the company. |
 | Market-wide announcements and news headlines | ShareSansar `announcement`, `category/latest`, `category/ipo-fpo-news`, `category/dividend-right-bonus` | HTML | Headlines, dates and links only. |
-| IPO, FPO, right share, local/foreign-employed quota and mutual fund issues (units, price, dates, issue manager, listing date) | ShareSansar `existing-issues` | JSON (DataTables, `type` 1–8, 50 rows/page) | Listing performance is computed only when stored prices start within 7 days of listing. |
+| IPO, FPO, right share, local/foreign-employed quota and mutual fund issues (units, price, dates, issue manager, listing date) | ShareSansar `existing-issues` | JSON (DataTables, `type` 1-8, 50 rows/page) | Listing performance is computed only when stored prices start within 7 days of listing. |
 | Listed mutual fund NAVs (weekly/monthly NAV, market price, premium/discount, maturity) | ShareSansar `mutual-fund-navs` | JSON (`type=-1` active, `type=1` matured) | Each weekly NAV seen is kept in `fund_nav_history`, so NAV history builds up over time. |
 | Foreign exchange rates | [Nepal Rastra Bank forex API](https://www.nrb.org.np/api/forex/v1/rates) | Official JSON API | |
 | Policy rates, T-bill yields, interbank rate, weighted-average deposit / FD / savings / lending rates, base rate | Nepal Rastra Bank rate pages ([policy](https://www.nrb.org.np/cmfm_rates/policy_rates), [short-term](https://www.nrb.org.np/cmfm_rates/short_term_rates), [lending/deposit](https://www.nrb.org.np/cmfm_rates/lending_rates)) | HTML tables, each rate with its "last updated" date and previous value | robots.txt allows crawling. The pages return full content with an HTTP 404 status, so the adapter accepts a page when the rate tables are present. History builds up in `rate_history`. |
@@ -42,7 +42,7 @@ Checked on 8 November 2026. Every stored record carries its source, and every da
 
 ## Where the web app gets data
 
-The web app does not contact the sources above from your phone. GitHub Actions (`.github/workflows/data-and-deploy.yml`) runs the same ingestion jobs on a schedule, exports a market snapshot (`data/market.db.bin`, gzip-compressed SQLite) and a small `data/live.json` with the latest quotes, and publishes them with the app on GitHub Pages. The same rate limits apply. The app shows the snapshot's data date and source on Settings → Data.
+The web app does not contact the sources above from your phone. GitHub Actions (`.github/workflows/data-and-deploy.yml`) runs the same ingestion jobs on a schedule, exports a market snapshot (`data/market.db.bin`, gzip-compressed SQLite) and a small `data/live.json` with the latest quotes, and publishes them with the app on GitHub Pages. The same rate limits apply. The app shows the snapshot's data date and source on Settings > Data.
 
 ## Returns used by the advisor
 
@@ -54,7 +54,7 @@ The web app does not contact the sources above from your phone. GitHub Actions (
 
 - **Near-live, not real-time.** ShareSansar's latest-price page is refreshed about every 15 minutes during market hours (5 minutes on the local server). Signals and setups use daily bars; the current day's bar is marked provisional until the close.
 - **Quarterly statement history** starts from what is fetched; older quarters are not offered by the source. Year-over-year growth appears once last year's same quarter has been stored. PDFs of older reports can be uploaded under Reports for AI document analysis.
-- **Bonus and right-share adjustments** use dividend and issue records and apply only when the expected ex-date price gap is found in the data. Remaining unexplained gaps are listed on Settings → Data quality.
+- **Bonus and right-share adjustments** use dividend and issue records and apply only when the expected ex-date price gap is found in the data. Remaining unexplained gaps are listed on Settings > Data quality.
 - **Investment product rates** (FD rates, bond coupons, fund returns) change constantly and are not scraped. The directory links to official sources and lets you record a verified rate and date.
 - **Fees and taxes** are editable defaults; re-check SEBON, NEPSE and IRD notices after each budget.
 

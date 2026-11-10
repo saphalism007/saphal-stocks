@@ -115,7 +115,7 @@ portfolioRouter.post("/portfolios/:id/paper-order", (req, res) => {
     const held = computeHoldings(txsFor(p.id), {}).holdings.find((h) => h.symbol === o.symbol)?.quantity ?? 0;
     if (o.quantity > held) return res.status(400).json({ error: `You hold ${held} shares.` });
   }
-  run("INSERT INTO transactions (portfolio_id, symbol, type, date, quantity, price, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", p.id, o.symbol, o.side, date, o.quantity, price, `Paper order at ${o.price ? "limit" : "last close"} Rs. ${price}${o.notes ? " · " + o.notes : ""}`, nowIso());
+  run("INSERT INTO transactions (portfolio_id, symbol, type, date, quantity, price, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", p.id, o.symbol, o.side, date, o.quantity, price, `Paper order at ${o.price ? "limit" : "last close"} Rs. ${price}${o.notes ? ", " + o.notes : ""}`, nowIso());
   res.json({ ok: true, price, date, estCharges: o.side === "buy" ? buyCost(o.quantity, price, M.fees()).total : sellCost(o.quantity, price, M.fees()).total });
 });
 

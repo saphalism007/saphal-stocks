@@ -53,11 +53,11 @@ function TradeJournal() {
       <div className="row between"><span className="muted small">Net results include Nepal commission, SEBON fee, DP charge and capital gains tax.</span><button className="btn primary" onClick={() => setEdit("new")}><I.plus /> Log a trade</button></div>
       <div className="grid g6">
         <Stat label="Closed trades" value={stats.closed} sub={`${stats.open} open`} />
-        <Stat label="Win rate" value={stats.winRate != null ? `${num(stats.winRate, 0)}%` : "—"} />
+        <Stat label="Win rate" value={stats.winRate != null ? `${num(stats.winRate, 0)}%` : "-"} />
         <Stat label="Net P&L (after costs & tax)" value={compact(stats.net)} tone={tone(stats.net)} />
-        <Stat label="Average R" value={stats.avgR != null ? `${num(stats.avgR, 2)}R` : "—"} sub="Net profit ÷ planned risk" />
-        <Stat label="Win rate: plan followed" value={stats.followedWin != null ? `${num(stats.followedWin, 0)}%` : "—"} />
-        <Stat label="Win rate: plan broken" value={stats.brokeWin != null ? `${num(stats.brokeWin, 0)}%` : "—"} />
+        <Stat label="Average R" value={stats.avgR != null ? `${num(stats.avgR, 2)}R` : "-"} sub="Net profit ÷ planned risk" />
+        <Stat label="Win rate: plan followed" value={stats.followedWin != null ? `${num(stats.followedWin, 0)}%` : "-"} />
+        <Stat label="Win rate: plan broken" value={stats.brokeWin != null ? `${num(stats.brokeWin, 0)}%` : "-"} />
       </div>
       {stats.bySetup.length > 0 && <Card title="Results by setup" flush><DataTable rows={stats.bySetup} cols={[{ key: "setup", label: "Setup" }, { key: "n", label: "Trades", num: true }, { key: "winRate", label: "Win rate", num: true, render: (r: any) => `${num(r.winRate, 0)}%` }, { key: "avgR", label: "Avg R", num: true, render: (r: any) => num(r.avgR, 2) }, { key: "net", label: "Net P&L", num: true, render: (r: any) => <span className={tone(r.net)}>{compact(r.net)}</span> }]} /></Card>}
       <Card title="Trades" flush>
@@ -68,7 +68,7 @@ function TradeJournal() {
             { key: "setup", label: "Setup", sort: (r: any) => r.data.setup, render: (r: any) => <Badge>{r.data.setup}</Badge> },
             { key: "plan", label: "Entry / stop / target", render: (r: any) => <span className="mono small">{num(r.data.entry)} / {num(r.data.stop)} / {num(r.data.target)}</span> },
             { key: "exit", label: "Exit", num: true, sort: (r: any) => r.data.exit, render: (r: any) => r.data.exit ? num(r.data.exit) : <Badge tone="blue">Open</Badge> },
-            { key: "ret", label: "Net %", num: true, sort: (r: any) => (r.data.exit ? (r.data.exit - r.data.entry) / r.data.entry : null), render: (r: any) => { if (!r.data.exit) return "—"; const p = roundTrip(r.data.qty, r.data.entry, r.data.exit, 30).netReturnPct; return <span className={tone(p)}>{pct(p, 1)}</span>; } },
+            { key: "ret", label: "Net %", num: true, sort: (r: any) => (r.data.exit ? (r.data.exit - r.data.entry) / r.data.entry : null), render: (r: any) => { if (!r.data.exit) return "-"; const p = roundTrip(r.data.qty, r.data.entry, r.data.exit, 30).netReturnPct; return <span className={tone(p)}>{pct(p, 1)}</span>; } },
             { key: "followed", label: "Plan", render: (r: any) => r.data.followedPlan ? <Badge tone="up">Followed</Badge> : <Badge tone="warn">Broken</Badge> },
             { key: "lessons", label: "Lesson", render: (r: any) => <span className="small muted">{r.data.lessons?.slice(0, 80)}</span> },
           ]} />
@@ -103,7 +103,7 @@ function TradeModal({ row, onClose, onDone }: { row: VaultRow<Trade> | null; onC
           <label className="field">Exit date<input className="input" type="date" value={t.exitDate ?? ""} onChange={set("exitDate")} /></label>
           <label className="field">Exit price (blank if open)<NumInput className="input" value={t.exit ?? ""} onChange={set("exit")} /></label>
         </div>
-        {rr != null && <div className="small muted">Planned risk/reward {num(rr, 2)} · risk Rs. {num((+t.entry - +t.stop) * +t.qty, 0)}</div>}
+        {rr != null && <div className="small muted">Planned risk/reward {num(rr, 2)}, risk Rs. {num((+t.entry - +t.stop) * +t.qty, 0)}</div>}
         <label className="field">Why I took it<textarea className="input" value={t.reason} onChange={set("reason")} /></label>
         <div className="grid g2">
           <label className="field">How I felt<select className="input" value={t.emotion} onChange={set("emotion")}>{["Calm", "Confident", "Fear of missing out", "Anxious", "Revenge / frustrated", "Greedy", "Bored"].map((x) => <option key={x}>{x}</option>)}</select></label>
@@ -135,7 +135,7 @@ function Theses() {
             const since = s?.close && r.data.priceAtCreation ? ((s.close - r.data.priceAtCreation) / r.data.priceAtCreation) * 100 : null;
             return (
               <Card key={r.id} title={<><Link to={`/stocks/${r.data.symbol}`} className="mono">{r.data.symbol}</Link> <Badge tone={r.data.status === "active" ? "accent" : r.data.status === "validated" ? "up" : r.data.status === "broken" ? "down" : ""}>{r.data.status}</Badge></>}
-                sub={`Since ${nptDate(r.data.createdOn)} · ${r.data.horizon}`} actions={<button className="btn sm" onClick={() => setEdit(r)}>Edit</button>}>
+                sub={`Since ${nptDate(r.data.createdOn)}, ${r.data.horizon}`} actions={<button className="btn sm" onClick={() => setEdit(r)}>Edit</button>}>
                 <div className="row small" style={{ marginBottom: 8 }}>
                   <span>Price then <b className="mono">{num(r.data.priceAtCreation)}</b></span><span>now <b className="mono">{num(s?.close)}</b></span><span className={tone(since)}>{pct(since, 1)}</span>
                   {r.data.fairValue ? <span>fair value <b className="mono">{num(r.data.fairValue)}</b> ({pct(s?.close ? ((r.data.fairValue - s.close) / s.close) * 100 : null, 0)} upside)</span> : null}

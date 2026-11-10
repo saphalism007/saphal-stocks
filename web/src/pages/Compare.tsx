@@ -34,7 +34,7 @@ const ROWS: { group: string; rows: Row[] }[] = [
     { label: "Capital adequacy %", get: (s) => s.metrics.car?.value, fmt: (v) => num(v, 2), better: "high" },
     { label: "Debt / equity", get: (s) => s.metrics.de?.value, fmt: (v) => num(v, 2), better: "low" },
     { label: "Solvency", get: (s) => s.metrics.solvency?.value, fmt: (v) => num(v, 2), better: "high" },
-    { label: "Dividend years (of 5)", get: (s) => s.dividend?.yearsPaidLast5, fmt: (v) => String(v ?? "—"), better: "high" },
+    { label: "Dividend years (of 5)", get: (s) => s.dividend?.yearsPaidLast5, fmt: (v) => String(v ?? "-"), better: "high" },
   ] },
   { group: "Performance & risk", rows: [
     { label: "Return 3M %", get: (s) => s.factors?.return3m, fmt: (v) => pct(v, 1), better: "high" },
@@ -84,15 +84,15 @@ export default function Compare() {
               <tbody>
                 <tr><td><strong>Fundamental score</strong></td>{stocks.map((s) => <td key={s.symbol} className="num"><Score value={s.score?.overall} /></td>)}</tr>
                 <tr><td><strong>Technical score</strong></td>{stocks.map((s) => <td key={s.symbol} className="num"><Score value={s.factors?.technicalScore} /></td>)}</tr>
-                <tr><td>Trend · statements</td>{stocks.map((s) => <td key={s.symbol} className="num small">{s.factors?.trend ?? "—"} · {s.period ?? "no statements"}</td>)}</tr>
+                <tr><td>Trend, statements</td>{stocks.map((s) => <td key={s.symbol} className="num small">{s.factors?.trend ?? "-"}, {s.period ?? "no statements"}</td>)}</tr>
                 {ROWS.map((g) => [
                   <tr key={g.group}><td colSpan={stocks.length + 1} className="tiny faint" style={{ textTransform: "uppercase", letterSpacing: ".06em", background: "var(--panel-2)" }}>{g.group}</td></tr>,
                   ...g.rows.map((r) => { const b = best(r); return (
-                    <tr key={r.label}><td>{r.label}</td>{stocks.map((s) => { const v = r.get(s); const win = b != null && v === b; return <td key={s.symbol} className={`num ${r.label.startsWith("Return") ? tone(v) : ""}`} style={win ? { fontWeight: 700, color: "var(--accent)" } : undefined}>{v == null ? "—" : r.fmt(v)}</td>; })}</tr>
+                    <tr key={r.label}><td>{r.label}</td>{stocks.map((s) => { const v = r.get(s); const win = b != null && v === b; return <td key={s.symbol} className={`num ${r.label.startsWith("Return") ? tone(v) : ""}`} style={win ? { fontWeight: 700, color: "var(--accent)" } : undefined}>{v == null ? "-" : r.fmt(v)}</td>; })}</tr>
                   ); }),
                 ])}
-                <tr><td>Strengths</td>{stocks.map((s) => <td key={s.symbol} className="small up">{s.strengths.join(" ") || "—"}</td>)}</tr>
-                <tr><td>Red flags</td>{stocks.map((s) => <td key={s.symbol} className="small down">{s.redFlags.join(" ") || "—"}</td>)}</tr>
+                <tr><td>Strengths</td>{stocks.map((s) => <td key={s.symbol} className="small up">{s.strengths.join(" ") || "-"}</td>)}</tr>
+                <tr><td>Red flags</td>{stocks.map((s) => <td key={s.symbol} className="small down">{s.redFlags.join(" ") || "-"}</td>)}</tr>
               </tbody>
             </table></div>
           </Card>

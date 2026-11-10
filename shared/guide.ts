@@ -16,7 +16,7 @@ export const ACCOUNTS: GuideStep[] = [
 
 export const PATHS: GuidePath[] = [
   {
-    key: "tiny", title: "Start with Rs. 500–2,000 a month", amount: "Rs. 500+ / month", risk: "Low",
+    key: "tiny", title: "Start with Rs. 500-2,000 a month", amount: "Rs. 500+ / month", risk: "Low",
     summary: "Build the habit with something automatic and simple.",
     steps: [
       { title: "Recurring deposit at your bank", detail: "A fixed amount moves from your account every month at a contractual rate. Open it in your bank's app or branch. Safe; interest is taxed at source.", links: [], inApp: { label: "See banks' latest rate notices", to: "/invest?tab=deposits" } },
@@ -44,7 +44,7 @@ export const PATHS: GuidePath[] = [
   },
   {
     key: "safe", title: "Park larger sums safely (Rs. 1 lakh+)", amount: "Rs. 1,00,000+", risk: "Very low",
-    summary: "For money you need in 1–3 years, or the safe part of a long-term plan.",
+    summary: "For money you need in 1-3 years, or the safe part of a long-term plan.",
     steps: [
       { title: "Fixed deposit at the best verified rate", detail: "Compare institutions' latest official rate notices, then open the FD in the bank's app or branch. Deposit insurance covers deposits up to a limit per depositor per bank.", links: [], inApp: { label: "Best deposit rates", to: "/invest?tab=deposits" } },
       { title: "Government savings / development bonds when issued", detail: "Fixed coupons backed by the government, sold through banks when NRB announces an issue. Treasury bills are mainly for institutions.", links: [{ label: "Nepal Rastra Bank", url: "https://www.nrb.org.np", who: "Nepal Rastra Bank" }], inApp: { label: "T-bill yields", to: "/invest?tab=funds" } },

@@ -60,8 +60,8 @@ export function TradePlanner({ entry: e0, stop: s0, targets: t0 = [], holdingDay
           <table className="t small">
             <thead><tr><th>If you sell at</th><th className="num">Charges</th><th className="num">CGT</th><th className="num">Net P/L</th><th className="num">Return</th></tr></thead>
             <tbody>
-              {calc.outs.map((o, i) => <tr key={i}><td>Target {i + 1} · {rs(o.price)}</td><td className="num">{rs(o.buy.net - o.buy.amount + (o.sell.amount - o.sell.net), 0)}</td><td className="num">{rs(o.cgt, 0)}</td><td className="num up">{rs(o.netProfit, 0)}</td><td className="num up">{num(o.netReturnPct, 2)}%</td></tr>)}
-              {calc.atStop && <tr><td>Stop · {rs(stop)}</td><td className="num">{rs(calc.atStop.buy.net - calc.atStop.buy.amount + (calc.atStop.sell.amount - calc.atStop.sell.net), 0)}</td><td className="num">—</td><td className="num down">{rs(calc.atStop.netProfit, 0)}</td><td className="num down">{num(calc.atStop.netReturnPct, 2)}%</td></tr>}
+              {calc.outs.map((o, i) => <tr key={i}><td>Target {i + 1}, {rs(o.price)}</td><td className="num">{rs(o.buy.net - o.buy.amount + (o.sell.amount - o.sell.net), 0)}</td><td className="num">{rs(o.cgt, 0)}</td><td className="num up">{rs(o.netProfit, 0)}</td><td className="num up">{num(o.netReturnPct, 2)}%</td></tr>)}
+              {calc.atStop && <tr><td>Stop, {rs(stop)}</td><td className="num">{rs(calc.atStop.buy.net - calc.atStop.buy.amount + (calc.atStop.sell.amount - calc.atStop.sell.net), 0)}</td><td className="num">-</td><td className="num down">{rs(calc.atStop.netProfit, 0)}</td><td className="num down">{num(calc.atStop.netReturnPct, 2)}%</td></tr>}
             </tbody>
           </table>
           {calc.outs[0] && calc.risk ? <p className="small">Reward to risk after all costs: <strong>{num(calc.outs[0].netProfit / calc.risk, 2)} : 1</strong> at target 1{calc.outs.length > 1 ? `, ${num(calc.outs[calc.outs.length - 1].netProfit / calc.risk, 2)} : 1 at target ${calc.outs.length}` : ""}. Capital {compact(st.capital)}.</p> : null}

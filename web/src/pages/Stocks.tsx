@@ -61,7 +61,7 @@ export default function Stocks() {
         <div className="row" style={{ marginBottom: 10 }}>
           <span className="tiny faint">Presets:</span>
           {BUILT_IN.map((p) => <button key={p.name} className="chip" onClick={() => apply(p)}>{p.name}</button>)}
-          {(saved.data ?? []).map((p) => <span key={p.name} className="chip" style={{ borderColor: "var(--accent)" }}><button className="btn ghost sm" style={{ padding: 0 }} onClick={() => apply(p)}>★ {p.name}</button><button className="btn ghost sm" style={{ padding: 0 }} onClick={() => removeScreen(p.name)} aria-label={`Delete ${p.name}`}>×</button></span>)}
+          {(saved.data ?? []).map((p) => <span key={p.name} className="chip" style={{ borderColor: "var(--accent)" }}><button className="btn ghost sm" style={{ padding: 0 }} onClick={() => apply(p)}>★ {p.name}</button><button className="btn ghost sm" style={{ padding: 0 }} onClick={() => removeScreen(p.name)} aria-label={`Delete ${p.name}`}>x</button></span>)}
         </div>
         <div className="form-grid">
           <label className="field">Search<input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Symbol or name" /></label>
@@ -72,7 +72,7 @@ export default function Stocks() {
           <label className="field">Min cash yield %<NumInput className="input" value={f.minYield} onChange={set("minYield")} /></label>
           <label className="field">Min fundamental score<NumInput className="input" value={f.minFund} onChange={set("minFund")} /></label>
           <label className="field">Trend<select className="input" value={f.trend} onChange={set("trend")}><option value="">Any</option><option value="uptrend">Uptrend</option><option value="sideways">Sideways</option><option value="downtrend">Downtrend</option></select></label>
-          <label className="chk" style={{ alignSelf: "end", paddingBottom: 8 }}><input type="checkbox" checked={f.liquid} onChange={set("liquid")} /> Liquid only (≥ Rs. 50 L/day)</label>
+          <label className="chk" style={{ alignSelf: "end", paddingBottom: 8 }}><input type="checkbox" checked={f.liquid} onChange={set("liquid")} /> Liquid only (at least Rs. 50 L/day)</label>
         </div>
       </Card>
       <div className="chip-row">{["", ...[...new Set((data || []).map((r) => r.sector).filter(Boolean))].sort()].map((x) => <button key={x || "all"} className={`chip ${sector === x ? "on" : ""}`} onClick={() => setSector(x as string)}>{x || "All stocks"}</button>)}</div>
@@ -82,12 +82,12 @@ export default function Stocks() {
             <Link key={r.symbol} to={`/stocks/${r.symbol}`} className="co-card">
               <span className="co-badge">{r.symbol.slice(0, 2)}</span>
               <span style={{ minWidth: 0, flex: 1 }}><strong className="sym">{r.symbol}</strong><span className="tiny faint" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.sector}</span><span className="small mono">Rs. {num(r.close)}</span></span>
-              <span className={`small ${tone(r.change_pct)}`}>{r.change_pct != null ? `${r.change_pct > 0 ? "▲" : r.change_pct < 0 ? "▼" : ""} ${num(Math.abs(r.change_pct))}%` : "—"}</span>
+              <span className={`small ${tone(r.change_pct)}`}>{r.change_pct != null ? `${r.change_pct > 0 ? "▲" : r.change_pct < 0 ? "▼" : ""} ${num(Math.abs(r.change_pct))}%` : "-"}</span>
             </Link>
           ))}</div>
         ) : <DataTable rows={rows} onRow={(r) => nav(`/stocks/${r.symbol}`)} maxHeight={720} initialSort={{ key: "turnover", dir: -1 }} rowKey={(r) => r.symbol} cols={[
           { key: "symbol", label: "Symbol", render: (r) => <span className="sym">{r.symbol}</span> },
-          { key: "name", label: "Company", render: (r) => <span className="small">{r.name ?? "—"}<div className="tiny faint">{r.sector ?? "Sector unknown"}</div></span> },
+          { key: "name", label: "Company", render: (r) => <span className="small">{r.name ?? "-"}<div className="tiny faint">{r.sector ?? "Sector unknown"}</div></span> },
           { key: "close", label: "LTP", num: true, render: (r) => num(r.close) },
           { key: "change_pct", label: "Chg %", num: true, render: (r) => <span className={tone(r.change_pct)}>{pct(r.change_pct)}</span> },
           { key: "turnover", label: "Turnover", num: true, render: (r) => compact(r.turnover) },
@@ -97,7 +97,7 @@ export default function Stocks() {
           { key: "roe", label: "ROE %", num: true, render: (r) => num(r.roe, 1) },
           { key: "cashYield", label: "Yield %", num: true, render: (r) => num(r.cashYield, 1) },
           { key: "return1y", label: "1Y %", num: true, render: (r) => <span className={tone(r.return1y)}>{pct(r.return1y, 1)}</span> },
-          { key: "trend", label: "Trend", render: (r) => r.trend ? <Badge tone={r.trend === "uptrend" ? "up" : r.trend === "downtrend" ? "down" : ""}>{r.trend}</Badge> : "—" },
+          { key: "trend", label: "Trend", render: (r) => r.trend ? <Badge tone={r.trend === "uptrend" ? "up" : r.trend === "downtrend" ? "down" : ""}>{r.trend}</Badge> : "-" },
           { key: "fundamentalScore", label: "Fund.", num: true, render: (r) => <Score value={r.fundamentalScore} title={r.reports ? undefined : "No statements stored yet"} /> },
           { key: "technicalScore", label: "Tech.", num: true, render: (r) => <Score value={r.technicalScore} /> },
         ]} />}

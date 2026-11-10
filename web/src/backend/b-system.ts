@@ -26,7 +26,7 @@ systemRouter.post("/backup/restore", async (req, res) => {
   await hooks.importUserDb(bytes);
   res.json({ ok: true });
 });
-systemRouter.post("/backup", (_req, res) => res.json({ ok: true, file: "Use “Download backup file” to save a copy." }));
+systemRouter.post("/backup", (_req, res) => res.json({ ok: true, file: "Use 'Download backup file' to save a copy." }));
 systemRouter.get("/backups", (_req, res) => res.json({ dir: "this device (browser storage)", files: [], keepDays: 0, browser: true }));
 
 // Cross-origin pages can't be read from the browser, but a completed no-cors request means the site answered.

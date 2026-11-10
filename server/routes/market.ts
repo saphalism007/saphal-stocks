@@ -418,7 +418,7 @@ marketRouter.get("/guide/links", (_req, res) => {
 
 // ---------- invest for the future (small, regular amounts) ----------
 const SUITS: Record<string, string> = {
-  savings: "Everyone: emergency money and day-to-day savings", rd: "Beginners saving a fixed amount every month for a goal 1–5 years away", fd: "Money you won't need for a fixed period; near-term goals",
+  savings: "Everyone: emergency money and day-to-day savings", rd: "Beginners saving a fixed amount every month for a goal 1-5 years away", fd: "Money you won't need for a fixed period; near-term goals",
   "nepse-shares": "Long horizons (5+ years) and people who accept large swings", ipo: "Small amounts as a lottery-like extra, not a plan", fpo: "Investors who have studied the company",
   "right-share": "Existing shareholders", debenture: "Steady interest income; check issuer quality", "dev-bond": "Very safe, fixed coupon savings when issued", tbill: "Institutions and large short-term cash (via banks)",
   "life-insurance": "Protection first: term cover for anyone with dependents", "health-nonlife": "Everyone: protection, not investment", pms: "Large portfolios wanting professional management",
@@ -600,7 +600,7 @@ marketRouter.get("/monitor", (req, res) => {
       ...r, change: Math.round((r.value - (r.prev_value ?? r.value)) * 100) / 100,
       impact: r.grp === "policy" ? (r.value < (r.prev_value ?? 0) ? "NRB eased policy: deposit and loan rates tend to fall in the following months; generally supportive for shares." : "NRB tightened policy: deposit and loan rates tend to rise; usually a headwind for shares.")
         : r.grp === "tbill" ? (r.value < (r.prev_value ?? 0) ? "Lower T-bill yields signal more spare cash in banks; deposit rates may keep easing." : "Higher T-bill yields signal tighter liquidity; deposit rates may rise.")
-        : r.grp === "deposit" ? "Average deposit rates moved; re-check where your fixed deposits and savings sit (Where to Invest → Deposit rates)."
+        : r.grp === "deposit" ? "Average deposit rates moved; re-check where your fixed deposits and savings sit (Where to Invest > Deposit rates)."
         : r.grp === "lending" || r.grp === "base_rate" ? "Loan rates moved; floating-rate EMIs reprice with the base rate. Consider whether prepaying makes sense." : "Interbank rate moved; a gauge of bank liquidity.",
     }));
   } catch { /* older snapshot */ }

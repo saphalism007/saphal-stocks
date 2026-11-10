@@ -64,8 +64,8 @@ async function open(env: { salt: string; iv: string; data: string }, pass: strin
 // ---------- GitHub Gist ----------
 async function gh<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const r = await fetch(`https://api.github.com${path}`, { ...init, headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", ...(init.body ? { "Content-Type": "application/json" } : {}) } });
-  if (r.status === 401) throw new Error("GitHub rejected the token. Create a new one with the “gist” permission.");
-  if (r.status === 403 || r.status === 404) throw new Error(`GitHub refused access (${r.status}). The token needs the “gist” permission.`);
+  if (r.status === 401) throw new Error("GitHub rejected the token. Create a new one with the 'gist' permission.");
+  if (r.status === 403 || r.status === 404) throw new Error(`GitHub refused access (${r.status}). The token needs the 'gist' permission.`);
   if (!r.ok) throw new Error(`GitHub error ${r.status}`);
   return (await r.json()) as T;
 }

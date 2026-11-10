@@ -7,7 +7,7 @@
  * Pushing starts the GitHub Actions run, which builds the app with the latest market data
  * and publishes it. Uploading is not the same as being live, so this keeps asking the real
  * address, with caches bypassed, until version.json carries this commit. Then it prints
- * the TALLY line: the same version and code the app shows in its sidebar and Settings → About.
+ * the TALLY line: the same version and code the app shows in its sidebar and Settings > About.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";

@@ -60,7 +60,7 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
   return (
     <div className="col">
       <div className="row between">
-        <div><h2>{p.name} {p.kind === "paper" && <Badge tone="blue">Paper trading</Badge>}</h2><div className="small muted">{p.strategy ?? ""} · <Fresh date={priceDate} /></div></div>
+        <div><h2>{p.name} {p.kind === "paper" && <Badge tone="blue">Paper trading</Badge>}</h2><div className="small muted">{p.strategy ?? ""}, <Fresh date={priceDate} /></div></div>
         <div className="row">
           {p.kind === "paper" ? <button className="btn primary" onClick={() => setAdding("paper")}><I.plus /> Paper order</button> : <button className="btn primary" onClick={() => setAdding("tx")}><I.plus /> Add transaction</button>}
           <button className="btn" onClick={() => setAdding("import")}><I.upload /> Import CSV</button>
@@ -77,7 +77,7 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
         <Stat label="Realised (net)" value={compact(s.realizedPnl)} tone={tone(s.realizedPnl)} />
         <Stat label="Dividends (net)" value={compact(s.dividends)} />
         <Stat label="Total return" value={pct(s.totalReturnPct)} tone={tone(s.totalReturnPct)} sub={`on ${compact(s.cashIn)} invested`} />
-        {p.kind === "paper" ? <Stat label="Paper cash" value={compact(cash)} sub={`Start ${compact(p.paper_cash)}`} /> : <Stat label="Health score" value={health ? <Score value={health.score} /> : "—"} sub={health ? `${health.diversification.holdings} holdings · ${health.diversification.sectorCount} sectors` : ""} />}
+        {p.kind === "paper" ? <Stat label="Paper cash" value={compact(cash)} sub={`Start ${compact(p.paper_cash)}`} /> : <Stat label="Health score" value={health ? <Score value={health.score} /> : "-"} sub={health ? `${health.diversification.holdings} holdings, ${health.diversification.sectorCount} sectors` : ""} />}
       </div>
       <Tabs value={view} onChange={setView} tabs={[{ key: "holdings", label: "Holdings & transactions" }, { key: "performance", label: "Performance vs NEPSE" }, { key: "tax", label: "Tax report" }, { key: "rebalance", label: "Rebalance" }]} />
       {view === "performance" && <Performance id={id} />}
@@ -111,7 +111,7 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
           {health && <Card title="Portfolio health">
             {health.issues.map((x: string) => <div key={x} className="small warn" style={{ marginBottom: 4 }}>⚠ {x}</div>)}
             {health.positives.map((x: string) => <div key={x} className="small up" style={{ marginBottom: 4 }}>✓ {x}</div>)}
-            <div className="tiny faint" style={{ marginTop: 6 }}>Top holding {health.diversification.topWeightPct}% · top 3 {health.diversification.top3WeightPct}% · concentration (HHI) {health.diversification.hhi}</div>
+            <div className="tiny faint" style={{ marginTop: 6 }}>Top holding {health.diversification.topWeightPct}%, top 3 {health.diversification.top3WeightPct}%, concentration (HHI) {health.diversification.hhi}</div>
           </Card>}
         </div>
       </div>
@@ -121,7 +121,7 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
           { key: "date", label: "Date", render: (t: Any) => nptDate(t.date) },
           { key: "symbol", label: "Stock", render: (t: Any) => <span className="sym">{t.symbol}</span> },
           { key: "type", label: "Type", render: (t: Any) => <Badge tone={["buy", "ipo", "right", "bonus", "merger_in"].includes(t.type) ? "up" : t.type === "cash_dividend" ? "blue" : "down"}>{t.type.replace("_", " ")}</Badge> },
-          { key: "quantity", label: "Qty", num: true, render: (t: Any) => t.type === "cash_dividend" ? "—" : int(t.quantity) },
+          { key: "quantity", label: "Qty", num: true, render: (t: Any) => t.type === "cash_dividend" ? "-" : int(t.quantity) },
           { key: "price", label: "Price / amount", num: true, render: (t: Any) => num(t.price) },
           { key: "charges", label: "Charges", num: true, render: (t: Any) => t.commission != null || t.otherCharges != null ? num((t.commission ?? 0) + (t.otherCharges ?? 0)) : <span className="faint">auto</span> },
           { key: "notes", label: "Notes", render: (t: Any) => <span className="small muted">{t.notes ?? ""}</span> },
@@ -187,7 +187,7 @@ function TxModal({ portfolioId, tx, onClose, onDone }: { portfolioId: number; tx
             <label className="field">{f.type === "sell" ? "CGT withheld" : f.type === "cash_dividend" ? "Dividend tax (5% if blank)" : "Tax paid"}<NumInput className="input" value={f.tax} placeholder="auto" onChange={set("tax")} /></label>
           </div>
         </details>
-        {est && <div className="small muted">Estimated: amount {rs(est.amount)} · commission {rs(est.commission)} · SEBON {rs(est.sebonFee)}{est.dpCharge ? ` · DP ${rs(est.dpCharge)}` : ""} · {f.type === "buy" ? "total cost" : "net proceeds before CGT"} <strong>{rs(est.net)}</strong></div>}
+        {est && <div className="small muted">Estimated: amount {rs(est.amount)}, commission {rs(est.commission)}, SEBON {rs(est.sebonFee)}{est.dpCharge ? `, DP ${rs(est.dpCharge)}` : ""}, {f.type === "buy" ? "total cost" : "net proceeds before CGT"} <strong>{rs(est.net)}</strong></div>}
         <label className="field">Notes<textarea className="input" value={f.notes} onChange={set("notes")} style={{ minHeight: 50 }} /></label>
         {err && <Notice tone="warn">{err}</Notice>}
       </div>
@@ -339,7 +339,7 @@ function Rebalance({ summary, sectors, extras }: { summary: Any; sectors: Record
       <Card title="Target weights" sub={`Adds up to ${num(sumT, 1)}%`} actions={<><button className="btn sm" onClick={equal}>Equal weight</button><button className="btn sm" onClick={() => capped(20)}>Cap at 20%</button></>}>
         <div className="table-wrap"><table className="t"><thead><tr><th>Stock</th><th className="num">Now</th><th className="num">Target %</th></tr></thead><tbody>
           {Object.keys(targets).map((sym) => { const h = open.find((x: Any) => x.symbol === sym); const now = h ? ((h.marketValue ?? h.costBasis) / (total || 1)) * 100 : 0; return (
-            <tr key={sym}><td><span className="sym">{sym}</span><div className="tiny faint">{sectors[sym] ?? "new"} {extras[sym]?.fundamentalScore != null && <>· fund. {extras[sym].fundamentalScore}</>}</div></td><td className="num">{num(now, 1)}%</td>
+            <tr key={sym}><td><span className="sym">{sym}</span><div className="tiny faint">{sectors[sym] ?? "new"} {extras[sym]?.fundamentalScore != null && <>, fund. {extras[sym].fundamentalScore}</>}</div></td><td className="num">{num(now, 1)}%</td>
               <td className="num"><NumInput className="input" step="0.5" style={{ width: 64, padding: "5px 6px" }} value={targets[sym]} onChange={(e) => setTargets({ ...targets, [sym]: +e.target.value })} /></td></tr>
           ); })}
         </tbody></table></div>
@@ -364,8 +364,8 @@ function Rebalance({ summary, sectors, extras }: { summary: Any; sectors: Record
               { key: "symbol", label: "Stock", render: (t: Any) => <span className="sym">{t.symbol}</span> },
               { key: "qty", label: "Shares", num: true, render: (t: Any) => int(t.qty) }, { key: "price", label: "At ~", num: true, render: (t: Any) => num(t.price) },
               { key: "amount", label: "Amount", num: true, render: (t: Any) => rs(t.amount, 0) }, { key: "charges", label: "Charges", num: true, render: (t: Any) => rs(t.charges, 0) },
-              { key: "estCgt", label: "Est. CGT", num: true, render: (t: Any) => (t.estCgt ? rs(t.estCgt, 0) : "—") },
-              { key: "w", label: "Weight", num: true, render: (t: Any) => `${num(t.fromWeightPct, 1)}% → ${num(t.toWeightPct, 1)}%` },
+              { key: "estCgt", label: "Est. CGT", num: true, render: (t: Any) => (t.estCgt ? rs(t.estCgt, 0) : "-") },
+              { key: "w", label: "Weight", num: true, render: (t: Any) => `${num(t.fromWeightPct, 1)}% > ${num(t.toWeightPct, 1)}%` },
             ]} />
           </Card>
           <p className="tiny faint">A plan only; nothing is traded. Consider taxes and whether selling short-term holdings (10% CGT) can wait until they become long-term (7.5%). Rebalancing small differences often costs more in charges than it is worth.</p>

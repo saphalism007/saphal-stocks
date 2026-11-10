@@ -63,7 +63,7 @@ export function computeTrack() {
   }
   trades.sort((a, b) => (a.date < b.date ? 1 : -1));
   const latest = M.latestTradingDate();
-  return { asOf: latest, method: "Walk-forward replay of the BUY rule over the last ~250 sessions on liquid stocks (turnover ≥ Rs. 20 lakh/day), checked every 5 sessions using only data available on that day. Entry at the next open if inside the entry zone; exit at stop-loss, target 1, or after 20 (swing) / 60 (positional) sessions. Returns are after broker commission, SEBON fee, DP charge and CGT on 100 shares.", summary: summarizeTrack(trades), trades: trades.slice(0, 300) };
+  return { asOf: latest, method: "Walk-forward replay of the BUY rule over the last ~250 sessions on liquid stocks (turnover at least Rs. 20 lakh/day), checked every 5 sessions using only data available on that day. Entry at the next open if inside the entry zone; exit at stop-loss, target 1, or after 20 (swing) / 60 (positional) sessions. Returns are after broker commission, SEBON fee, DP charge and CGT on 100 shares.", summary: summarizeTrack(trades), trades: trades.slice(0, 300) };
 }
 
 let trackCache: ReturnType<typeof computeTrack> | null = null;

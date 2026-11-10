@@ -6,7 +6,7 @@ import { Card, Loading, ErrorBox, Stat, Empty } from "../components/ui.tsx";
 import { compact, pct, tone, nptDate } from "../lib/format.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
-const rs000 = (v: number | null) => (v == null ? "—" : compact(v * 1000));
+const rs000 = (v: number | null) => (v == null ? "-" : compact(v * 1000));
 
 export default function Results() {
   const r = useApi<Any>("/market/results");
@@ -27,8 +27,8 @@ export default function Results() {
       <div className="grid g4">
         <Stat label="Profit up" value={<span className="up">{d.counts.up}</span>} sub="vs same quarter last year" />
         <Stat label="Profit down" value={<span className="down">{d.counts.down}</span>} sub={`${d.counts.noCompare} with nothing to compare`} />
-        <Stat label="Highest profit" value={<span className="stat-text">{d.highest?.symbol ?? "—"}</span>} sub={d.highest ? rs000(d.highest.profit) : ""} />
-        <Stat label="Biggest rise / fall" value={<span className="stat-text"><span className="up">{d.biggestRise?.symbol ?? "—"}</span> / <span className="down">{d.biggestFall?.symbol ?? "—"}</span></span>} sub={d.biggestRise ? `${pct(d.biggestRise.yoyPct, 0)} / ${pct(d.biggestFall?.yoyPct, 0)}` : ""} />
+        <Stat label="Highest profit" value={<span className="stat-text">{d.highest?.symbol ?? "-"}</span>} sub={d.highest ? rs000(d.highest.profit) : ""} />
+        <Stat label="Biggest rise / fall" value={<span className="stat-text"><span className="up">{d.biggestRise?.symbol ?? "-"}</span> / <span className="down">{d.biggestFall?.symbol ?? "-"}</span></span>} sub={d.biggestRise ? `${pct(d.biggestRise.yoyPct, 0)} / ${pct(d.biggestFall?.yoyPct, 0)}` : ""} />
       </div>
       <Card title="Results by date" actions={<><input className="input" style={{ width: 150 }} placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} /><select className="input" value={sector} onChange={(e) => setSector(e.target.value)}><option value="">All sectors</option>{sectors.map((s) => <option key={s}>{s}</option>)}</select></>}>
         {[...byDate.entries()].map(([date, list]) => (
@@ -36,9 +36,9 @@ export default function Results() {
             <div className="row between small" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}><strong>{nptDate(date)}</strong><span className="faint">{list.length} companies</span></div>
             {list.map((x: Any) => (
               <Link key={x.symbol} to={`/stocks/${x.symbol}?tab=financials`} className="result-row">
-                <span style={{ minWidth: 0 }}><span className="sym">{x.symbol}</span> <span className="small">{x.name}</span><span className="tiny faint" style={{ display: "block" }}>{x.sector}{x.topLine != null ? ` · ${x.topLineLabel} ${rs000(x.topLine)}` : ""}</span></span>
+                <span style={{ minWidth: 0 }}><span className="sym">{x.symbol}</span> <span className="small">{x.name}</span><span className="tiny faint" style={{ display: "block" }}>{x.sector}{x.topLine != null ? `, ${x.topLineLabel} ${rs000(x.topLine)}` : ""}</span></span>
                 <span className="mono small" style={{ textAlign: "right" }}>{rs000(x.profit)}<span className="tiny faint" style={{ display: "block" }}>{x.lastYearProfit != null ? `was ${rs000(x.lastYearProfit)}` : "no comparison"}</span></span>
-                <span className={`mono small ${tone(x.yoyPct)}`} style={{ textAlign: "right", minWidth: 64 }}>{x.yoyPct != null ? pct(x.yoyPct, 1) : "—"}</span>
+                <span className={`mono small ${tone(x.yoyPct)}`} style={{ textAlign: "right", minWidth: 64 }}>{x.yoyPct != null ? pct(x.yoyPct, 1) : "-"}</span>
               </Link>
             ))}
           </div>

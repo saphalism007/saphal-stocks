@@ -48,16 +48,16 @@ function DataTab() {
     <div className="col">
       {BROWSER_BACKEND && (
         <Card title="Market data on this device" actions={<button className="btn primary" disabled={checking} onClick={async () => { setChecking(true); try { await refresh("all"); } finally { setChecking(false); } }}>{checking ? <span className="spinner" /> : <I.refresh />} Check for new data</button>}>
-          <div className="row small"><span>Data as of <strong>{nptDate(snap.data?.asOf)}</strong></span><span className="faint">· published {snap.data?.generatedAt ? `${nptDate(snap.data.generatedAt, true)} (${ago(snap.data.generatedAt)})` : "—"}</span><span className="faint">· {snap.data?.bytes ? `${(snap.data.bytes / 1e6).toFixed(0)} MB` : ""} {snap.data?.source === "device" ? "(saved on this device)" : ""}</span></div>
+          <div className="row small"><span>Data as of <strong>{nptDate(snap.data?.asOf)}</strong></span><span className="faint">Published {snap.data?.generatedAt ? `${nptDate(snap.data.generatedAt, true)} (${ago(snap.data.generatedAt)})` : "-"}</span><span className="faint">, {snap.data?.bytes ? `${(snap.data.bytes / 1e6).toFixed(0)} MB` : ""} {snap.data?.source === "device" ? "(saved on this device)" : ""}</span></div>
           {note && <div style={{ marginTop: 8 }}><Notice>{note}</Notice></div>}
           <p className="tiny faint" style={{ marginTop: 8 }}>A cloud job collects market data after each trading day (and every ~15 minutes during market hours) and publishes it with the app. This device checks for new data every time you open the app; the app keeps working offline with the last data it downloaded.</p>
         </Card>
       )}
       <div className="grid g4">
-        <Card title="Companies"><div className="mono" style={{ fontSize: 20 }}>{int(c.companies)}</div><div className="small muted">{c.withSector} with sector · {c.companiesWithDetails} with full profile</div></Card>
-        <Card title="Price history"><div className="mono" style={{ fontSize: 20 }}>{int(c.priceRows)}</div><div className="small muted">{c.symbolsWithHistory} symbols · {nptDate(c.firstPriceDate)} → {nptDate(c.lastPriceDate)}</div></Card>
-        <Card title="Financial statements"><div className="mono" style={{ fontSize: 20 }}>{int(c.reports)}</div><div className="small muted">quarterly reports for {c.companiesWithReports} companies · {int(c.dividends)} dividend records</div></Card>
-        <Card title="Indices & news"><div className="mono" style={{ fontSize: 20 }}>{int(c.indexRows)}</div><div className="small muted">index rows · {int(c.announcements)} announcements</div></Card>
+        <Card title="Companies"><div className="mono" style={{ fontSize: 20 }}>{int(c.companies)}</div><div className="small muted">{c.withSector} with sector, {c.companiesWithDetails} with full profile</div></Card>
+        <Card title="Price history"><div className="mono" style={{ fontSize: 20 }}>{int(c.priceRows)}</div><div className="small muted">{c.symbolsWithHistory} symbols, {nptDate(c.firstPriceDate)} &gt; {nptDate(c.lastPriceDate)}</div></Card>
+        <Card title="Financial statements"><div className="mono" style={{ fontSize: 20 }}>{int(c.reports)}</div><div className="small muted">quarterly reports for {c.companiesWithReports} companies, {int(c.dividends)} dividend records</div></Card>
+        <Card title="Indices & news"><div className="mono" style={{ fontSize: 20 }}>{int(c.indexRows)}</div><div className="small muted">index rows, {int(c.announcements)} announcements</div></Card>
       </div>
       <Card title="Datasets & freshness" actions={BROWSER_BACKEND ? undefined : <button className="btn primary" onClick={() => refresh("all")}><I.refresh /> Refresh everything</button>} flush>
         <table className="t"><thead><tr><th>Dataset</th><th>Source</th><th>Data as of</th><th>Last success</th><th>Rows</th><th>Last error</th><th /></tr></thead><tbody>
@@ -66,15 +66,15 @@ function DataTab() {
             const job = { prices_latest: "listing", companies: "listing", prices_history: "history", indices: "indices", company_details: "details", news: "news", forex: "forex" }[k]!;
             const st = s.data.jobs.find((j: any) => j.name === job);
             return (
-              <tr key={k}><td><strong>{label}</strong></td><td className="small">{f?.source_url ? <a href={f.source_url} target="_blank" rel="noopener noreferrer">{f.source}</a> : f?.source ?? "—"}</td>
+              <tr key={k}><td><strong>{label}</strong></td><td className="small">{f?.source_url ? <a href={f.source_url} target="_blank" rel="noopener noreferrer">{f.source}</a> : f?.source ?? "-"}</td>
                 <td>{f?.as_of ? nptDate(f.as_of) : <span className="warn">Data unavailable</span>}</td><td className="small">{f?.last_success_at ? `${nptDate(f.last_success_at, true)} (${ago(f.last_success_at)})` : "never"}</td>
-                <td className="num">{f?.rows ?? "—"}</td><td className="small down">{f?.last_error ? `${f.last_error.slice(0, 80)} (${ago(f.last_error_at)})` : ""}</td>
+                <td className="num">{f?.rows ?? "-"}</td><td className="small down">{f?.last_error ? `${f.last_error.slice(0, 80)} (${ago(f.last_error_at)})` : ""}</td>
                 <td>{st && (st.status === "running" || st.status === "queued") ? <span className="row small"><span className="spinner" />{st.message}</span> : (BROWSER_BACKEND ? null : <button className="btn sm" onClick={() => refresh(job)}>Refresh</button>)}</td></tr>
             );
           })}
         </tbody></table>
       </Card>
-      {(s.data.missing.noHistory.length > 0 || s.data.missing.noSector.length > 0) && <Notice tone="warn">Missing data: {s.data.missing.noHistory.length ? `no price history for ${s.data.missing.noHistory.slice(0, 20).join(", ")}${s.data.missing.noHistory.length > 20 ? "…" : ""}. ` : ""}{s.data.missing.noSector.length ? `No sector yet for ${s.data.missing.noSector.length} companies (filled by the profile job).` : ""}</Notice>}
+      {(s.data.missing.noHistory.length > 0 || s.data.missing.noSector.length > 0) && <Notice tone="warn">Missing data: {s.data.missing.noHistory.length ? `no price history for ${s.data.missing.noHistory.slice(0, 20).join(", ")}${s.data.missing.noHistory.length > 20 ? "..." : ""}. ` : ""}{s.data.missing.noSector.length ? `No sector yet for ${s.data.missing.noSector.length} companies (filled by the profile job).` : ""}</Notice>}
       <Card title="How data gets here" sub="Full notes in DATA_SOURCES.md">
         <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
           <li><strong>Daily price history</strong>: the open nepse-data dataset on GitHub (MIT licence), one CSV per company, history back to the 1990s for older companies.</li>
@@ -109,11 +109,11 @@ function AiTab() {
             <ol className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
               <li>An <strong>API key</strong> is a password that lets this app use Claude (the AI) on your account. Claude charges per question, typically a few rupees; you set a monthly limit.</li>
               <li>Open <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a>, sign in (or sign up), add a payment method under <strong>Billing</strong> and set a spending limit (e.g. $10/month).</li>
-              <li>Go to <strong>API keys</strong> → <strong>Create key</strong>, name it "Saphal Stocks", and copy it (it starts with <code>sk-ant-</code>).</li>
+              <li>Go to <strong>API keys</strong> <strong>Create key</strong>, name it "Saphal Stocks", and copy it (it starts with <code>sk-ant-</code>).</li>
               <li>Paste it below and tap <strong>Save</strong>. Do this once on each device (iPhone, iPad, Mac).</li>
             </ol>
           )}
-          <label className="field">API key {s.data?.hasKey && <Badge tone="accent">Saved on this device</Badge>}<input className="input" type="password" value={f.apiKey} onChange={(e) => setF({ ...f, apiKey: e.target.value.trim() })} placeholder={s.data?.hasKey ? "Leave blank to keep the current key" : "Paste your key (sk-ant-…)"} autoComplete="off" /></label>
+          <label className="field">API key {s.data?.hasKey && <Badge tone="accent">Saved on this device</Badge>}<input className="input" type="password" value={f.apiKey} onChange={(e) => setF({ ...f, apiKey: e.target.value.trim() })} placeholder={s.data?.hasKey ? "Leave blank to keep the current key" : "Paste your key (sk-ant-...)"} autoComplete="off" /></label>
           <button className="btn primary" onClick={save} disabled={!f.apiKey && !!s.data?.hasKey && f.provider === s.data?.provider && f.effort === s.data?.effort}>Save</button>
           {msg && <Notice>{msg}</Notice>}
           <details className="small"><summary className="muted">Advanced</summary>
@@ -158,7 +158,7 @@ function FeesTab() {
           <label className="field">Minimum commission (Rs.)<NumInput className="input" value={f.minCommission} onChange={(e) => setF({ ...f, minCommission: e.target.value })} /></label>
           <label className="field">SEBON fee %<NumInput className="input" step="0.001" value={+(f.sebonFeeRate * 100).toFixed(4)} onChange={(e) => setF({ ...f, sebonFeeRate: +e.target.value / 100 })} /></label>
           <label className="field">DP charge per scrip sold (Rs.)<NumInput className="input" value={f.dpChargePerScrip} onChange={(e) => setF({ ...f, dpChargePerScrip: e.target.value })} /></label>
-          <label className="field">CGT, held ≤ threshold %<NumInput className="input" step="0.5" value={+(f.cgtShortTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtShortTerm: +e.target.value / 100 })} /></label>
+          <label className="field">CGT, held up to threshold %<NumInput className="input" step="0.5" value={+(f.cgtShortTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtShortTerm: +e.target.value / 100 })} /></label>
           <label className="field">CGT, held longer %<NumInput className="input" step="0.5" value={+(f.cgtLongTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtLongTerm: +e.target.value / 100 })} /></label>
           <label className="field">Long-term threshold (days)<NumInput className="input" value={f.holdingDaysForLongTerm} onChange={(e) => setF({ ...f, holdingDaysForLongTerm: e.target.value })} /></label>
           <label className="field">CGT institutions %<NumInput className="input" step="0.5" value={+(f.cgtInstitution * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtInstitution: +e.target.value / 100 })} /></label>
@@ -180,7 +180,7 @@ function AboutTab() {
   useEffect(() => { void run(); }, []);
   return (
     <div className="grid g2">
-      <Card title={`Saphal Stocks ${VERSION}`} sub={`Code ${CODE} · released ${RELEASED}`}>
+      <Card title={`Saphal Stocks ${VERSION}`} sub={`Code ${CODE}, released ${RELEASED}`}>
         <div className="col">
           {c?.state === "latest" && <Notice>This is the latest version.</Notice>}
           {c?.state === "behind" && <Notice tone="warn">Version {c.release.version} (code {c.release.code}, {c.release.released}) is available.</Notice>}
@@ -190,7 +190,7 @@ function AboutTab() {
             <button className="btn" disabled={busy} onClick={run}>{busy ? <span className="spinner" /> : "Check for updates"}</button>
             {c?.state === "behind" && <button className="btn primary" onClick={() => { setBusy(true); void applyUpdate(); }}>Update now</button>}
           </div>
-          <p className="small faint">Build {BUILD}. The app checks for a new version when it opens and every 30 minutes; market data updates separately (Settings → Data).</p>
+          <p className="small faint">Build {BUILD}. The app checks for a new version when it opens and every 30 minutes; market data updates separately (Settings &gt; Data).</p>
         </div>
       </Card>
       <Card title={`What's new in ${VERSION}`}>
@@ -219,12 +219,12 @@ function SecurityTab() {
         </div>
         <div className="sep" />
         <div className="small" style={{ fontWeight: 600 }}>Active sessions</div>
-        {sessions.data?.map((x, i) => <div key={i} className="tiny faint">{nptDate(x.created_at, true)} · {x.user_agent?.slice(0, 60)}</div>)}
+        {sessions.data?.map((x, i) => <div key={i} className="tiny faint">{nptDate(x.created_at, true)}, {x.user_agent?.slice(0, 60)}</div>)}
       </Card>}
       <Card title="Your data">
         {BROWSER_BACKEND ? <ul className="small" style={{ margin: "0 0 10px", paddingLeft: 18 }}>
           <li>Your portfolios, journal, goals and settings are stored only on this device, in the browser's private storage for this app. iPhone, iPad and Mac encrypt this storage with your device passcode.</li>
-          <li>Nothing personal is uploaded unless you turn on encrypted sync (Settings → Sync).</li>
+          <li>Nothing personal is uploaded unless you turn on encrypted sync (Settings &gt; Sync).</li>
           <li>Safari may clear website data you haven't used for weeks; adding the app to your Home Screen / Dock prevents that. Keep a backup file or sync turned on.</li>
         </ul> : <ul className="small" style={{ margin: "0 0 10px", paddingLeft: 18 }}>
           <li>Everything is stored locally in <code>data/saphal-stocks.db</code>. The server listens only on this computer (127.0.0.1).</li>
@@ -268,8 +268,8 @@ function QualityTab() {
         <DataTable rows={rows} empty="No issues found" cols={[
           { key: "severity", label: "Severity", render: (f: any) => <Badge tone={f.severity === "error" ? "down" : f.severity === "warning" ? "warn" : ""}>{f.severity}</Badge> },
           { key: "check", label: "Check" },
-          { key: "symbol", label: "Stock", render: (f: any) => f.symbol ? <Link to={`/stocks/${f.symbol}`} className="sym">{f.symbol}</Link> : "—" },
-          { key: "date", label: "Date / period", render: (f: any) => <span className="small">{f.date ?? "—"}</span> },
+          { key: "symbol", label: "Stock", render: (f: any) => f.symbol ? <Link to={`/stocks/${f.symbol}`} className="sym">{f.symbol}</Link> : "-" },
+          { key: "date", label: "Date / period", render: (f: any) => <span className="small">{f.date ?? "-"}</span> },
           { key: "detail", label: "Detail", render: (f: any) => <span className="small muted">{f.detail}</span> },
         ]} />
       </Card>
@@ -298,7 +298,7 @@ function AppearanceTab() {
           </div>
           <div><div className="small muted" style={{ marginBottom: 6 }}>Interface size</div><Choice k="scale" options={[{ v: 0.9, label: "Small" }, { v: 1, label: "Default" }, { v: 1.1, label: "Large" }, { v: 1.2, label: "Larger" }]} /></div>
           <div><div className="small muted" style={{ marginBottom: 6 }}>Density</div><Choice k="density" options={[{ v: "comfortable", label: "Comfortable" }, { v: "compact", label: "Compact (more on screen)" }]} /></div>
-          <div><div className="small muted" style={{ marginBottom: 6 }}>Number style</div><Choice k="numbers" options={[{ v: "nepali", label: "Nepali: 12,50,000 · 1.25 Cr" }, { v: "international", label: "International: 1,250,000 · 1.25 M" }]} /></div>
+          <div><div className="small muted" style={{ marginBottom: 6 }}>Number style</div><Choice k="numbers" options={[{ v: "nepali", label: "Nepali: 12,50,000, 1.25 Cr" }, { v: "international", label: "International: 1,250,000, 1.25 M" }]} /></div>
           <div><div className="small muted" style={{ marginBottom: 6 }}>Sidebar on Mac and iPad</div><Choice k="sidebar" options={[{ v: "full", label: "Full" }, { v: "rail", label: "Icons only" }]} /></div>
           <label className="chk"><input type="checkbox" checked={prefs.reduceMotion} onChange={(e) => set("reduceMotion", e.target.checked)} /> Reduce motion</label>
         </div>
@@ -308,7 +308,7 @@ function AppearanceTab() {
           <label className="field">Your name (home greeting)<input className="input" value={prefs.name ?? ""} maxLength={30} onChange={(e) => set("name", e.target.value)} placeholder="Saphal" /></label>
           <label className="field">Start page<select className="input" value={prefs.landing} onChange={(e) => set("landing", e.target.value)}>{pages.map((n) => <option key={n.to} value={n.to}>{n.label}</option>)}</select></label>
           <div>
-            <div className="small muted" style={{ marginBottom: 6 }}>iPhone tab bar (pick up to 4; “More” is always last)</div>
+            <div className="small muted" style={{ marginBottom: 6 }}>iPhone tab bar (pick up to 4; 'More' is always last)</div>
             <div className="row">{pages.map((n) => { const on = prefs.bottomBar.includes(n.to); return (
               <button key={n.to} className="chip" style={on ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined}
                 onClick={() => set("bottomBar", on ? prefs.bottomBar.filter((x) => x !== n.to) : prefs.bottomBar.length >= 4 ? prefs.bottomBar : [...prefs.bottomBar, n.to])}>{n.label}</button>

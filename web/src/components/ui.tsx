@@ -27,7 +27,7 @@ export function Stat({ label, value, sub, tone }: { label: ReactNode; value: Rea
 }
 
 export function Score({ value, title }: { value: number | null | undefined; title?: string }) {
-  return <span className="score" style={scoreColor(value)} title={title}>{isNum(value) ? Math.round(value) : "—"}</span>;
+  return <span className="score" style={scoreColor(value)} title={title}>{isNum(value) ? Math.round(value) : "-"}</span>;
 }
 
 export function Badge({ children, tone }: { children: ReactNode; tone?: "up" | "down" | "warn" | "blue" | "accent" | "" }) {
@@ -51,7 +51,7 @@ export function Notice({ tone = "info", children, id }: { tone?: "info" | "warn"
 }
 
 export function Loading({ label = "Loading" }: { label?: string }) {
-  return <div className="row muted" style={{ padding: 20 }}><span className="spinner" /> {label}…</div>;
+  return <div className="row muted" style={{ padding: 20 }}><span className="spinner" /> {label}...</div>;
 }
 
 export function ErrorBox({ error, onRetry }: { error: string; onRetry?: () => void }) {
@@ -64,8 +64,8 @@ export function Fresh({ date, fetched, source }: { date?: string | null; fetched
     <span className="fresh" title={fetched ? `Fetched ${nptDate(fetched, true)} NPT` : undefined}>
       <span className="dot" style={{ background: date ? "var(--accent)" : "var(--warn)" }} />
       {date ? `Data as of ${nptDate(date)}` : "Data unavailable"}
-      {fetched && ` · fetched ${ago(fetched)}`}
-      {source && ` · ${source}`}
+      {fetched && `, fetched ${ago(fetched)}`}
+      {source && `, ${source}`}
     </span>
   );
 }
@@ -120,7 +120,7 @@ export function DataTable<T>({ rows, cols, onRow, initialSort, empty = "No data"
           </th>))}</tr></thead>
         <tbody>{sorted.map((r, i) => (
           <tr key={rowKey ? rowKey(r, i) : i} className={onRow ? "click" : ""} onClick={onRow ? () => onRow(r) : undefined}>
-            {cols.map((c) => <td key={c.key} className={c.num ? "num" : ""}>{c.render ? c.render(r) : String((r as Record<string, unknown>)[c.key] ?? "—")}</td>)}
+            {cols.map((c) => <td key={c.key} className={c.num ? "num" : ""}>{c.render ? c.render(r) : String((r as Record<string, unknown>)[c.key] ?? "-")}</td>)}
           </tr>))}</tbody>
       </table>
     </div>
@@ -186,7 +186,7 @@ export function ScoreBar({ value, label }: { value: number | null | undefined; l
   const c = scoreColor(value);
   return (
     <div className="col" style={{ gap: 4 }}>
-      <div className="row between small"><span className="muted">{label}</span><span className="mono" style={{ color: c.color }}>{isNum(value) ? Math.round(value) : "—"}</span></div>
+      <div className="row between small"><span className="muted">{label}</span><span className="mono" style={{ color: c.color }}>{isNum(value) ? Math.round(value) : "-"}</span></div>
       <div className="bar"><span style={{ width: `${isNum(value) ? value : 0}%`, background: c.color }} /></div>
     </div>
   );

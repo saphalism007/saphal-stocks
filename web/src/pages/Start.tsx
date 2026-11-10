@@ -25,11 +25,11 @@ export default function Start() {
           return (
             <span key={l.url} className="col" style={{ gap: 2 }}>
               <a className="btn sm primary" href={l.url} target="_blank" rel="noopener noreferrer"><I.external /> {l.label}</a>
-              <span className="tiny faint">{l.who}{k ? (k.ok ? ` · link checked ${nptDate(k.checked_at)}` : ` · couldn't reach on ${nptDate(k.checked_at)} (may block checks from outside Nepal)`) : ""}</span>
+              <span className="tiny faint">{l.who}{k ? (k.ok ? `, link checked ${nptDate(k.checked_at)}` : `, couldn't reach on ${nptDate(k.checked_at)} (may block checks from outside Nepal)`) : ""}</span>
             </span>
           );
         })}
-        {s.inApp && <Link className="btn sm" to={s.inApp.to}>{s.inApp.label} →</Link>}
+        {s.inApp && <Link className="btn sm" to={s.inApp.to}>{s.inApp.label}</Link>}
       </div>
     </div>
   );
@@ -51,7 +51,7 @@ export default function Start() {
       </Card>
       <Card title="Before you invest">
         <ul className="small" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-          <li>Keep 3–6 months of expenses in savings first (<Link to="/money">Wealth Management</Link> works it out).</li>
+          <li>Keep 3-6 months of expenses in savings first (<Link to="/money">Wealth Management</Link> works it out).</li>
           <li>Pay off expensive loans (credit cards, personal loans) before investing in shares.</li>
           <li>Money needed within 3 years belongs in deposits, not shares.</li>
           <li>Only apply, buy or register through the official sites and licensed institutions linked here. Nobody legitimate asks for your Mero Share password or OTP.</li>

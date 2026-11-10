@@ -15,19 +15,19 @@ Once the repository is on GitHub with Pages turned on, the app lives at `https:/
 
 | Device | Install |
 |---|---|
-| iPhone / iPad (Safari) | Open the address → Share button → **Add to Home Screen** → Add. Open it from the home-screen icon. |
-| Mac (Safari) | Open the address → File → **Add to Dock**. |
-| Mac (Chrome/Edge) | Open the address → install icon in the address bar. |
+| iPhone / iPad (Safari) | Open the address > Share button > **Add to Home Screen** > Add. Open it from the home-screen icon. |
+| Mac (Safari) | Open the address > File > **Add to Dock**. |
+| Mac (Chrome/Edge) | Open the address > install icon in the address bar. |
 
-The first start downloads the market snapshot (about 13 MB), then the app works offline. When a newer snapshot exists, a banner offers to load it (**Settings → Data → Check for new data**).
+The first start downloads the market snapshot (about 13 MB), then the app works offline. When a newer snapshot exists, a banner offers to load it (**Settings > Data > Check for new data**).
 
 Tips:
 
 - Use the home-screen/Dock app, not a normal Safari tab. Safari can clear data of websites you have not visited for a while; installed apps keep it.
-- **Settings → Appearance** has theme, accent colour, text size, density, number style (lakh/crore or million), start page, which menu items show, the phone tab bar and chart defaults. Each device keeps its own appearance.
-- **Settings → Sync & devices** syncs portfolios, transactions, watchlists, journal, goals, alerts and settings between iPhone, iPad and Mac. It needs a GitHub token with only the `gist` permission and a passphrase you choose; data is encrypted on the device (AES-256-GCM, PBKDF2 310,000 rounds) and stored in a secret Gist. Use the same token and passphrase on each device.
-- **Settings → Security & privacy → Download backup** saves a file of your personal data; keep one now and then.
-- The AI analyst needs your Anthropic API key in **Settings → AI** on each device. The key stays on that device and is never synced or put in backups. Without a key, the analyst works in data-report mode.
+- **Settings > Appearance** has theme, accent colour, text size, density, number style (lakh/crore or million), start page, which menu items show, the phone tab bar and chart defaults. Each device keeps its own appearance.
+- **Settings > Sync & devices** syncs portfolios, transactions, watchlists, journal, goals, alerts and settings between iPhone, iPad and Mac. It needs a GitHub token with only the `gist` permission and a passphrase you choose; data is encrypted on the device (AES-256-GCM, PBKDF2 310,000 rounds) and stored in a secret Gist. Use the same token and passphrase on each device.
+- **Settings > Security & privacy > Download backup** saves a file of your personal data; keep one now and then.
+- The AI analyst needs your Anthropic API key in **Settings > AI** on each device. The key stays on that device and is never synced or put in backups. Without a key, the analyst works in data-report mode.
 - Alerts are checked while the app is open (iOS does not let web apps run in the background).
 
 ### How the data gets updated
@@ -36,9 +36,9 @@ Tips:
 
 | When (Nepal time) | What |
 |---|---|
-| Trading days (Mon–Fri) about 16:00 | Full refresh (prices, history, indices, company details in rotation, news, issues, funds, forex), tests, build, deploy |
-| Every 15 minutes, about 10:45–15:45 on trading days | Latest prices only (`live.json`), so the app shows near-live quotes |
-| Push to `main`, or **Actions → Run workflow** | Build and deploy (choose `daily`, `intraday` or `build`) |
+| Trading days (Mon-Fri) about 16:00 | Full refresh (prices, history, indices, company details in rotation, news, issues, funds, forex), tests, build, deploy |
+| Every 15 minutes, about 10:45-15:45 on trading days | Latest prices only (`live.json`), so the app shows near-live quotes |
+| Push to `main`, or **Actions > Run workflow** | Build and deploy (choose `daily`, `intraday` or `build`) |
 
 The database is kept between runs in the Actions cache. Your personal data never goes to the repository.
 
@@ -54,7 +54,7 @@ npm run deploy         # release: bump version, test, build, commit, push, wait 
 
 ### Versions and updates
 
-`web/src/version.ts` holds the version, release date and notes. `npm run deploy` raises the version one step unless it was changed by hand, pushes, waits until the live site serves the new commit, and prints a line such as `TALLY  Version 0.6.2  Code 1A2B3C  Released 2026-11-10`. The app shows the same version and code in the sidebar and on **Settings → About & updates**, checks `version.json` when it opens and every 30 minutes, and offers **Update now** when a newer version is live.
+`web/src/version.ts` holds the version, release date and notes. `npm run deploy` raises the version one step unless it was changed by hand, pushes, waits until the live site serves the new commit, and prints a line such as `TALLY  Version 0.6.2  Code 1A2B3C  Released 2026-11-10`. The app shows the same version and code in the sidebar and on **Settings > About & updates**, checks `version.json` when it opens and every 30 minutes, and offers **Update now** when a newer version is live.
 
 The workflow file only calls the project's own scripts (`npm run ingest`, `scripts/export-*.ts`, `npm test`, `npm run build`), so app and data changes never need to touch it.
 
@@ -77,7 +77,7 @@ npm run dev:server
 
 Open http://localhost:5180. The first visit asks you to create your private account. The API runs on 127.0.0.1:5181 and the web app on 5180.
 
-On first start the server loads market data in the background (latest prices, about 330 companies' daily history, 18 indices, news, exchange rates, then company profiles, dividends and quarterly statements). Progress shows on **Settings → Data**. Company details take about half an hour because requests are deliberately rate-limited.
+On first start the server loads market data in the background (latest prices, about 330 companies' daily history, 18 indices, news, exchange rates, then company profiles, dividends and quarterly statements). Progress shows on **Settings > Data**. Company details take about half an hour because requests are deliberately rate-limited.
 
 Other commands:
 
@@ -99,7 +99,7 @@ Created automatically on first run. Never commit it.
 | `AI_PROVIDER` | `anthropic` or `none` |
 | `AI_MODEL` | Default `claude-opus-5-5` |
 | `AI_EFFORT` | `low`, `medium` (default), `high`, `xhigh`, `max` |
-| `ANTHROPIC_API_KEY` | Your API key (can also be set in Settings → AI) |
+| `ANTHROPIC_API_KEY` | Your API key (can also be set in Settings > AI) |
 | `INGEST_DAILY_AT` | Daily refresh time in Nepal time (default 15:45, after market close) |
 | `HOST` | `127.0.0.1` (default, this computer only) or `0.0.0.0` (local network) |
 | `INTRADAY_REFRESH_MIN` | Minutes between live price refreshes during market hours, 11:00-15:00 NPT (default 5, 0 = off) |
@@ -138,7 +138,7 @@ tests/       Vitest suites
 - Passwords hashed with scrypt; HTTP-only, SameSite=Strict session cookies; login rate limiting; origin checks on state-changing requests.
 - Sensitive personal data encrypted with AES-256-GCM.
 - Input validation on every endpoint (zod). Security headers set; CSP in production.
-- Export (JSON), database backup and "delete my personal data" in Settings → Security.
+- Export (JSON), database backup and "delete my personal data" in Settings > Security.
 
 ## Not financial advice
 

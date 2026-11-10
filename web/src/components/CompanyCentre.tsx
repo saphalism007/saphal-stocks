@@ -150,12 +150,12 @@ export function ReportCompare({ sym }: { sym: string }) {
   const key = (x: Any) => `${x.symbol}|${x.fiscalYear}|${x.quarter}`;
   const chosen = reps.filter((x) => (sel ?? reps.slice(0, 4).map(key)).includes(key(x)));
   const metrics = (r.data?.metrics ?? []).filter((m: Any) => chosen.some((c) => c.figures[m.key] != null));
-  const fmt = (v: number | null, u: string) => v == null ? "—" : u === "Rs. '000" ? compact(v * 1000) : u === "%" ? `${num(v, 2)}%` : num(v, 2);
+  const fmt = (v: number | null, u: string) => v == null ? "-" : u === "Rs. '000" ? compact(v * 1000) : u === "%" ? `${num(v, 2)}%` : num(v, 2);
   return (
     <Card title="Compare financial reports" sub="Pick two or more quarterly reports, of this company or of peers, to compare key figures side by side">
       {!r.data ? <Loading /> : (
         <div className="col" style={{ gap: 10 }}>
-          <div className="chips">{reps.map((x) => { const k = key(x), on = (sel ?? reps.slice(0, 4).map(key)).includes(k); return <button key={k} className={`chip ${on ? "on" : ""}`} onClick={() => { const cur = sel ?? reps.slice(0, 4).map(key); setSel(on ? cur.filter((y) => y !== k) : [...cur, k]); }}>{x.symbol} · Q{x.quarter} {x.fiscalYear}</button>; })}</div>
+          <div className="chips">{reps.map((x) => { const k = key(x), on = (sel ?? reps.slice(0, 4).map(key)).includes(k); return <button key={k} className={`chip ${on ? "on" : ""}`} onClick={() => { const cur = sel ?? reps.slice(0, 4).map(key); setSel(on ? cur.filter((y) => y !== k) : [...cur, k]); }}>{x.symbol}, Q{x.quarter} {x.fiscalYear}</button>; })}</div>
           <form className="row" onSubmit={(e) => { e.preventDefault(); const s = add.trim().toUpperCase(); if (s && !peers.includes(s) && s !== sym) { setPeers([...peers, s].slice(0, 5)); setSel(null); } setAdd(""); }}>
             <input className="input sm" style={{ width: 160 }} placeholder="Add a peer, e.g. NABIL" value={add} onChange={(e) => setAdd(e.target.value)} />
             <button className="btn sm">Add company</button>
@@ -166,7 +166,7 @@ export function ReportCompare({ sym }: { sym: string }) {
             <div className="table-wrap"><table className="t small">
               <thead><tr><th>Figure</th>{chosen.map((c) => <th key={key(c)} className="num">{c.symbol}<br /><span className="tiny faint">Q{c.quarter} {c.fiscalYear}</span></th>)}{chosen.length === 2 && <th className="num">Change</th>}</tr></thead>
               <tbody>{metrics.map((m: Any) => { const a = chosen[0].figures[m.key], b = chosen[1]?.figures[m.key], ch = chosen.length === 2 ? changePct(b, a) : null; return (
-                <tr key={m.key}><td>{m.label}</td>{chosen.map((c) => <td key={key(c)} className="num mono">{fmt(c.figures[m.key], m.unit)}</td>)}{chosen.length === 2 && <td className={`num ${ch == null || m.higherIsBetter == null ? "" : (ch > 0) === m.higherIsBetter ? "up" : "down"}`}>{ch == null ? "—" : `${ch > 0 ? "+" : ""}${ch}%`}</td>}</tr>
+                <tr key={m.key}><td>{m.label}</td>{chosen.map((c) => <td key={key(c)} className="num mono">{fmt(c.figures[m.key], m.unit)}</td>)}{chosen.length === 2 && <td className={`num ${ch == null || m.higherIsBetter == null ? "" : (ch > 0) === m.higherIsBetter ? "up" : "down"}`}>{ch == null ? "-" : `${ch > 0 ? "+" : ""}${ch}%`}</td>}</tr>
               ); })}</tbody>
             </table></div>
           )}

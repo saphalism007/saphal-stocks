@@ -1,5 +1,5 @@
-// Chart Terminal: professional charting on real NEPSE daily data — chart types, daily / weekly /
-// monthly candles, 60+ indicators in overlays or panels, 30 drawing tools with a left toolbar, 1–4
+// Chart Terminal: professional charting on real NEPSE daily data, chart types, daily / weekly /
+// monthly candles, 60+ indicators in overlays or panels, 30 drawing tools with a left toolbar, 1-4
 // chart layouts, saved drawings, indicator templates and layouts, plus the AI Analyst panel
 // (verdict, entry/stop/targets with evidence, levels drawn on the chart, chart Q&A, trade planner
 // and a pattern scanner). Everything is saved on this device.
@@ -192,7 +192,7 @@ export default function Terminal() {
       <div className="t-top">
         <SymbolSearch value={sym} onPick={setSymbol} />
         {lastBar && <span className="t-quote"><strong className="mono">{num(lastBar.close)}</strong> <span className={tone(chg)}>{pct(chg)}</span></span>}
-        <span className={`t-live ${a?.priceInfo?.kind === "delayed" ? "delayed" : ""}`} title={a?.priceInfo?.note ?? ""}>{a?.priceInfo?.kind === "delayed" ? "Delayed" : "End of day"}{lastBar ? ` · ${lastBar.date}` : ""}</span>
+        <span className={`t-live ${a?.priceInfo?.kind === "delayed" ? "delayed" : ""}`} title={a?.priceInfo?.note ?? ""}>{a?.priceInfo?.kind === "delayed" ? "Delayed" : "End of day"}{lastBar ? `, ${lastBar.date}` : ""}</span>
         <div className="t-group">
           {(["1m", "5m", "15m", "30m", "1h"] as const).map((x) => <button key={x} className="t-btn dim" disabled title="NEPSE intraday candles aren't available from free official sources, so these timeframes are not shown rather than invented.">{x}</button>)}
           {(["D", "W", "M"] as Timeframe[]).map((x) => <button key={x} className={`t-btn ${ap.tf === x ? "on" : ""}`} onClick={() => setPane(active, { tf: x })}>{x === "D" ? "1D" : x === "W" ? "1W" : "1M"}</button>)}
@@ -210,7 +210,7 @@ export default function Terminal() {
           <option value="1">1 chart</option><option value="2h">2 side by side</option><option value="2v">2 stacked</option><option value="4">4 charts</option>
         </select>
         <div className="t-group">
-          <button className={`t-btn ${st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, clean: !st.clean })} title="Clean chart: hide indicators, AI levels, markers, volume and drawings (nothing is deleted)">✧ Clean</button>
+          <button className={`t-btn ${st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, clean: !st.clean })} title="Clean chart: hide indicators, AI levels, markers, volume and drawings (nothing is deleted)">Clean</button>
           <button className={`t-btn ${st.ai && !st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, ai: st.clean ? true : !st.ai, clean: false })} title="Draw buy zone, stop, targets, support/resistance and buy/sell arrows">AI levels</button>
           <button className={`t-btn ${st.patterns && !st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, patterns: st.clean ? true : !st.patterns, clean: false })} title="Mark candlestick patterns">Candles</button>
           <button className={`t-btn ${st.volume && !st.clean ? "on" : ""}`} onClick={() => setSt({ ...st, volume: st.clean ? true : !st.volume, clean: false })}>Vol</button>
@@ -223,8 +223,8 @@ export default function Terminal() {
           <button className="t-btn" onClick={shot} title="Save a picture of the chart">📷</button>
           <button className="t-btn" onClick={toggleFull} title="Full screen">{full ? "⤡" : "⛶"}</button>
         </div>
-        <button className="t-btn strong sig-top" onClick={() => { setSt((s) => ({ ...s, ai: true, clean: false })); setSheet(true); }} disabled={!a}>⚡ Buy/Sell signal</button>
-        <button className={`t-btn strong ai ${st.panel ? "on" : ""}`} onClick={() => setSt({ ...st, panel: !st.panel })}>✦ AI Analyst</button>
+        <button className="t-btn strong sig-top" onClick={() => { setSt((s) => ({ ...s, ai: true, clean: false })); setSheet(true); }} disabled={!a}>Buy/Sell signal</button>
+        <button className={`t-btn strong ai ${st.panel ? "on" : ""}`} onClick={() => setSt({ ...st, panel: !st.panel })}>AI Analyst</button>
       </div>
 
       {sheet && a && a.symbol === sym && <SignalSheet a={a} onClose={() => setSheet(false)} onRemove={() => { setSheet(false); setSt((s) => ({ ...s, ai: false })); }} />}
@@ -236,7 +236,7 @@ export default function Terminal() {
           {TOOL_GROUPS.map((g) => { const cur = lastInGroup[g.key] ?? g.tools[0].id; const inG = g.tools.some((x) => x.id === tool); return (
             <div key={g.key} className="tb-wrap">
               <button className={`tb ${inG ? "on" : ""}`} onClick={() => pickTool(g.key, inG ? tool : cur)} title={TOOLS.get(inG ? tool : cur)?.label}><Ico n={inG ? tool : cur} /></button>
-              <button className="tb-more" onClick={() => setFlyout(flyout === g.key ? null : g.key)} aria-label={`${g.label} tools`}>›</button>
+              <button className="tb-more" onClick={() => setFlyout(flyout === g.key ? null : g.key)} aria-label={`${g.label} tools`}></button>
               {flyout === g.key && <div className="tb-fly"><div className="tiny faint" style={{ padding: "4px 10px", textTransform: "uppercase" }}>{g.label}</div>{g.tools.map((x) => <button key={x.id} className={tool === x.id ? "on" : ""} onClick={() => pickTool(g.key, x.id)}><Ico n={x.id} /> {x.label}{x.key ? <span className="kbd">⌥{x.key.toUpperCase()}</span> : null}</button>)}</div>}
             </div>
           ); })}
@@ -252,7 +252,7 @@ export default function Terminal() {
         {/* charts */}
         <div className={`t-charts l${st.layout}`}>
           <button className={`sig-pill ${a ? (/BUY/.test(a.verdict) ? "buy" : /SELL/.test(a.verdict) ? "sell" : "wait") : ""} ${st.ai && !st.clean ? "on" : ""}`} onClick={() => { setSt((s) => ({ ...s, ai: true, clean: false })); setSheet(true); }} disabled={!a || a.symbol !== sym} title="Buy/sell signal: prices, stop-loss, targets, support/resistance, technical and fundamental reasons">
-            ⚡ Buy/Sell signal{a && a.symbol === sym ? ` · ${a.verdict === "NO SIGNAL" ? "none" : a.verdict}${a.plan.entryLow != null && /BUY/.test(a.verdict) ? ` ${num(a.plan.entryLow)}–${num(a.plan.entryHigh)}` : ""}` : "…"}
+            Buy/Sell signal{a && a.symbol === sym ? `, ${a.verdict === "NO SIGNAL" ? "none" : a.verdict}${a.plan.entryLow != null && /BUY/.test(a.verdict) ? ` ${num(a.plan.entryLow)}-${num(a.plan.entryHigh)}` : ""}` : "..."}
           </button>
           {panes.slice(0, nPanes).map((pn, i) => (
             <PaneHost key={i} i={i} pn={pn} st={st} active={i === active} tool={i === active ? tool : "cursor"} themeKey={themeKey}
@@ -282,8 +282,8 @@ export default function Terminal() {
             <AiPanel symbol={sym} analysis={a ?? null} loading={analysis.loading} error={analysis.error} bars={bars.bars} tab={st.panelTab} setTab={(t) => setSt({ ...st, panelTab: t })} onSymbol={setSymbol} priceInfo={a?.priceInfo} />
             <div className="t-watch">
               <div className="row between"><span className="tiny faint" style={{ textTransform: "uppercase", letterSpacing: ".05em" }}>Watchlist</span>{firstList && !watch.includes(sym) && <button className="t-btn" onClick={addToWatch}>+ Add {sym}</button>}</div>
-              {watch.length === 0 ? <p className="tiny faint">Empty. Tap “+ Add” to keep stocks here for one-tap switching.</p> : <div className="w-list">{watch.map((s) => <button key={s} className={s === sym ? "on" : ""} onClick={() => setSymbol(s)}>{s}</button>)}</div>}
-              <Link className="tiny" to={`/stocks/${sym}`}>Company page for {sym} →</Link>
+              {watch.length === 0 ? <p className="tiny faint">Empty. Tap '+ Add' to keep stocks here for one-tap switching.</p> : <div className="w-list">{watch.map((s) => <button key={s} className={s === sym ? "on" : ""} onClick={() => setSymbol(s)}>{s}</button>)}</div>}
+              <Link className="tiny" to={`/stocks/${sym}`}>Company page for {sym}</Link>
             </div>
           </div>
         )}
@@ -319,7 +319,7 @@ function SymbolSearch({ value, onPick }: { value: string; onPick: (s: string) =>
     <div className="t-search">
       <input className="input sm" placeholder={`🔍 ${value}`} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => { if (e.key === "Enter" && q.trim()) { onPick((r.data?.[0]?.symbol ?? q).toUpperCase()); setQ(""); setOpen(false); (e.target as HTMLInputElement).blur(); } }} aria-label="Search stocks" />
-      {open && q.trim() && (r.data ?? []).length > 0 && <div className="t-sugg">{r.data!.map((x) => <button key={x.symbol} onMouseDown={() => { onPick(x.symbol); setQ(""); setOpen(false); }}><strong>{x.symbol}</strong> <span className="tiny faint">{x.name} · {x.sector}</span></button>)}</div>}
+      {open && q.trim() && (r.data ?? []).length > 0 && <div className="t-sugg">{r.data!.map((x) => <button key={x.symbol} onMouseDown={() => { onPick(x.symbol); setQ(""); setOpen(false); }}><strong>{x.symbol}</strong> <span className="tiny faint">{x.name}, {x.sector}</span></button>)}</div>}
     </div>
   );
 }

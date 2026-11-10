@@ -19,7 +19,7 @@ export function prosCons(sector: string, m: Metrics, ctx: { profitYoY?: number |
   if (m.netMargin != null && !bank) { if (m.netMargin >= 20) pro("Margins", `Keeps ${p1(m.netMargin)}% of revenue as profit.`); else if (m.netMargin < 5) con("Margins", `Keeps only ${p1(m.netMargin)}% of revenue as profit.`); }
   if (m.pe != null && m.pe > 0 && ctx.sectorPe) { if (m.pe < ctx.sectorPe * 0.8) pro("Valuation", `P/E ${p1(m.pe)} is below the sector's typical ${p1(ctx.sectorPe)}.`); else if (m.pe > ctx.sectorPe * 1.4) con("Valuation", `P/E ${p1(m.pe)} is well above the sector's typical ${p1(ctx.sectorPe)}.`); }
   if (m.pe != null && m.pe <= 0) con("Valuation", "No positive earnings, so P/E is not meaningful.");
-  if (m.pb != null) { if (m.pb < 1.2) pro("Valuation", `Trades near its book value (P/B ${p1(m.pb)}).`); else if (m.pb > 4) con("Valuation", `Priced at ${p1(m.pb)}× its book value.`); }
+  if (m.pb != null) { if (m.pb < 1.2) pro("Valuation", `Trades near its book value (P/B ${p1(m.pb)}).`); else if (m.pb > 4) con("Valuation", `Priced at ${p1(m.pb)}x its book value.`); }
   if (m.bvps != null && m.bvps > 0) pro("Shareholder value", `Each share is backed by Rs. ${p1(m.bvps)} of the company's own net worth.`);
   if (ctx.dividendYears5 != null) { if (ctx.dividendYears5 >= 4) pro("Shareholder returns", `Paid dividends in ${ctx.dividendYears5} of the last 5 years.`); else if (ctx.dividendYears5 <= 1) con("Shareholder returns", `Paid dividends in only ${ctx.dividendYears5} of the last 5 years.`); }
   if (bank) {
@@ -35,7 +35,7 @@ export function prosCons(sector: string, m: Metrics, ctx: { profitYoY?: number |
     if (m.claimsRatio != null && m.claimsRatio > 75) con("Underwriting", `Claims take ${p1(m.claimsRatio)}% of net premium.`);
   }
   if (hydro || (!bank && !insurer)) {
-    if (m.de != null) { if (m.de <= 1) pro("Debt", `Debt is ${p1(m.de)}× equity: manageable.`); else if (m.de >= 2) con("Debt", `Debt is ${p1(m.de)}× equity: heavily borrowed.`); }
+    if (m.de != null) { if (m.de <= 1) pro("Debt", `Debt is ${p1(m.de)}x equity: manageable.`); else if (m.de >= 2) con("Debt", `Debt is ${p1(m.de)}x equity: heavily borrowed.`); }
     if (m.interestCover != null) { if (m.interestCover >= 3) pro("Debt", `Earnings cover interest ${p1(m.interestCover)} times.`); else if (m.interestCover < 1.5) con("Debt", `Earnings cover interest only ${p1(m.interestCover)} times.`); }
     if (m.currentRatio != null && m.currentRatio < 1) con("Liquidity", `Current ratio ${p1(m.currentRatio)}: short-term debts exceed short-term assets.`);
   }

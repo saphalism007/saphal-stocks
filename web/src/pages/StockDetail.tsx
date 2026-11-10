@@ -49,7 +49,7 @@ export default function StockDetail() {
       <div className="page-head">
         <div>
           <div className="row"><h1 className="mono">{sym}</h1><Badge>{c.sector ?? "Sector unknown"}</Badge>{t && <Badge tone={t.trend === "uptrend" ? "up" : t.trend === "downtrend" ? "down" : "warn"}>{t.trend}</Badge>}</div>
-          <p>{c.name} · <Fresh date={d.dataFreshness.lastPriceDate} fetched={q?.fetched_at} /></p>
+          <p>{c.name}, <Fresh date={d.dataFreshness.lastPriceDate} fetched={q?.fetched_at} /></p>
         </div>
         <div className="row">
           <div style={{ textAlign: "right", marginRight: 8 }}>
@@ -70,12 +70,12 @@ export default function StockDetail() {
       {!fa?.latestPeriod && <Notice tone="warn">No quarterly statements stored for {sym} yet, so fundamental scores are unavailable. {BROWSER_BACKEND ? "The cloud data job fetches statements for all companies; this company has none published at the source yet." : <>Click <strong>Update</strong> to fetch the latest report.</>}</Notice>}
 
       <div className="grid g6">
-        <Stat label="52W range" value={<span style={{ fontSize: 15 }}>{num(t?.low52)} – {num(t?.high52)}</span>} sub={t && lastClose ? `${pct(((lastClose - t.high52) / t.high52) * 100, 1)} from high` : ""} />
-        <Stat label="Market cap" value={<span style={{ fontSize: 17 }}>{compact(fa?.byKey?.marketCap != null ? fa.byKey.marketCap * 1000 : (lastClose && c.listed_shares ? lastClose * c.listed_shares : null))}</span>} sub={fa?.byKey?.marketCap != null ? "Price × shares at last balance sheet" : `${int(c.listed_shares)} listed shares`} />
-        <Stat label="P/E · P/B" value={<span style={{ fontSize: 17 }}>{num(fa?.byKey?.pe, 1)} · {num(fa?.byKey?.pb, 2)}</span>} sub={fa?.latestPeriod ?? "No statements"} />
-        <Stat label="EPS · BVPS" value={<span style={{ fontSize: 17 }}>{num(fa?.byKey?.eps)} · {num(fa?.byKey?.bvps)}</span>} sub="Computed from statements" />
-        <Stat label="ROE" value={<span style={{ fontSize: 17 }}>{isNum(fa?.byKey?.roe) ? `${num(fa.byKey.roe, 1)}%` : "—"}</span>} sub={fa?.dividend?.cashYieldPct != null ? `Cash yield ${num(fa.dividend.cashYieldPct, 2)}%` : "—"} />
-        <Stat label="Turnover" value={<span style={{ fontSize: 17 }}>{compact(q?.turnover)}</span>} sub={`Vol ${int(q?.volume)} · ${int(q?.trades)} trades`} />
+        <Stat label="52W range" value={<span style={{ fontSize: 15 }}>{num(t?.low52)} - {num(t?.high52)}</span>} sub={t && lastClose ? `${pct(((lastClose - t.high52) / t.high52) * 100, 1)} from high` : ""} />
+        <Stat label="Market cap" value={<span style={{ fontSize: 17 }}>{compact(fa?.byKey?.marketCap != null ? fa.byKey.marketCap * 1000 : (lastClose && c.listed_shares ? lastClose * c.listed_shares : null))}</span>} sub={fa?.byKey?.marketCap != null ? "Price x shares at last balance sheet" : `${int(c.listed_shares)} listed shares`} />
+        <Stat label="P/E, P/B" value={<span style={{ fontSize: 17 }}>{num(fa?.byKey?.pe, 1)}, {num(fa?.byKey?.pb, 2)}</span>} sub={fa?.latestPeriod ?? "No statements"} />
+        <Stat label="EPS, BVPS" value={<span style={{ fontSize: 17 }}>{num(fa?.byKey?.eps)}, {num(fa?.byKey?.bvps)}</span>} sub="Computed from statements" />
+        <Stat label="ROE" value={<span style={{ fontSize: 17 }}>{isNum(fa?.byKey?.roe) ? `${num(fa.byKey.roe, 1)}%` : "-"}</span>} sub={fa?.dividend?.cashYieldPct != null ? `Cash yield ${num(fa.dividend.cashYieldPct, 2)}%` : "-"} />
+        <Stat label="Turnover" value={<span style={{ fontSize: 17 }}>{compact(q?.turnover)}</span>} sub={`Vol ${int(q?.volume)}, ${int(q?.trades)} trades`} />
       </div>
 
       <Tabs value={tab} onChange={setTab} tabs={[
@@ -167,7 +167,7 @@ export function SetupCard({ s }: { s: Any }) {
     <div className="col" style={{ gap: 8 }}>
       <div className="row between"><Badge tone="up">{s.type}</Badge><span className="small">Quality <Score value={s.quality} /></span></div>
       <dl className="kv">
-        <dt>Entry zone</dt><dd>{num(s.entryLow)} – {num(s.entryHigh)}</dd>
+        <dt>Entry zone</dt><dd>{num(s.entryLow)} - {num(s.entryHigh)}</dd>
         <dt>Stop-loss</dt><dd className="down">{num(s.stopLoss)} ({num(s.riskPct, 1)}%)</dd>
         {s.targets.map((tg: number, i: number) => <Fragment key={"l" + i}><dt>Target {i + 1}</dt><dd className="up">{num(tg)}</dd></Fragment>)}
         <dt>Risk / reward</dt><dd>{num(s.riskReward)}</dd>
@@ -222,8 +222,8 @@ function ChartTab({ d, bars }: { d: Any; bars: { bars: Bar[]; adjustments: Any[]
     ["RSI (14)", num(t.rsi, 1)], ["MACD / signal", `${num(t.macd.macd)} / ${num(t.macd.signal)}`], ["MACD cross (5 sessions)", t.macd.cross ?? "none"], ["ADX (14)", num(t.adx, 1)],
     ["ATR (14)", `${num(t.atr)} (${num(t.atrPct, 1)}%)`], ["Stochastic %K / %D", `${num(t.stochastic.k, 1)} / ${num(t.stochastic.d, 1)}`], ["Bollinger %B", num(t.bollinger.percentB, 2)],
     ["SMA 20 / 50", `${num(t.sma[20])} / ${num(t.sma[50])}`], ["SMA 100 / 200", `${num(t.sma[100])} / ${num(t.sma[200])}`], ["EMA 9 / 20", `${num(t.ema[9])} / ${num(t.ema[20])}`], ["EMA 50 / 200", `${num(t.ema[50])} / ${num(t.ema[200])}`],
-    ["VWAP (20 sessions)", num(t.vwap20)], ["Supertrend", `${num(t.supertrend.value)} (${t.supertrend.direction === 1 ? "bullish" : t.supertrend.direction === -1 ? "bearish" : "—"})`], ["Parabolic SAR", num(t.psar)],
-    ["Ichimoku", `${t.ichimoku.position ?? "—"} cloud (${num(t.ichimoku.cloudBottom)}–${num(t.ichimoku.cloudTop)})`], ["OBV trend (20)", t.obvTrend ?? "—"], ["Volume vs 20-day avg", `${num(t.volumeRatio)}x`],
+    ["VWAP (20 sessions)", num(t.vwap20)], ["Supertrend", `${num(t.supertrend.value)} (${t.supertrend.direction === 1 ? "bullish" : t.supertrend.direction === -1 ? "bearish" : "-"})`], ["Parabolic SAR", num(t.psar)],
+    ["Ichimoku", `${t.ichimoku.position ?? "-"} cloud (${num(t.ichimoku.cloudBottom)}-${num(t.ichimoku.cloudTop)})`], ["OBV trend (20)", t.obvTrend ?? "-"], ["Volume vs 20-day avg", `${num(t.volumeRatio)}x`],
     ["Return 1M / 3M", `${pct(t.return1m, 1)} / ${pct(t.return3m, 1)}`], ["Return 6M / 1Y", `${pct(t.return6m, 1)} / ${pct(t.return1y, 1)}`],
   ] : [];
   const pv = d.lastBar ? pivot(d.lastBar) : null;
@@ -249,19 +249,19 @@ function ChartTab({ d, bars }: { d: Any; bars: { bars: Bar[]; adjustments: Any[]
         <p className="tiny faint" style={{ marginTop: 6 }}>{bars.adjustments.length ? `Adjusted for ${bars.adjustments.length} bonus issue(s). ` : ""}{(bars as Any).rightAdjustments?.length ? `Adjusted for ${(bars as Any).rightAdjustments.length} right issue(s). ` : ""}{bars.skipped.length ? `${bars.skipped.length} bonus record(s) not applied (no matching price gap). ` : ""}{tf === "D" ? "Daily" : tf === "W" ? "Weekly" : "Monthly"} bars. Indicators are computed on the bars shown. Scroll to zoom, drag to pan.</p>
       </Card>
       <div className="grid g3">
-        <Card title="Indicators" sub={`Technical score ${t?.technicalScore ?? "—"}/100`}>
+        <Card title="Indicators" sub={`Technical score ${t?.technicalScore ?? "-"}/100`}>
           <dl className="kv">{rows.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>)}</dl>
         </Card>
         <Card title="Score breakdown">
           {t?.scoreFactors.map((f: Any) => <div key={f.factor} className="row between small" style={{ padding: "3px 0" }}><span>{f.factor}</span><span className={`mono ${f.points > 0 ? "up" : "down"}`}>{f.points > 0 ? "+" : ""}{f.points}</span></div>)}
           <div className="sep" />
-          <div className="tiny faint">Base 35 + factor points, capped 0–100. {t?.trendNotes.join(" ")}</div>
+          <div className="tiny faint">Base 35 + factor points, capped 0-100. {t?.trendNotes.join(" ")}</div>
           {pv && <><div className="sep" /><div className="small" style={{ fontWeight: 600 }}>Classic pivots (from last session)</div><dl className="kv small">{Object.entries(pv).map(([k, v]) => <Fragment key={k}><dt>{k.toUpperCase()}</dt><dd>{num(v)}</dd></Fragment>)}</dl></>}
         </Card>
         <Card title="Patterns: track record on this stock" sub="Same rules replayed over its history">
           {hist.loading ? <Loading /> : hist.data?.records?.length ? (
             <table className="t"><thead><tr><th>Pattern</th><th className="num">Seen</th><th className="num">Hit target</th><th className="num">60d avg</th></tr></thead>
-              <tbody>{hist.data.records.map((r: Any) => <tr key={r.name}><td>{r.name}</td><td className="num">{r.occurrences}</td><td className="num">{r.hitRate != null ? `${r.hitRate}%` : "—"}</td><td className={`num ${tone(r.avgForwardReturn60)}`}>{pct(r.avgForwardReturn60, 1)}</td></tr>)}</tbody></table>
+              <tbody>{hist.data.records.map((r: Any) => <tr key={r.name}><td>{r.name}</td><td className="num">{r.occurrences}</td><td className="num">{r.hitRate != null ? `${r.hitRate}%` : "-"}</td><td className={`num ${tone(r.avgForwardReturn60)}`}>{pct(r.avgForwardReturn60, 1)}</td></tr>)}</tbody></table>
           ) : <Empty title="No confirmed patterns in history" />}
           <p className="tiny faint" style={{ marginTop: 6 }}>Hit target = reached the measured-move target before the invalidation level within 60 sessions. Small samples are unreliable.</p>
         </Card>
@@ -287,7 +287,7 @@ function LevelsTab({ d, bars }: { d: Any; bars: Bar[] }) {
         <div key={l.price} className="card" style={{ padding: 12 }}>
           <div className="row between">
             <div className="row"><span className="mono" style={{ fontSize: 17, fontWeight: 600 }}>Rs. {num(l.price)}</span><Badge tone={l.strength === "major" ? (kind === "support" ? "up" : "down") : ""}>{l.strength}</Badge>{l.volumeConfirmed && <Badge tone="blue">volume-confirmed</Badge>}{l.roleReversal && <Badge tone="accent">role reversal</Badge>}</div>
-            <div className="row small"><span className="faint">Zone {num(l.low)}–{num(l.high)}</span><span className="faint">· {pct(l.distancePct, 1)} away</span><Score value={l.score} title="Level strength score" /></div>
+            <div className="row small"><span className="faint">Zone {num(l.low)}-{num(l.high)}</span><span className="faint">{pct(l.distancePct, 1)} away</span><Score value={l.score} title="Level strength score" /></div>
           </div>
           <p className="small" style={{ margin: "6px 0 4px" }}>{l.why}</p>
           <p className="small muted" style={{ margin: 0 }}><strong>Invalidation:</strong> {l.invalidation}</p>
@@ -311,7 +311,7 @@ function LevelsTab({ d, bars }: { d: Any; bars: Bar[] }) {
         <Card title="Demand & supply zones">
           {lv.zones.length === 0 ? <Empty title="No unbroken zones found" /> : lv.zones.map((z: Any) => (
             <div key={z.date + z.kind} style={{ marginBottom: 8 }}>
-              <div className="row"><Badge tone={z.kind === "demand" ? "up" : "down"}>{z.kind}</Badge><span className="mono">{num(z.low)} – {num(z.high)}</span>{z.fresh && <Badge tone="accent">fresh</Badge>}</div>
+              <div className="row"><Badge tone={z.kind === "demand" ? "up" : "down"}>{z.kind}</Badge><span className="mono">{num(z.low)} - {num(z.high)}</span>{z.fresh && <Badge tone="accent">fresh</Badge>}</div>
               <div className="small muted">{z.why}</div>
             </div>
           ))}
@@ -338,9 +338,9 @@ function FundamentalsTab({ d }: { d: Any }) {
       {fa.dataNotes.map((n: string) => <Notice key={n}>{n}</Notice>)}
       <ProsCons items={pc} period={fa.latestPeriod} />
       <div className="grid g3">
-        <Card title={`Fundamental score: ${fa.score.overall ?? "—"}`} sub={fa.score.model}>
+        <Card title={`Fundamental score: ${fa.score.overall ?? "-"}`} sub={fa.score.model}>
           <div className="col">{fa.score.components.map((c: Any) => (
-            <div key={c.name}><ScoreBar label={`${c.name} (weight ${Math.round(c.weight * 100)}%)`} value={c.score} /><div className="tiny faint">{c.drivers.join(" · ") || "No data"}</div></div>
+            <div key={c.name}><ScoreBar label={`${c.name} (weight ${Math.round(c.weight * 100)}%)`} value={c.score} /><div className="tiny faint">{c.drivers.join(", ") || "No data"}</div></div>
           ))}</div>
         </Card>
         <Card title="Strengths & red flags">
@@ -362,15 +362,15 @@ function FundamentalsTab({ d }: { d: Any }) {
           <div className="sep" />
           <div className="small" style={{ fontWeight: 600 }}>Dividend discount model</div>
           <div className="row small"><label className="field" style={{ flex: 1 }}>Growth %<NumInput className="input" value={ddm.growth} onChange={(e) => setDdm({ ...ddm, growth: +e.target.value })} /></label><label className="field" style={{ flex: 1 }}>Required return %<NumInput className="input" value={ddm.required} onChange={(e) => setDdm({ ...ddm, required: +e.target.value })} /></label></div>
-          <div className="small" style={{ marginTop: 6 }}>Last cash dividend Rs. {num(lastCashPerShare)} / share → value <strong className="mono">{num(ddmValue)}</strong></div>
-          <p className="tiny faint">Models are only as good as their assumptions. More in Wealth Planner → Calculators.</p>
+          <div className="small" style={{ marginTop: 6 }}>Last cash dividend Rs. {num(lastCashPerShare)} / share &gt; value <strong className="mono">{num(ddmValue)}</strong></div>
+          <p className="tiny faint">Models are only as good as their assumptions. More in Wealth Planner &gt; Calculators.</p>
         </Card>
       </div>
       <Card title={`Ratios (${fa.latestPeriod ?? "no period"})`} flush sub="Computed = calculated by Saphal Stocks from the statement line items; Reported = the company's own figure">
         <DataTable rows={fa.metrics} cols={[
           { key: "label", label: "Metric" },
           { key: "value", label: "Value", num: true, render: (m: Any) => fmtMetric(m.value, m.unit) },
-          { key: "reported", label: "Reported", num: true, render: (m: Any) => m.reported != null ? fmtMetric(m.reported, m.unit) : "—" },
+          { key: "reported", label: "Reported", num: true, render: (m: Any) => m.reported != null ? fmtMetric(m.reported, m.unit) : "-" },
           { key: "basis", label: "Basis", render: (m: Any) => <Badge tone={m.basis === "computed" ? "accent" : m.basis === "market" ? "blue" : ""}>{m.basis}</Badge> },
           { key: "formula", label: "Formula / note", render: (m: Any) => <span className="small muted">{m.formula ?? m.note ?? ""}</span> },
         ]} />
@@ -387,7 +387,7 @@ function Peers({ sym }: { sym: string }) {
   const r = p.data.ranks;
   const chip = (label: string, x: Any) => x ? <Badge key={label} tone={x.rank <= Math.ceil(x.of / 3) ? "up" : x.rank > (2 * x.of) / 3 ? "down" : ""}>{label}: #{x.rank} of {x.of}</Badge> : null;
   return (
-    <Card title={`Sector peers · ${p.data.sector}`} flush sub="Where this company ranks among peers (cheapest P/E and P/B rank first)"
+    <Card title={`Sector peers, ${p.data.sector}`} flush sub="Where this company ranks among peers (cheapest P/E and P/B rank first)"
       actions={<button className="btn sm" onClick={() => nav(`/compare?s=${[sym, ...p.data.peers.filter((x: Any) => x.symbol !== sym).sort((a: Any, b: Any) => (b.avgTurnover20 ?? 0) - (a.avgTurnover20 ?? 0)).slice(0, 3).map((x: Any) => x.symbol)].join(",")}`)}>Compare with top peers</button>}>
       <div className="row" style={{ padding: "10px 16px" }}>{[chip("Fundamental", r.fundamental), chip("Technical", r.technical), chip("P/E", r.pe), chip("P/B", r.pb), chip("ROE", r.roe), chip("Yield", r.cashYield), chip("1Y return", r.return1y)]}</div>
       <DataTable rows={p.data.peers} onRow={(x: Any) => nav(`/stocks/${x.symbol}`)} maxHeight={420} initialSort={{ key: "fundamentalScore", dir: -1 }} rowKey={(x: Any) => x.symbol} cols={[
@@ -404,7 +404,7 @@ function Peers({ sym }: { sym: string }) {
 }
 
 function fmtMetric(v: number | null, unit: string) {
-  if (!isNum(v)) return "—";
+  if (!isNum(v)) return "-";
   if (unit === "%") return `${num(v, 2)}%`;
   if (unit === "x") return `${num(v, 2)}x`;
   if (unit === "Rs. '000") return compact(v * 1000);
@@ -423,7 +423,7 @@ function FinancialsTab({ sym }: { sym: string }) {
     <Card title="Quarterly statements" sub={`Rs. in '000 unless a ratio. Source: ${periods[0].source}; fetched ${nptDate(periods[0].fetchedAt, true)}`} actions={<div className="seg">{(["income", "balance_sheet", "metrics"] as const).map((k) => <button key={k} className={which === k ? "on" : ""} onClick={() => setWhich(k)}>{k === "income" ? "Profit & loss" : k === "balance_sheet" ? "Balance sheet" : "Key metrics"}</button>)}</div>} flush>
       <div className="table-wrap" style={{ maxHeight: 640, overflowY: "auto" }}>
         <table className="t"><thead><tr><th>Particulars</th>{periods.map((p: Any) => <th key={p.period} className="num">{p.period}</th>)}</tr></thead>
-          <tbody>{labels.map((l) => <tr key={l}><td>{l}</td>{periods.map((p: Any) => { const v = p.items.find((i: Any) => i.statement === which && i.label === l)?.value; return <td key={p.period} className="num">{v == null ? "—" : Math.abs(v) >= 1000 ? int(v) : num(v)}</td>; })}</tr>)}</tbody></table>
+          <tbody>{labels.map((l) => <tr key={l}><td>{l}</td>{periods.map((p: Any) => { const v = p.items.find((i: Any) => i.statement === which && i.label === l)?.value; return <td key={p.period} className="num">{v == null ? "-" : Math.abs(v) >= 1000 ? int(v) : num(v)}</td>; })}</tr>)}</tbody></table>
       </div>
     </Card>
   );
@@ -500,7 +500,7 @@ function BacktestTab({ sym }: { sym: string }) {
           <div className="grid g6">
             <Stat label="Strategy return" value={pct(s.totalReturnPct, 1)} tone={tone(s.totalReturnPct)} sub={`CAGR ${pct(s.cagrPct, 1)}`} />
             <Stat label="Buy & hold" value={pct(s.buyHoldReturnPct, 1)} tone={tone(s.buyHoldReturnPct)} sub="Same period, before costs" />
-            <Stat label="Win rate" value={s.winRatePct != null ? `${num(s.winRatePct, 0)}%` : "—"} sub={`${s.trades} trades`} />
+            <Stat label="Win rate" value={s.winRatePct != null ? `${num(s.winRatePct, 0)}%` : "-"} sub={`${s.trades} trades`} />
             <Stat label="Max drawdown" value={`-${num(s.maxDrawdownPct, 1)}%`} tone="down" />
             <Stat label="Profit factor" value={num(s.profitFactor)} sub={`Avg trade ${pct(s.avgTradePct, 1)}`} />
             <Stat label="Costs & tax" value={compact(s.totalCosts + s.totalTax)} sub={`Exposure ${num(s.exposurePct, 0)}%`} />

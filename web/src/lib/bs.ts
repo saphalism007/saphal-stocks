@@ -1,14 +1,14 @@
 // Nepali (Bikram Sambat) dates.
-// • BS 2000–2090: the published calendar (open-source nepali-date-converter table, MIT), verified against
+// • BS 2000-2090: the published calendar (open-source nepali-date-converter table, MIT), verified against
 //   1 Baisakh 2081/2082/2083 and 1 Shrawan 2083 = 17 July 2026.
 // • After BS 2090 (the official calendar isn't published that far ahead): projected from the sun's sidereal
-//   year. Each month's start is a straight-line fit through its real start dates in BS 2000–2090. Tested on
-//   known years (fit on 2000–2060, checked on 2061–2090): 94% of month starts exact, the rest within one day.
+//   year. Each month's start is a straight-line fit through its real start dates in BS 2000-2090. Tested on
+//   known years (fit on 2000-2060, checked on 2061-2090): 94% of month starts exact, the rest within one day.
 //   Projected dates carry `projected: true` so screens can mark them.
 import NepaliDate from "nepali-date-converter";
 
 export const BS_MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashwin", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
-export interface BSDate { y: number; m: number; d: number; projected?: boolean } // m: 1 = Baisakh … 12 = Chaitra
+export interface BSDate { y: number; m: number; d: number; projected?: boolean } // m: 1 = Baisakh ... 12 = Chaitra
 export const bsAvailable = true;
 export const OFFICIAL_LAST_YEAR = 2090;
 

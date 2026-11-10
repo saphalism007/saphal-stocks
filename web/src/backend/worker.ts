@@ -65,7 +65,7 @@ async function download(url: string, total: number): Promise<ArrayBuffer> {
     const { done, value } = await reader.read();
     if (done) break;
     parts.push(value); got += value.length;
-    post({ type: "progress", message: `Downloading market data… ${total ? Math.round((got / total) * 100) : Math.round(got / 1e6)}${total ? "%" : " MB"}` });
+    post({ type: "progress", message: `Downloading market data... ${total ? Math.round((got / total) * 100) : Math.round(got / 1e6)}${total ? "%" : " MB"}` });
   }
   const out = new Uint8Array(got); let o = 0;
   for (const p of parts) { out.set(p, o); o += p.length; }
@@ -96,7 +96,7 @@ async function loadMarket(force: boolean) {
   if (manifest && manifest.version !== cachedVer) {
     {
       const gz = await download(`${BASE}data/market.db.bin?v=${manifest.version}`, manifest.gzipBytes).catch((e) => { throw new Error(`Downloading market data failed: ${e instanceof Error ? e.message : e}`); });
-      post({ type: "progress", message: "Preparing data…" });
+      post({ type: "progress", message: "Preparing data..." });
       const bytes = await gunzip(gz);
       if (!isSqlite(bytes)) throw new Error("The downloaded market data is not valid. Try again in a few minutes.");
       await idbSet("market-db", bytes);
@@ -187,7 +187,7 @@ async function handle(m: Msg) {
 
 let ready: Promise<void>;
 async function boot() {
-  post({ type: "progress", message: "Starting…" });
+  post({ type: "progress", message: "Starting..." });
   SQL = await initSqlJs({ locateFile: () => wasmUrl }).catch((e) => { throw new Error(`Could not start the database engine (${e instanceof Error ? e.message : e}).`); });
   const userBytes = await idbGet<Uint8Array>("user-db");
   main = new SQL.Database(userBytes ?? undefined);

@@ -70,7 +70,7 @@ export function evaluateAlerts(): number {
         switch (a.type) {
           case "price_above": if (last.close >= p.price) hit = { title: `${sym} closed above Rs. ${p.price}`, body: `Close Rs. ${last.close} on ${last.date}.`, date: last.date }; break;
           case "price_below": if (last.close <= p.price) hit = { title: `${sym} closed below Rs. ${p.price}`, body: `Close Rs. ${last.close} on ${last.date}. Review your stop-loss plan.`, date: last.date }; break;
-          case "price_in_range": if (last.low <= p.high && last.high >= p.low) hit = { title: `${sym} is in your buying range Rs. ${p.low}–${p.high}`, body: `Traded Rs. ${last.low}–${last.high} on ${last.date} (close Rs. ${last.close}). Check the setup is still valid before buying.`, date: last.date }; break;
+          case "price_in_range": if (last.low <= p.high && last.high >= p.low) hit = { title: `${sym} is in your buying range Rs. ${p.low}-${p.high}`, body: `Traded Rs. ${last.low}-${last.high} on ${last.date} (close Rs. ${last.close}). Check the setup is still valid before buying.`, date: last.date }; break;
           case "support_broken": {
             const lv = analyzeLevels(b);
             const sup = lv?.supports.filter((x) => x.strength === "major").map((x) => x.low).find((x) => b.length > 1 && b[b.length - 2].close >= x && last.close < x);
@@ -109,20 +109,20 @@ export function evaluateAlerts(): number {
       } else if (sym && ["dividend", "agm", "right_share", "disclosure"].includes(a.type)) {
         const cat = { dividend: "Dividend / bonus", agm: "AGM / SGM", right_share: "Right share", disclosure: "%" }[a.type as "dividend"];
         const r = get<{ title: string; url: string; published_date: string }>("SELECT title, url, published_date FROM announcements WHERE symbol = ? AND category LIKE ? AND fetched_at > ? ORDER BY published_date DESC LIMIT 1", sym, cat, since);
-        if (r) hit = { title: `${sym}: ${r.title.slice(0, 120)}`, body: `${r.published_date} · ${r.url}`, date: r.published_date };
+        if (r) hit = { title: `${sym}: ${r.title.slice(0, 120)}`, body: `${r.published_date}, ${r.url}`, date: r.published_date };
       } else if (a.type === "ipo") {
         const r = get<{ title: string; url: string; published_date: string }>("SELECT title, url, published_date FROM announcements WHERE (category = 'IPO / FPO' OR title LIKE '%IPO%' OR title LIKE '%FPO%') AND fetched_at > ? ORDER BY published_date DESC LIMIT 1", since);
-        if (r) hit = { title: `IPO/FPO: ${r.title.slice(0, 120)}`, body: `${r.published_date} · ${r.url}`, date: r.published_date };
+        if (r) hit = { title: `IPO/FPO: ${r.title.slice(0, 120)}`, body: `${r.published_date}, ${r.url}`, date: r.published_date };
       } else if (a.type === "fund_issue") {
         const r = get<{ company: string; opening_date: string; closing_date: string | null }>("SELECT company, opening_date, closing_date FROM issues WHERE issue_type = 'Mutual fund' AND fetched_at > ? AND opening_date >= date('now','-3 days') ORDER BY opening_date DESC LIMIT 1", since);
         if (r) hit = { title: `Mutual fund issue: ${r.company}`, body: `Opens ${r.opening_date}${r.closing_date ? `, closes ${r.closing_date}` : ""}. Apply through Mero Share if it fits your plan.`, date: r.opening_date };
       } else if (a.type === "rate_change") {
         try {
           const r = get<{ label: string; value: number; prev_value: number; as_of: string }>("SELECT label, value, prev_value, as_of FROM rates WHERE grp IN ('policy','deposit','lending') AND prev_value IS NOT NULL AND prev_value <> value AND fetched_at > ? AND as_of >= date('now','-30 days') ORDER BY as_of DESC LIMIT 1", since);
-          if (r) hit = { title: `${r.label}: ${r.prev_value}% → ${r.value}%`, body: `Nepal Rastra Bank, ${r.as_of}. Re-check your deposits and loans (Where to Invest → Rates).`, date: r.as_of };
+          if (r) hit = { title: `${r.label}: ${r.prev_value}% > ${r.value}%`, body: `Nepal Rastra Bank, ${r.as_of}. Re-check your deposits and loans (Where to Invest > Rates).`, date: r.as_of };
           else {
             const n = get<{ n: number; d: string }>("SELECT COUNT(*) n, MAX(published) d FROM rate_notices WHERE fetched_at > ?", since);
-            if (n && n.n >= 3) hit = { title: `${n.n} new bank / finance rate notices`, body: "Compare deposit rates under Where to Invest → Deposit rates.", date: n.d };
+            if (n && n.n >= 3) hit = { title: `${n.n} new bank / finance rate notices`, body: "Compare deposit rates under Where to Invest > Deposit rates.", date: n.d };
           }
         } catch { /* older snapshot */ }
       } else if (a.type === "fd_maturity") {
@@ -146,7 +146,7 @@ export function evaluateAlerts(): number {
           for (const h of d.summary.holdings.filter((x) => x.quantity > 0)) { const v = h.marketValue ?? 0; by.set(d.sectors[h.symbol] ?? "Unknown", (by.get(d.sectors[h.symbol] ?? "Unknown") ?? 0) + v); if (!top || v > top.v) top = { s: h.symbol, v }; }
           const sec = [...by.entries()].sort((x, y) => y[1] - x[1])[0];
           const maxS = p.maxStockPct ?? 25, maxSec = p.maxSectorPct ?? 40;
-          if (top && (top.v / total) * 100 > maxS) { hit = { title: `${pf.name}: ${top.s} is ${Math.round((top.v / total) * 100)}% of the portfolio`, body: `Above your ${maxS}% limit for one stock. Consider rebalancing (Portfolio → Rebalance).`, date: d.priceDate }; break; }
+          if (top && (top.v / total) * 100 > maxS) { hit = { title: `${pf.name}: ${top.s} is ${Math.round((top.v / total) * 100)}% of the portfolio`, body: `Above your ${maxS}% limit for one stock. Consider rebalancing (Portfolio > Rebalance).`, date: d.priceDate }; break; }
           if (sec && (sec[1] / total) * 100 > maxSec) { hit = { title: `${pf.name}: ${sec[0]} is ${Math.round((sec[1] / total) * 100)}% of the portfolio`, body: `Above your ${maxSec}% sector limit.`, date: d.priceDate }; break; }
         }
       } else if (sym && a.type === "fundamental_drop") {

@@ -32,7 +32,7 @@ export default function Alerts() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 500 }}>{n.symbol ? <Link to={`/stocks/${n.symbol}`}>{n.title}</Link> : n.title}</div>
                   <div className="small muted" style={{ whiteSpace: "pre-wrap" }}>{n.body}</div>
-                  <div className="tiny faint">Based on data from {n.data_date ?? "—"} · created {nptDate(n.created_at, true)}</div>
+                  <div className="tiny faint">Based on data from {n.data_date ?? "-"}, created {nptDate(n.created_at, true)}</div>
                 </div>
               </div>
             ))}</div>
@@ -40,10 +40,10 @@ export default function Alerts() {
         </Card>
         <Card title={`Your alerts (${alerts.data?.length ?? 0})`} flush>
           <DataTable rows={alerts.data ?? []} empty="No alerts yet" cols={[
-            { key: "type", label: "Alert", render: (a: any) => <>{label(a.type)}<div className="tiny faint">{Object.entries(a.params || {}).map(([k, v]) => `${k}: ${v}`).join(", ")} {a.note ? `· ${a.note}` : ""}</div></> },
+            { key: "type", label: "Alert", render: (a: any) => <>{label(a.type)}<div className="tiny faint">{Object.entries(a.params || {}).map(([k, v]) => `${k}: ${v}`).join(", ")} {a.note ? `, ${a.note}` : ""}</div></> },
             { key: "symbol", label: "Stock", render: (a: any) => a.symbol ? <Link to={`/stocks/${a.symbol}`} className="sym">{a.symbol}</Link> : <span className="faint">Market</span> },
-            { key: "active", label: "Status", render: (a: any) => <Badge tone={a.active ? "accent" : ""}>{a.active ? (a.repeat ? "Active · repeat" : "Active") : "Fired / paused"}</Badge> },
-            { key: "last_triggered_at", label: "Last fired", render: (a: any) => <span className="tiny">{a.last_triggered_at ? nptDate(a.last_triggered_at, true) : "—"}</span> },
+            { key: "active", label: "Status", render: (a: any) => <Badge tone={a.active ? "accent" : ""}>{a.active ? (a.repeat ? "Active, repeat" : "Active") : "Fired / paused"}</Badge> },
+            { key: "last_triggered_at", label: "Last fired", render: (a: any) => <span className="tiny">{a.last_triggered_at ? nptDate(a.last_triggered_at, true) : "-"}</span> },
             { key: "x", label: "", render: (a: any) => <span className="row" style={{ flexWrap: "nowrap" }}><button className="btn ghost sm" onClick={async () => { await api(`/alerts/${a.id}`, { method: "PATCH", body: { active: !a.active } }); alerts.reload(); }}>{a.active ? "Pause" : "Resume"}</button><button className="btn ghost sm danger" onClick={async () => { await api(`/alerts/${a.id}`, { method: "DELETE" }); alerts.reload(); }}><I.trash /></button></span> },
           ]} />
         </Card>
@@ -51,7 +51,7 @@ export default function Alerts() {
       {desk.data?.supported && (
         <Card title={BROWSER_BACKEND ? "Notifications on this device" : "Desktop notifications"} actions={<>{BROWSER_BACKEND && <button className="btn sm" onClick={async () => alert(await enableNotifications())}>Allow on this device</button>}<button className="btn sm" onClick={() => api("/settings/notifications/test", { body: {} })}>Send test</button></>}>
           <label className="chk"><input type="checkbox" checked={desk.data.enabled} onChange={async (e) => { await api("/settings/notifications", { method: "PUT", body: { enabled: e.target.checked } }); desk.reload(); }} /> Show a macOS notification when an alert or reminder fires (while the server is running)</label>
-          <p className="tiny faint" style={{ marginTop: 6 }}>{BROWSER_BACKEND ? "Alerts are checked whenever the app opens or new data arrives. On iPhone and iPad, notifications work only for the Home Screen app (Share → Add to Home Screen)." : 'If nothing appears, allow notifications for "Script Editor" / your terminal in System Settings → Notifications.'}</p>
+          <p className="tiny faint" style={{ marginTop: 6 }}>{BROWSER_BACKEND ? "Alerts are checked whenever the app opens or new data arrives. On iPhone and iPad, notifications work only for the Home Screen app (Share > Add to Home Screen)." : 'If nothing appears, allow notifications for "Script Editor" / your terminal in System Settings > Notifications.'}</p>
         </Card>
       )}
       <Card title="Daily market briefing">

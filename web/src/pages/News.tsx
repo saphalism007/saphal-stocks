@@ -25,7 +25,7 @@ export default function News() {
         {n.data?.categories.map((c) => <button key={c.category} className="chip" style={cat === c.category ? { borderColor: "var(--accent)", color: "var(--accent)" } : undefined} onClick={() => setCat(c.category)}>{c.category} <span className="faint">{c.n}</span></button>)}
       </div>
       <Card flush>
-        {n.loading && !n.data ? <Loading /> : !n.data?.rows.length ? <Empty title="No items">Run a news refresh in Settings → Data.</Empty> : (
+        {n.loading && !n.data ? <Loading /> : !n.data?.rows.length ? <Empty title="No items">Run a news refresh in Settings &gt; Data.</Empty> : (
           <div className="list">{n.data.rows.map((a) => (
             <div key={a.id} className="list-item">
               <div style={{ flex: 1 }}>

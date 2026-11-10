@@ -27,14 +27,14 @@ Tip: keep your CRN (from the bank), BOID and Mero Share PIN safe. Never share th
 - **After buying**: shares settle into your Demat. **When selling**, authorise the transfer in Mero Share (**EDIS**), otherwise the sale can be penalised.
 - **Costs**: broker commission (slabs), SEBON fee, DP charge on selling, and capital gains tax. See *Taxes and costs* below; Saphal Stocks includes them in every calculation.`, tryIt: { label: "Trade cost calculator", to: "/planner" } },
   { id: "ipo", title: "Applying for IPOs", level: "Beginner", body: `- Watch for issue announcements (company announcements, SEBON approvals).
-- Apply in **Mero Share → My ASBA** during the issue window. The usual minimum is **10 units**; check the prospectus for the issue's rules and quotas (general public, locals of project areas, employees, Nepalis working abroad).
+- Apply in **Mero Share > My ASBA** during the issue window. The usual minimum is **10 units**; check the prospectus for the issue's rules and quotas (general public, locals of project areas, employees, Nepalis working abroad).
 - Oversubscribed issues are allotted by **lottery**: most applicants in popular IPOs get 10 units or nothing.
 - Check results at **iporesult.cdsc.com.np**.
 - **Before applying, read**: business, use of funds, promoters, financials, and whether it's priced at par or book-built. An IPO is still an equity investment: listing-day gains are common but not guaranteed.`, tryIt: { label: "IPO alerts", to: "/alerts" } },
   { id: "statements", title: "Understanding financial statements", level: "Intermediate", body: `Listed companies publish **quarterly unaudited** and **annual audited** statements.
 
 - **Balance sheet**: what the company owns (assets) and owes (liabilities); the difference is **equity / net worth**.
-- **Profit & loss**: income, expenses and **net profit** for the period. In Nepal, quarterly figures are **cumulative year-to-date** (Q2 = six months), so Saphal Stocks annualises profit as YTD × 4 ÷ quarter.
+- **Profit & loss**: income, expenses and **net profit** for the period. In Nepal, quarterly figures are **cumulative year-to-date** (Q2 = six months), so Saphal Stocks annualises profit as YTD x 4 ÷ quarter.
 - **Key metrics** (published by the company): EPS, net worth per share, and for banks NPL, CAR, CD ratio, cost of funds, spread.
 - **Notes and auditor's report**: look for *qualified opinions*, *emphasis of matter*, related-party transactions and contingent liabilities.
 
@@ -52,7 +52,7 @@ Example: a bank with Rs. 2.5 billion Q1 profit has an annualised profit near Rs.
 Then ask: Is profit growing consistently? Is it paid out as dividends? Is the price reasonable versus earnings, book value and the sector median? What could go wrong (regulation, interest rates, a single big customer)?`, tryIt: { label: "Sector analysis", to: "/fundamental" } },
   { id: "intrinsic", title: "Calculating intrinsic value", level: "Advanced", body: `Intrinsic value is an *estimate* of what a share is worth based on future cash it can produce.
 
-- **Graham number** = √(22.5 × EPS × book value per share). A conservative ceiling for stable companies.
+- **Graham number** = √(22.5 x EPS x book value per share). A conservative ceiling for stable companies.
 - **Dividend discount model** = next year's dividend ÷ (required return − growth). Useful for steady dividend payers; very sensitive to the growth assumption.
 - **DCF**: forecast per-share cash flows, discount them at your required return, add a terminal value. Most of the value often comes from the terminal value, so small changes in assumptions move the answer a lot.
 - **Relative valuation**: compare P/E and P/B with the sector median and the company's own history.
@@ -71,13 +71,13 @@ The **Undervalued** ranking in Saphal Stocks applies exactly these filters and s
   { id: "charts", title: "Reading technical charts", level: "Intermediate", body: `- **Trend**: price above a rising 50- and 200-day average suggests an uptrend.
 - **Support/resistance**: price levels where buying or selling repeatedly appeared. More reactions, higher volume and role reversal make a level stronger. Saphal Stocks explains each level and what would break it.
 - **Momentum**: RSI above 70 is overbought, below 30 oversold (not automatic signals). MACD crossing its signal line shows momentum shifts. ADX above 25 means a strong trend.
-- **Volume** confirms moves: a breakout on 1.5× normal volume is more reliable.
+- **Volume** confirms moves: a breakout on 1.5x normal volume is more reliable.
 - **Patterns** (double bottom, triangles, flags) are only probabilities. Check how a pattern actually performed on the stock's own history.
 
 NEPSE specifics: thin trading in small stocks makes technicals noisy; bonus-share price adjustments create fake gaps (Saphal Stocks adjusts for them when the gap is visible in the data).`, tryIt: { label: "Technical analysis", to: "/technical" } },
   { id: "risk", title: "Managing risk", level: "Intermediate", body: `- **Position size**: risk a small, fixed share of capital per trade (e.g. 1%). If your stop-loss is 6% below entry and you risk Rs. 5,000, buy about Rs. 83,000 worth.
 - **Stop-loss**: decide in advance where your idea is wrong, usually just beyond support.
-- **Diversify**: several sectors, no single stock above ~20–25% of the portfolio.
+- **Diversify**: several sectors, no single stock above ~20-25% of the portfolio.
 - **Liquidity**: avoid big positions in stocks that trade only a few lakhs a day; you may not be able to sell.
 - **Leverage**: margin loans magnify losses; NEPSE has had sharp falls.
 - **Keep an emergency fund** so you never have to sell in a crash.`, tryIt: { label: "Position size calculator", to: "/planner" } },
@@ -94,11 +94,11 @@ NEPSE specifics: thin trading in small stocks makes technicals noisy; bonus-shar
 - **Treasury bills** are short-term and mainly for institutions.
 - Watch NRB and PDMO notices for issue windows; popular issues sell out quickly.
 - Good for the safe portion of a portfolio and for goals with a known date.`, tryIt: { label: "Government securities", to: "/opportunities" } },
-  { id: "tax", title: "Taxes and costs on investments in Nepal", level: "Beginner", body: `Defaults used by Saphal Stocks (editable in Settings → Fees & taxes; verify current rules with IRD/SEBON):
+  { id: "tax", title: "Taxes and costs on investments in Nepal", level: "Beginner", body: `Defaults used by Saphal Stocks (editable in Settings > Fees & taxes; verify current rules with IRD/SEBON):
 
 | Item | Rate |
 |---|---|
-| Broker commission | Slab rate on the transaction value (0.24%–0.36%), Rs. 10 minimum |
+| Broker commission | Slab rate on the transaction value (0.24%-0.36%), Rs. 10 minimum |
 | SEBON fee | 0.015% of value, buy and sell |
 | DP charge | Rs. 25 per scrip sold |
 | Capital gains tax (individuals, from FY 2083/84) | 10% if held 365 days or less; 7.5% if held longer (was 7.5% / 5% before) |

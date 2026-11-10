@@ -50,7 +50,7 @@ export default function Reports() {
               <div key={`${r.docId}:${r.page}`} className="list-item" style={{ padding: "10px 0" }}>
                 <div style={{ flex: 1 }}>
                   <div className="row"><strong className="small">{r.document}</strong><Badge>p. {r.page}</Badge>{r.symbol && <Badge tone="blue">{r.symbol}</Badge>}{r.period && <span className="tiny faint">{r.period}</span>}</div>
-                  <p className="small muted" style={{ margin: "4px 0 0" }}>{r.passage.slice(0, 420)}…</p>
+                  <p className="small muted" style={{ margin: "4px 0 0" }}>{r.passage.slice(0, 420)}...</p>
                 </div>
                 <button className="btn sm" onClick={async () => setPage(await api(`/documents/${r.docId}/pages/${r.page}`))}>Open page</button>
               </div>
@@ -61,8 +61,8 @@ export default function Reports() {
       <Card title={`Documents (${docs.data?.length ?? 0})`} flush>
         {docs.loading ? <Loading /> : (
           <DataTable rows={docs.data ?? []} empty="No documents uploaded yet" cols={[
-            { key: "title", label: "Title" }, { key: "symbol", label: "Stock", render: (d: any) => d.symbol ? <Link to={`/stocks/${d.symbol}`} className="sym">{d.symbol}</Link> : "—" },
-            { key: "kind", label: "Type" }, { key: "period", label: "Period", render: (d: any) => d.period || "—" }, { key: "pages", label: "Pages", num: true },
+            { key: "title", label: "Title" }, { key: "symbol", label: "Stock", render: (d: any) => d.symbol ? <Link to={`/stocks/${d.symbol}`} className="sym">{d.symbol}</Link> : "-" },
+            { key: "kind", label: "Type" }, { key: "period", label: "Period", render: (d: any) => d.period || "-" }, { key: "pages", label: "Pages", num: true },
             { key: "uploaded_at", label: "Uploaded", render: (d: any) => nptDate(d.uploaded_at) },
             { key: "x", label: "", render: (d: any) => <span className="row" style={{ flexWrap: "nowrap" }}>
               <button className="btn sm" onClick={() => nav(`/analyst?q=${encodeURIComponent(`Using the uploaded document "${d.title}"${d.symbol ? ` for ${d.symbol}` : ""}: what are the key takeaways, is profitability improving, and is there anything concerning (e.g. in the auditor's report)? Cite pages.`)}`)}><I.ai /> Ask AI</button>
@@ -70,7 +70,7 @@ export default function Reports() {
           ]} />
         )}
       </Card>
-      {page && <Modal title={`${page.title} · page ${page.page}`} onClose={() => setPage(null)}><pre className="small" style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font)" }}>{page.text || "(no text on this page)"}</pre></Modal>}
+      {page && <Modal title={`${page.title}, page ${page.page}`} onClose={() => setPage(null)}><pre className="small" style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font)" }}>{page.text || "(no text on this page)"}</pre></Modal>}
     </div>
   );
 }
@@ -85,13 +85,13 @@ function AuditedList() {
   const rows = r.data.rows.filter((x: any) => (!only || term || x.quarterly || x.annual || x.audited) && (!term || x.symbol.toLowerCase().includes(term) || (x.name ?? "").toLowerCase().includes(term) || (x.sector ?? "").toLowerCase().includes(term)));
   const Doc = ({ d, label }: { d: any; label: string }) => d ? <a className="btn sm" href={d.url} target="_blank" rel="noopener noreferrer" title={d.title}>{label}{d.fiscal_year ? ` ${d.fiscal_year}` : ""}{d.quarter ? ` Q${d.quarter}` : ""}{d.verified === 1 ? " ✓" : ""}</a> : null;
   return (
-    <Card title="Official company reports" sub={`Documents linked from each company's own website · ${r.data.withDocs} of ${r.data.total} companies so far`} actions={<input className="input" style={{ width: 220 }} placeholder="Search company or sector" value={q} onChange={(e) => setQ(e.target.value)} />}>
+    <Card title="Official company reports" sub={`Documents linked from each company's own website, ${r.data.withDocs} of ${r.data.total} companies so far`} actions={<input className="input" style={{ width: 220 }} placeholder="Search company or sector" value={q} onChange={(e) => setQ(e.target.value)} />}>
       <label className="row small" style={{ gap: 6, marginBottom: 8 }}><input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} /> Only companies with documents found</label>
       <div className="list">
         {rows.slice(0, term ? 400 : 80).map((x: any) => (
           <div key={x.symbol} className="doc-row">
             <div className="doc-main"><Link className="sym" to={`/stocks/${x.symbol}?tab=annual`}>{x.symbol}</Link> <span className="small">{x.name}</span>
-              <div className="tiny faint">{x.sector} · {x.status === "ok" ? `${x.counts.quarterly} quarterly · ${x.counts.annual} annual · ${x.counts.audited} audited` : x.status === "no-website" ? "no official website listed" : x.status === "unreachable" ? "website couldn't be reached" : x.status === "script-only" ? "website lists documents with scripts (open it directly)" : "website not scanned yet"}</div></div>
+              <div className="tiny faint">{x.sector}, {x.status === "ok" ? `${x.counts.quarterly} quarterly, ${x.counts.annual} annual, ${x.counts.audited} audited` : x.status === "no-website" ? "no official website listed" : x.status === "unreachable" ? "website couldn't be reached" : x.status === "script-only" ? "website lists documents with scripts (open it directly)" : "website not scanned yet"}</div></div>
             <div className="row wrap" style={{ gap: 6 }}><Doc d={x.quarterly} label="Quarterly" /><Doc d={x.annual} label="Annual report" /><Doc d={x.audited} label="Audited" />{x.website && <a className="btn sm ghost" href={x.website} target="_blank" rel="noopener noreferrer">Website</a>}</div>
           </div>
         ))}

@@ -27,7 +27,7 @@ export function candlesAt(bars: Bar[], i: number): Candle[] {
   if (bd <= r * 0.1) {
     if (lower(b) >= r * 0.6) add("Dragonfly doji", down ? "bullish" : "neutral", 1, "Open and close at the high after sellers pushed it down: buyers rejected lower prices.");
     else if (upper(b) >= r * 0.6) add("Gravestone doji", up ? "bearish" : "neutral", 1, "Open and close at the low after buyers pushed it up: sellers rejected higher prices.");
-    else add("Doji", "neutral", 1, "Open ≈ close: indecision. Matters most after a strong move.");
+    else add("Doji", "neutral", 1, "Open about close: indecision. Matters most after a strong move.");
   } else if (bd >= r * 0.9) add(bull(b) ? "Bullish marubozu" : "Bearish marubozu", bull(b) ? "bullish" : "bearish", 1, bull(b) ? "Closed at the high with no shadows: buyers controlled the whole session." : "Closed at the low with no shadows: sellers controlled the whole session.");
   else if (bd <= r * 0.3 && upper(b) > bd && lower(b) > bd) add("Spinning top", "neutral", 1, "Small body, shadows both sides: tug of war, momentum fading.");
   if (bd > r * 0.1 && lower(b) >= 2 * bd && upper(b) <= Math.max(bd * 0.5, r * 0.1)) {

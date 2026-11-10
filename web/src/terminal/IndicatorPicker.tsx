@@ -40,7 +40,7 @@ export default function IndicatorPicker({ list, onChange, onClose, editUid }: { 
             {list.length === 0 && <p className="small muted">No indicators on this chart yet.</p>}
             {list.map((x, i) => { const d = INDICATOR_MAP.get(x.id); if (!d) return null; return (
               <div key={x.uid} className={`ind-item ${edit === x.uid ? "on" : ""}`}>
-                <button className="ind-name" onClick={() => setEdit(edit === x.uid ? null : x.uid)}><strong>{d.name}</strong><span className="tiny faint">{d.overlay ? "on price" : "own panel"}{d.params.length ? ` · ${d.params.map((p) => x.params[p.key] ?? p.def).join(", ")}` : ""}{x.hidden ? " · hidden" : ""}</span></button>
+                <button className="ind-name" onClick={() => setEdit(edit === x.uid ? null : x.uid)}><strong>{d.name}</strong><span className="tiny faint">{d.overlay ? "on price" : "own panel"}{d.params.length ? `, ${d.params.map((p) => x.params[p.key] ?? p.def).join(", ")}` : ""}{x.hidden ? ", hidden" : ""}</span></button>
                 <span className="row" style={{ gap: 2 }}><button className="btn ghost sm" onClick={() => move(i, -1)} title="Move up">↑</button><button className="btn ghost sm" onClick={() => move(i, 1)} title="Move down">↓</button><button className="btn ghost sm" onClick={() => upd({ ...x, hidden: !x.hidden })}>{x.hidden ? "Show" : "Hide"}</button><button className="btn ghost sm" onClick={() => onChange(list.filter((y) => y.uid !== x.uid))}>Remove</button></span>
                 {edit === x.uid && inst && def && (
                   <div className="ind-edit">
@@ -67,11 +67,11 @@ export default function IndicatorPicker({ list, onChange, onClose, editUid }: { 
           <div className="ind-list">
             {found.map((d) => { const n = list.filter((x) => x.id === d.id).length; return (
               <button key={d.id} className="ind-item add" onClick={() => onChange([...list, newInst(d.id)])}>
-                <span><strong>{d.name}</strong> <span className="tiny faint">{d.short} · {d.group} · {d.overlay ? "on price" : "own panel"}</span><span className="tiny muted" style={{ display: "block" }}>{d.desc}</span></span>
+                <span><strong>{d.name}</strong> <span className="tiny faint">{d.short}, {d.group}, {d.overlay ? "on price" : "own panel"}</span><span className="tiny muted" style={{ display: "block" }}>{d.desc}</span></span>
                 <span className="btn sm">{n ? `Add again (${n})` : "Add"}</span>
               </button>
             ); })}
-            {found.length === 0 && <p className="small muted">No indicator matches “{q}”.</p>}
+            {found.length === 0 && <p className="small muted">No indicator matches '{q}'.</p>}
           </div>
         )}
       </div>

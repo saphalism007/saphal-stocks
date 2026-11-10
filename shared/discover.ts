@@ -5,7 +5,7 @@ export interface MoodInputs { advancePct: number | null; above50Pct: number | nu
 const clamp = (x: number) => Math.max(0, Math.min(100, x));
 const lin = (x: number, lo: number, hi: number) => clamp(((x - lo) / (hi - lo)) * 100);
 
-/** NEPSE mood 0–100 (0 extreme fear, 100 extreme greed): the average of six market readings, each scaled 0–100. */
+/** NEPSE mood 0-100 (0 extreme fear, 100 extreme greed): the average of six market readings, each scaled 0-100. */
 export function moodScore(m: MoodInputs) {
   const parts = [
     { key: "breadth", label: "Rising vs falling stocks (10 days)", value: m.advancePct, score: m.advancePct == null ? null : lin(m.advancePct, 30, 70) },
@@ -20,13 +20,13 @@ export function moodScore(m: MoodInputs) {
   return { score, parts };
 }
 export const moodLabel = (s: number) => (s < 25 ? "Extreme fear" : s < 45 ? "Fear" : s <= 55 ? "Neutral" : s <= 75 ? "Greed" : "Extreme greed");
-export const moodAdvice = (s: number) => s < 25 ? "Most investors are scared. Historically, extreme fear is when patient long-term buyers find good prices — buy slowly, only strong companies."
+export const moodAdvice = (s: number) => s < 25 ? "Most investors are scared. Historically, extreme fear is when patient long-term buyers find good prices, buy slowly, only strong companies."
   : s < 45 ? "The market is cautious. Good time to build positions gradually in quality stocks; keep stops."
   : s <= 55 ? "No strong emotion either way. Follow your plan and the individual stock signals."
   : s <= 75 ? "Optimism is high. Avoid chasing; take partial profits on big winners and tighten stops."
   : "Euphoria. Risk of a sharp fall is high: don't buy on tips, book profits, keep cash ready.";
 
-/** Six-axis scorecard (0–100 each) like a "snowflake". */
+/** Six-axis scorecard (0-100 each) like a "snowflake". */
 export function scorecard(f: Pick<StockFactors, "valuationScore" | "growthScore" | "profitabilityScore" | "healthScore" | "dividendScore" | "technicalScore">) {
   return [
     { key: "value", label: "Value", score: f.valuationScore },

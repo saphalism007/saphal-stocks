@@ -59,10 +59,10 @@ export default function Market() {
           {m.trend && indexId === 12 && <p className="small muted" style={{ marginTop: 8 }}><Badge tone={m.trend.label === "Uptrend" ? "up" : m.trend.label === "Downtrend" ? "down" : "warn"}>{m.trend.label}</Badge> {m.trend.notes.join(" ")}</p>}
         </Card>
         <div className="col">
-          <Stat label="Turnover" value={compact(m.totals.turnover)} sub={`${int(m.totals.volume)} shares · ${int(m.totals.trades)} transactions`} />
+          <Stat label="Turnover" value={compact(m.totals.turnover)} sub={`${int(m.totals.volume)} shares, ${int(m.totals.trades)} transactions`} />
           <Stat label="Market capitalisation" value={compact(m.marketCap)} sub={<span title={m.marketCapNote}>Listed equities (approx.)</span>} />
-          <Stat label="Advancers / decliners" value={<><span className="up">{m.counts.advancers}</span> / <span className="down">{m.counts.decliners}</span></>} sub={`${m.counts.unchanged} unchanged · ${m.counts.traded} traded`} />
-          <Stat label="Sentiment (breadth)" value={<span style={{ fontSize: 17 }}>{m.sentiment?.label ?? "—"}</span>} sub={m.sentiment ? `${Math.round(m.sentiment.breadthRatio * 100)}% of movers advanced` : ""} />
+          <Stat label="Advancers / decliners" value={<><span className="up">{m.counts.advancers}</span> / <span className="down">{m.counts.decliners}</span></>} sub={`${m.counts.unchanged} unchanged, ${m.counts.traded} traded`} />
+          <Stat label="Sentiment (breadth)" value={<span style={{ fontSize: 17 }}>{m.sentiment?.label ?? "-"}</span>} sub={m.sentiment ? `${Math.round(m.sentiment.breadthRatio * 100)}% of movers advanced` : ""} />
           <Stat label="52-week highs / lows" value={<><span className="up">{m.highs52Count}</span> / <span className="down">{m.lows52Count}</span></>} sub="Stocks closing at their 52-week extreme" />
         </div>
       </div>
@@ -104,7 +104,7 @@ export default function Market() {
         {rotation.data ? <DataTable rows={rotation.data.rows} onRow={(r) => setIndexId(r.indexId)} initialSort={{ key: "relative3m", dir: -1 }} cols={[
           { key: "name", label: "Sector index" }, { key: "last", label: "Last", num: true, render: (r) => num(r.last) },
           ...(["w1", "m1", "m3", "m6", "y1"] as const).map((k) => ({ key: k, label: { w1: "1W", m1: "1M", m3: "3M", m6: "6M", y1: "1Y" }[k], num: true, render: (r: typeof rotation.data.rows[number]) => <span className={tone(r[k])}>{pct(r[k], 1)}</span> })),
-          { key: "relative3m", label: "vs NEPSE (3M)", num: true, render: (r) => <span className={tone(r.relative3m)} style={{ fontWeight: 600 }}>{r.relative3m == null ? "—" : `${r.relative3m > 0 ? "+" : ""}${num(r.relative3m, 1)} pts`}</span> },
+          { key: "relative3m", label: "vs NEPSE (3M)", num: true, render: (r) => <span className={tone(r.relative3m)} style={{ fontWeight: 600 }}>{r.relative3m == null ? "-" : `${r.relative3m > 0 ? "+" : ""}${num(r.relative3m, 1)} pts`}</span> },
           { key: "fromHigh", label: "From 52W high", num: true, render: (r) => pct(r.fromHigh, 1) },
         ]} /> : <Loading />}
       </Card>
@@ -114,7 +114,7 @@ export default function Market() {
         </Card>
         <Card title="Exchange rates" flush sub={fx.data?.latest ? `NRB, ${fx.data.latest}` : undefined}>
           {fx.data && <DataTable rows={fx.data.rows} cols={[
-            { key: "currency", label: "Currency", render: (r) => <><strong>{r.currency}</strong>{r.unit !== 1 && <span className="tiny faint"> ×{r.unit}</span>}</> },
+            { key: "currency", label: "Currency", render: (r) => <><strong>{r.currency}</strong>{r.unit !== 1 && <span className="tiny faint"> x{r.unit}</span>}</> },
             { key: "sell", label: "Sell (Rs.)", num: true, render: (r) => num(r.sell) },
             { key: "change1m", label: "1M", num: true, render: (r) => pct(r.change1m, 1) },
             { key: "change1y", label: "1Y", num: true, render: (r) => pct(r.change1y, 1) },

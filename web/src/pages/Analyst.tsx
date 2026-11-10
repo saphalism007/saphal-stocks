@@ -81,7 +81,7 @@ export default function Analyst() {
           <button className="btn" onClick={() => { setConvId(null); setMsgs([]); setErr(null); }}><I.plus /> New chat</button>
         </div>
       </div>
-      {status.data && !status.data.available && <Notice id="ai-basic-mode"><strong>Basic mode.</strong> You can still ask questions: answers come straight from the app's data as tables and reports. For full conversation (follow-up questions, explanations in plain words, reading notices), connect Claude once on this device: <Link to="/settings?tab=ai">Settings → AI</Link> (takes 2 minutes).</Notice>}
+      {status.data && !status.data.available && <Notice id="ai-basic-mode"><strong>Basic mode.</strong> You can still ask questions: answers come straight from the app's data as tables and reports. For full conversation (follow-up questions, explanations in plain words, reading notices), connect Claude once on this device: <Link to="/settings?tab=ai">Settings &gt; AI</Link> (takes 2 minutes).</Notice>}
       <div className="chat">
         <Card title="Conversations" flush>
           <div className="list" style={{ maxHeight: "calc(100vh - 260px)", overflowY: "auto" }}>
@@ -97,21 +97,21 @@ export default function Analyst() {
           <div className="chat-log" ref={logRef}>
             {msgs.length === 0 && (
               <div className="col" style={{ margin: "auto", maxWidth: 760, textAlign: "center", gap: 14 }}>
-                <div style={{ fontSize: 34 }}>✦</div>
+                <div style={{ fontSize: 34 }}></div>
                 <h2>What would you like to analyse?</h2>
                 <div className="ai-suggest">{SUGGESTIONS.map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}</div>
               </div>
             )}
             {msgs.map((m, i) => (
               <div key={i} className={`msg ${m.role === "user" ? "user" : "ai"}`}>
-                {m.role === "user" ? m.text : <><Markdown text={m.text} />{m.tools && m.tools.length > 0 && <div className="tiny faint" style={{ marginTop: 8 }}>Data used: {m.tools.map((t) => TOOL_LABELS[t] ?? t).join(" · ")}</div>}</>}
+                {m.role === "user" ? m.text : <><Markdown text={m.text} />{m.tools && m.tools.length > 0 && <div className="tiny faint" style={{ marginTop: 8 }}>Data used: {m.tools.map((t) => TOOL_LABELS[t] ?? t).join(", ")}</div>}</>}
               </div>
             ))}
-            {busy && <div className="msg ai"><div className="row small muted"><span className="spinner" /> {activity[activity.length - 1] ?? "Working"}…</div>{activity.length > 1 && <div className="tiny faint" style={{ marginTop: 6 }}>{activity.slice(0, -1).join(" → ")}</div>}</div>}
+            {busy && <div className="msg ai"><div className="row small muted"><span className="spinner" /> {activity[activity.length - 1] ?? "Working"}...</div>{activity.length > 1 && <div className="tiny faint" style={{ marginTop: 6 }}>{activity.slice(0, -1).join(" ")}</div>}</div>}
             {err && <Notice tone="warn">{err}</Notice>}
           </div>
           <form className="row" style={{ padding: 12, borderTop: "1px solid var(--border)", flexWrap: "nowrap" }} onSubmit={(e) => { e.preventDefault(); void send(input); }}>
-            <textarea className="input" style={{ flex: 1, minHeight: 44, maxHeight: 160 }} rows={1} value={input} placeholder="Ask about a stock, a sector, your portfolio, or your financial plan…" onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(input); } }} />
+            <textarea className="input" style={{ flex: 1, minHeight: 44, maxHeight: 160 }} rows={1} value={input} placeholder="Ask about a stock, a sector, your portfolio, or your financial plan..." onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(input); } }} />
             <button className="btn primary" disabled={busy || !input.trim()} aria-label="Send"><I.send /></button>
           </form>
           <div className="tiny faint" style={{ padding: "0 14px 10px" }}>Decision support, not licensed financial advice. The analyst separates facts, calculations, assumptions and predictions, and cites data dates.</div>

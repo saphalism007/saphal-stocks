@@ -96,7 +96,7 @@ export function today(userId: number) {
   for (const s of watch.slice(0, 40)) {
     const a = analysisFor(s); if (!a || a.price == null) continue;
     const zl = a.plan.entryLow ?? a.plan.bestZone?.low, zh = a.plan.entryHigh ?? a.plan.bestZone?.high;
-    if (/BUY/.test(a.verdict) && zl != null && zh != null && a.price <= zh * 1.01) items.push({ level: "act", title: `${s}: in the buy zone`, text: `${a.verdict} · buy Rs. ${zl}–${zh}, stop Rs. ${a.plan.stop ?? "—"}, target Rs. ${a.plan.targets[0]?.price ?? "—"}.`, to: `/terminal/${s}` });
+    if (/BUY/.test(a.verdict) && zl != null && zh != null && a.price <= zh * 1.01) items.push({ level: "act", title: `${s}: in the buy zone`, text: `${a.verdict}, buy Rs. ${zl}-${zh}, stop Rs. ${a.plan.stop ?? "-"}, target Rs. ${a.plan.targets[0]?.price ?? "-"}.`, to: `/terminal/${s}` });
     else if (a.plan.breakout && a.price > a.plan.breakout.price) items.push({ level: "info", title: `${s}: broke above Rs. ${a.plan.breakout.price}`, text: "Check the volume before buying a breakout.", to: `/terminal/${s}` });
   }
   const cal = calendar(userId);
@@ -107,7 +107,7 @@ export function today(userId: number) {
   for (const tr of readVault<JournalTrade>(userId, "journal").map((r) => r.data).filter((x) => !(x.exit != null && x.exit > 0))) {
     const q = M.quote(tr.symbol), c = (q?.close as number | undefined) ?? null; if (c == null) continue;
     if (tr.stop > 0 && c < tr.stop) items.push({ level: "urgent", title: `${tr.symbol}: journal trade hit its stop`, text: `Close Rs. ${c} is below your stop Rs. ${tr.stop}. Sell and log the exit.`, to: "/journal" });
-    else if (tr.target > 0 && c >= tr.target) items.push({ level: "act", title: `${tr.symbol}: journal trade reached its target`, text: `Close Rs. ${c} ≥ target Rs. ${tr.target}. Take profit as planned and log it.`, to: "/journal" });
+    else if (tr.target > 0 && c >= tr.target) items.push({ level: "act", title: `${tr.symbol}: journal trade reached its target`, text: `Close Rs. ${c} at least target Rs. ${tr.target}. Take profit as planned and log it.`, to: "/journal" });
   }
   const unread = get<{ n: number }>("SELECT COUNT(*) n FROM notifications WHERE user_id = ? AND read = 0", userId)?.n ?? 0;
   if (unread) items.push({ level: "info", title: `${unread} unread alert${unread === 1 ? "" : "s"}`, text: "Price and signal alerts that fired.", to: "/alerts" });

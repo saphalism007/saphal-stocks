@@ -18,7 +18,7 @@ export function AuditViewer({ symbol, showCompanyLink = false }: { symbol: strin
   const d = a.data;
   if (!d.docs.length) return (
     <Empty title="No audited statement stored for this company yet">
-      Companies publish audited results before their AGM (usually October–January for the year ending mid-July). {d.website ? <><a href={d.website} target="_blank" rel="noopener noreferrer">Company website</a> has the full annual report.</> : null}
+      Companies publish audited results before their AGM (usually October-January for the year ending mid-July). {d.website ? <><a href={d.website} target="_blank" rel="noopener noreferrer">Company website</a> has the full annual report.</> : null}
     </Empty>
   );
   const doc = d.docs[Math.min(i, d.docs.length - 1)];
@@ -27,7 +27,7 @@ export function AuditViewer({ symbol, showCompanyLink = false }: { symbol: strin
       <div className="row between">
         <div>
           <strong>{doc.fiscal_year ? `FY ${doc.fiscal_year}` : "Audited statement"}</strong> <span className="small muted">published {nptDate(doc.published)}</span>
-          {showCompanyLink && <div className="small"><Link to={`/stocks/${d.symbol}`}>{d.symbol} · {d.name}</Link></div>}
+          {showCompanyLink && <div className="small"><Link to={`/stocks/${d.symbol}`}>{d.symbol}, {d.name}</Link></div>}
         </div>
         {d.docs.length > 1 && <Seg value={String(i)} onChange={(k) => setI(Number(k))} options={d.docs.slice(0, 4).map((x, k) => ({ key: String(k), label: x.fiscal_year ?? nptDate(x.published) }))} />}
       </div>

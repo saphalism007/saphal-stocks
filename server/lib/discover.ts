@@ -87,7 +87,7 @@ export function stockCard(symbol: string) {
 
 import { RANK_STRATEGIES, rankStocks, type RankedRow } from "../../shared/ranking.ts";
 /** Best stocks to invest in (fundamentals, "Long-term investment" ranking) and to trade (technicals, "Swing trading"
- *  ranking), overall and by sector, plus the ones strong on both. Same scores as Stock Analysis → Rankings. */
+ *  ranking), overall and by sector, plus the ones strong on both. Same scores as Stock Analysis > Rankings. */
 export function picks() {
   const all = M.allFactors().filter((f) => f.price != null);
   const inv = RANK_STRATEGIES.find((s) => s.key === "longterm")!, trd = RANK_STRATEGIES.find((s) => s.key === "swing")!, mom = RANK_STRATEGIES.find((s) => s.key === "momentum")!;
@@ -106,7 +106,7 @@ export function picks() {
 
 // ---------- Brokers and mutual funds directory ----------
 const MANAGER_ALIASES: Record<string, string[]> = { "nibl ace": ["nibl"], "machhapuchchhre": ["mbl"], "global ime": ["gbime", "gib", "global ime"], "nic asia": ["nic asia", "nica"], "muktinath": ["mnmf"] };
-/** Matches a fund to its manager by the brand its name starts with (e.g. "NIBL Sahabhagita Fund" → NIBL Ace Capital). */
+/** Matches a fund to its manager by the brand its name starts with (e.g. "NIBL Sahabhagita Fund" > NIBL Ace Capital). */
 export function managerFor(fundName: string, managers: { name: string }[]) {
   const f = fundName.toLowerCase();
   let best: { name: string; len: number } | null = null;

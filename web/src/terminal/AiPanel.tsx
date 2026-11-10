@@ -14,7 +14,7 @@ type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 export type PanelTab = "ai" | "ask" | "plan" | "scan";
 const VCLASS: Record<string, string> = { "STRONG BUY": "v-sbuy", BUY: "v-buy", WAIT: "v-wait", HOLD: "v-hold", SELL: "v-sell", "STRONG SELL": "v-ssell", "NO SIGNAL": "v-none" };
 const dot = (t: Tone) => <span className={`tdot ${t}`} />;
-const pctS = (x: number | null | undefined) => (x == null ? "—" : `${x > 0 ? "+" : ""}${x.toFixed(2)}%`);
+const pctS = (x: number | null | undefined) => (x == null ? "-" : `${x > 0 ? "+" : ""}${x.toFixed(2)}%`);
 
 export default function AiPanel({ symbol, analysis, loading, error, bars, tab, setTab, onSymbol, priceInfo }: { symbol: string; analysis: ChartAnalysis | null; loading: boolean; error: string | null; bars: Bar[] | null; tab: PanelTab; setTab: (t: PanelTab) => void; onSymbol: (s: string) => void; priceInfo: Any }) {
   return (
@@ -54,22 +54,22 @@ function Analysis({ a, priceInfo }: { a: ChartAnalysis; priceInfo: Any }) {
   return (
     <div className="col" style={{ gap: 12 }}>
       <div className={`verdict ${VCLASS[a.verdict]}`}>
-        <div className="row between"><span className="v-label">{a.verdict}</span><span className="small">Confidence <strong>{a.confidence}</strong>/100 · {a.confidenceLabel}</span></div>
+        <div className="row between"><span className="v-label">{a.verdict}</span><span className="small">Confidence <strong>{a.confidence}</strong>/100, {a.confidenceLabel}</span></div>
         <div className="conf"><i style={{ width: `${a.confidence}%` }} /></div>
         <p className="small" style={{ margin: "6px 0 0" }}>{a.headline}</p>
       </div>
       {a.orders && <Orders o={a.orders} />}
-      <div className="tiny faint">Analysis of {a.symbol} on the close of {a.asOf ? nptDate(a.asOf) : "—"} · {priceInfo?.kind === "delayed" ? "delayed intraday prices" : "end-of-day prices"} · source: NEPSE prices via ShareSansar, stored statements. {a.dataNotes.join(" ")}</div>
+      <div className="tiny faint">Analysis of {a.symbol} on the close of {a.asOf ? nptDate(a.asOf) : "-"}, {priceInfo?.kind === "delayed" ? "delayed intraday prices" : "end-of-day prices"}, source: NEPSE prices via ShareSansar, stored statements. {a.dataNotes.join(" ")}</div>
       <div className="plan-grid ai">
         <div><span>Market price</span><strong>{rs(a.price)}</strong><em className={a.changePct != null && a.changePct >= 0 ? "up" : "down"}>{pctS(a.changePct)}</em></div>
-        <div><span>Entry range</span><strong>{p.entryLow != null ? `${num(p.entryLow)}–${num(p.entryHigh)}` : "—"}</strong><em>{p.buyNow === "now" ? "in range now" : p.waitFor ? "wait" : ""}</em></div>
-        <div><span>Best buying zone</span><strong>{p.bestZone ? `${num(p.bestZone.low)}–${num(p.bestZone.high)}` : "—"}</strong></div>
-        <div><span>Breakout entry</span><strong>{p.breakout ? `> ${num(p.breakout.price)}` : "—"}</strong><em>close on volume</em></div>
-        <div><span>Stop-loss</span><strong className="down">{p.stop != null ? num(p.stop) : "—"}</strong><em>{p.stop != null && a.price ? pctS(((p.stop - a.price) / a.price) * 100) : ""}</em></div>
-        {[0, 1, 2].map((i) => <div key={i}><span>Target {i + 1}</span><strong className="up">{p.targets[i] ? num(p.targets[i].price) : "—"}</strong><em>{p.targets[i] ? pctS(p.targets[i].pct) : ""}</em></div>)}
-        <div><span>Risk : reward</span><strong>{p.riskReward ?? "—"}</strong><em>{p.netRiskReward != null ? `${p.netRiskReward} after costs` : ""}</em></div>
-        <div><span>Holding period</span><strong>{p.holding ?? "—"}</strong></div>
-        <div><span>Review by</span><strong>{p.reviewBy ? nptDate(p.reviewBy) : "—"}</strong></div>
+        <div><span>Entry range</span><strong>{p.entryLow != null ? `${num(p.entryLow)}-${num(p.entryHigh)}` : "-"}</strong><em>{p.buyNow === "now" ? "in range now" : p.waitFor ? "wait" : ""}</em></div>
+        <div><span>Best buying zone</span><strong>{p.bestZone ? `${num(p.bestZone.low)}-${num(p.bestZone.high)}` : "-"}</strong></div>
+        <div><span>Breakout entry</span><strong>{p.breakout ? `> ${num(p.breakout.price)}` : "-"}</strong><em>close on volume</em></div>
+        <div><span>Stop-loss</span><strong className="down">{p.stop != null ? num(p.stop) : "-"}</strong><em>{p.stop != null && a.price ? pctS(((p.stop - a.price) / a.price) * 100) : ""}</em></div>
+        {[0, 1, 2].map((i) => <div key={i}><span>Target {i + 1}</span><strong className="up">{p.targets[i] ? num(p.targets[i].price) : "-"}</strong><em>{p.targets[i] ? pctS(p.targets[i].pct) : ""}</em></div>)}
+        <div><span>Risk : reward</span><strong>{p.riskReward ?? "-"}</strong><em>{p.netRiskReward != null ? `${p.netRiskReward} after costs` : ""}</em></div>
+        <div><span>Holding period</span><strong>{p.holding ?? "-"}</strong></div>
+        <div><span>Review by</span><strong>{p.reviewBy ? nptDate(p.reviewBy) : "-"}</strong></div>
       </div>
       {p.waitFor && <Notice>Wait for {p.waitFor}.</Notice>}
       {p.bestZone && <p className="tiny muted" style={{ margin: 0 }}><strong>Best zone:</strong> {p.bestZone.why} {p.breakout ? <><strong>Breakout:</strong> {p.breakout.why}</> : null} {p.stopWhy ? <><strong>Stop:</strong> {p.stopWhy}</> : null}</p>}
@@ -80,7 +80,7 @@ function Analysis({ a, priceInfo }: { a: ChartAnalysis; priceInfo: Any }) {
         <div className="table-scroll"><table className="t small"><thead><tr><th>Bought</th><th className="num">Price</th><th>Sold</th><th className="num">Price</th><th className="num">Result</th></tr></thead>
           <tbody>{[...a.signals].reverse().slice(0, 12).map((g) => <tr key={g.date}><td>{nptDate(g.entryDate)}</td><td className="num">{num(g.entry)}</td><td>{nptDate(g.exitDate)} <span className="tiny faint">{g.outcome === "target" ? "target" : g.outcome === "stop" ? "stop-loss" : "time limit"}</span></td><td className="num">{num(g.exit)}</td><td className={`num ${g.netPct >= 0 ? "up" : "down"}`}>{pctS(g.netPct)}</td></tr>)}</tbody></table></div>
       </Sec>}
-      <Sec title="Why — the evidence">
+      <Sec title="Why, the evidence">
         {a.reasons.map((r, i) => <div key={i} className="reason">{dot(r.tone)}<div><strong>{r.topic}</strong><span>{r.text}</span></div></div>)}
       </Sec>
       <Sec title="Support & resistance (drawn on the chart)">
@@ -91,7 +91,7 @@ function Analysis({ a, priceInfo }: { a: ChartAnalysis; priceInfo: Any }) {
               <td className="num mono">{num(l.price)}</td><td className="num tiny">{a.price ? pctS(((l.price - a.price) / a.price) * 100) : ""}</td>
             </tr>
           ))}
-          {a.zones.map((z, i) => <tr key={`z${i}`} onClick={() => setOpen(open === `z${i}` ? null : `z${i}`)} style={{ cursor: "pointer" }}><td><span className={`tdot ${z.kind === "demand" ? "bull" : "bear"}`} /> {z.kind === "demand" ? "Demand" : "Supply"} zone{z.fresh ? " (fresh)" : ""}{open === `z${i}` && <div className="tiny muted" style={{ whiteSpace: "normal" }}>{z.why}</div>}</td><td className="num mono" colSpan={2}>{num(z.low)}–{num(z.high)}</td></tr>)}
+          {a.zones.map((z, i) => <tr key={`z${i}`} onClick={() => setOpen(open === `z${i}` ? null : `z${i}`)} style={{ cursor: "pointer" }}><td><span className={`tdot ${z.kind === "demand" ? "bull" : "bear"}`} /> {z.kind === "demand" ? "Demand" : "Supply"} zone{z.fresh ? " (fresh)" : ""}{open === `z${i}` && <div className="tiny muted" style={{ whiteSpace: "normal" }}>{z.why}</div>}</td><td className="num mono" colSpan={2}>{num(z.low)}-{num(z.high)}</td></tr>)}
         </tbody></table>
         <p className="tiny faint">Tap a row to see why the level matters and how it was found.</p>
       </Sec>
@@ -100,14 +100,14 @@ function Analysis({ a, priceInfo }: { a: ChartAnalysis; priceInfo: Any }) {
           <div key={s.key} className={`strat ${s.tone}`}>
             <div className="row between"><strong>{s.title}</strong><span className="tiny faint">{s.horizon}</span></div>
             <div className="s-stance">{s.stance}</div>
-            {s.available && (s.entryLow != null || s.stop != null) && <div className="tiny mono">{s.entryLow != null ? `Entry ${num(s.entryLow)}–${num(s.entryHigh)}` : ""}{s.stop != null ? ` · Stop ${num(s.stop)}` : ""}{s.targets.length ? ` · T ${s.targets.map((t) => num(t)).join(" / ")}` : ""}{s.netRR != null ? ` · net R:R ${s.netRR}` : ""}</div>}
+            {s.available && (s.entryLow != null || s.stop != null) && <div className="tiny mono">{s.entryLow != null ? `Entry ${num(s.entryLow)}-${num(s.entryHigh)}` : ""}{s.stop != null ? `, Stop ${num(s.stop)}` : ""}{s.targets.length ? `, T ${s.targets.map((t) => num(t)).join(" / ")}` : ""}{s.netRR != null ? `, net R:R ${s.netRR}` : ""}</div>}
             <ul className="tiny">{s.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
           </div>
         ))}</div>
       </Sec>
       <Sec title="Suitability">
         <div className="assess">{([["Short-term trading", a.assessments.short], ["Medium-term (months)", a.assessments.medium], ["Long-term investing", a.assessments.long]] as const).map(([t, s]) => (
-          <div key={t}><span className="tiny faint">{t}</span><Badge tone={s.label === "Suitable" ? "up" : s.label === "Not suitable" ? "down" : s.label === "Mixed" ? "warn" : ""}>{s.label}{s.score != null ? ` · ${s.score}` : ""}</Badge><ul className="tiny">{s.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
+          <div key={t}><span className="tiny faint">{t}</span><Badge tone={s.label === "Suitable" ? "up" : s.label === "Not suitable" ? "down" : s.label === "Mixed" ? "warn" : ""}>{s.label}{s.score != null ? `, ${s.score}` : ""}</Badge><ul className="tiny">{s.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
         ))}</div>
       </Sec>
       {a.events.length > 0 && <Sec title="Recent signals & patterns">{a.events.slice(0, 12).map((e, i) => <div key={i} className="reason">{dot(e.tone)}<div><span className="tiny faint">{e.date}</span><span>{e.text}</span></div></div>)}</Sec>}
@@ -116,7 +116,7 @@ function Analysis({ a, priceInfo }: { a: ChartAnalysis; priceInfo: Any }) {
         <div className="small"><strong>Invalidation:</strong><ul>{a.invalidation.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
       </Sec>
       {(a.history || a.setupHistory) && <Sec title="How reliable has this been?">
-        {a.history && <p className="small">This stock's past BUY signals (replayed without hindsight, after costs): <strong>{a.history.trades}</strong> trades, <strong>{a.history.winRatePct ?? "—"}%</strong> profitable, average <strong>{pctS(a.history.avgNetPct)}</strong>.</p>}
+        {a.history && <p className="small">This stock's past BUY signals (replayed without hindsight, after costs): <strong>{a.history.trades}</strong> trades, <strong>{a.history.winRatePct ?? "-"}%</strong> profitable, average <strong>{pctS(a.history.avgNetPct)}</strong>.</p>}
         {a.setupHistory && a.setupHistory.trades > 0 && <p className="small">This setup type across NEPSE: {a.setupHistory.trades} trades, {a.setupHistory.winRatePct}% profitable, average {pctS(a.setupHistory.avgNetPct)}.</p>}
       </Sec>}
       <p className="tiny faint">Rules-based analysis of stored prices and statements, not a prediction or licensed investment advice. Check the chart yourself and only risk what you can afford to lose.</p>
@@ -150,12 +150,12 @@ function Ask({ a }: { a: ChartAnalysis }) {
       {log.map((m, i) => (
         <div key={i} className="qa">
           <div className="qa-q">{m.q}</div>
-          <div className="qa-a"><Markdown text={m.a} /><div className="tiny faint">{m.src === "ai" ? "Answered by Claude from this chart's analysis" : m.src === "rules" ? "Answered by the built-in chart analyst" : ""}{m.note ? ` · ${m.note}` : ""}</div></div>
+          <div className="qa-a"><Markdown text={m.a} /><div className="tiny faint">{m.src === "ai" ? "Answered by Claude from this chart's analysis" : m.src === "rules" ? "Answered by the built-in chart analyst" : ""}{m.note ? `, ${m.note}` : ""}</div></div>
         </div>
       ))}
       {busy && <Loading label="Reading the chart" />}
       <div ref={end} />
-      <form className="row" onSubmit={(e) => { e.preventDefault(); ask(q); }}><input className="input" style={{ flex: 1 }} placeholder={`Ask about ${a.symbol}'s chart…`} value={q} onChange={(e) => setQ(e.target.value)} maxLength={1000} /><button className="btn primary" disabled={busy || !q.trim()}>Ask</button></form>
+      <form className="row" onSubmit={(e) => { e.preventDefault(); ask(q); }}><input className="input" style={{ flex: 1 }} placeholder={`Ask about ${a.symbol}'s chart...`} value={q} onChange={(e) => setQ(e.target.value)} maxLength={1000} /><button className="btn primary" disabled={busy || !q.trim()}>Ask</button></form>
     </div>
   );
 }
@@ -197,7 +197,7 @@ function Plan({ a, bars }: { a: ChartAnalysis; bars: Bar[] | null }) {
     const paper = (ports.data ?? []).find((x: Any) => x.kind === "paper");
     if (!paper || !qty) { setMsg({ t: "No paper-trading portfolio found (create one under My Portfolio).", warn: true }); return; }
     try {
-      await api(`/portfolios/${paper.id}/transactions`, { body: { symbol: a.symbol, type: "buy", date: todayNpt(), quantity: qty.q, price: qty.e, notes: `Paper trade from the Chart Terminal AI plan (${a.verdict}); stop ${p.stop ?? "—"}, T1 ${p.targets[0]?.price ?? "—"}` } });
+      await api(`/portfolios/${paper.id}/transactions`, { body: { symbol: a.symbol, type: "buy", date: todayNpt(), quantity: qty.q, price: qty.e, notes: `Paper trade from the Chart Terminal AI plan (${a.verdict}); stop ${p.stop ?? "-"}, T1 ${p.targets[0]?.price ?? "-"}` } });
       if (p.stop != null) await api("/alerts", { body: { type: "price_below", symbol: a.symbol, params: { price: p.stop }, note: "Paper trade stop-loss" } });
       if (p.targets[0]) await api("/alerts", { body: { type: "price_above", symbol: a.symbol, params: { price: p.targets[0].price }, note: "Paper trade target 1" } });
       add(true);
@@ -222,10 +222,10 @@ function Plan({ a, bars }: { a: ChartAnalysis; bars: Bar[] | null }) {
         <button className="btn" onClick={alerts}>Set alerts</button>
       </div>
       {msg && <Notice tone={msg.warn ? "warn" : "info"}>{msg.t}</Notice>}
-      <section className="ai-sec"><h4>Saved plans ({plans.length}){closed.length ? ` · ${hits}/${closed.length} hit target 1 first` : ""}</h4>
+      <section className="ai-sec"><h4>Saved plans ({plans.length}){closed.length ? `, ${hits}/${closed.length} hit target 1 first` : ""}</h4>
         {tracked.length === 0 ? <p className="tiny faint">Saved plans are tracked against real prices after the day you save them: entry reached, target or stop hit, and profit or loss after fees.</p> :
           <table className="t small"><thead><tr><th>Stock</th><th>Plan</th><th>Status</th><th className="num">Net P/L</th><th /></tr></thead><tbody>
-            {tracked.map((t) => <tr key={t.id}><td><strong>{t.symbol}</strong>{t.paper ? <span className="tiny faint"> paper</span> : null}<div className="tiny faint">{t.created} · {t.verdict}</div></td><td className="tiny mono">{num(t.entryLow)}–{num(t.entryHigh)}<br />SL {num(t.stop)} · T1 {t.targets[0] ? num(t.targets[0]) : "—"}</td><td className="tiny">{t.status ?? "Open the chart to update"}</td><td className={`num ${(t.result ?? 0) >= 0 ? "up" : "down"}`}>{t.result != null ? rs(t.result, 0) : "—"}</td><td><button className="btn ghost sm" onClick={() => save(plans.filter((x) => x.id !== t.id))} title="Delete">✕</button></td></tr>)}
+            {tracked.map((t) => <tr key={t.id}><td><strong>{t.symbol}</strong>{t.paper ? <span className="tiny faint"> paper</span> : null}<div className="tiny faint">{t.created}, {t.verdict}</div></td><td className="tiny mono">{num(t.entryLow)}-{num(t.entryHigh)}<br />SL {num(t.stop)}, T1 {t.targets[0] ? num(t.targets[0]) : "-"}</td><td className="tiny">{t.status ?? "Open the chart to update"}</td><td className={`num ${(t.result ?? 0) >= 0 ? "up" : "down"}`}>{t.result != null ? rs(t.result, 0) : "-"}</td><td><button className="btn ghost sm" onClick={() => save(plans.filter((x) => x.id !== t.id))} title="Delete">✕</button></td></tr>)}
           </tbody></table>}
         <p className="tiny faint">Tracking uses daily highs and lows (first of stop or target 1 to be touched; if both on one day, the stop is assumed). Quantity 0 = shown per 100 shares. Plans are saved on this device.</p>
       </section>
@@ -243,15 +243,15 @@ function Scanner({ onSymbol, current }: { onSymbol: (s: string) => void; current
   return (
     <div className="col" style={{ gap: 8 }}>
       <div className="chips">{CATS.map(([k, l]) => <button key={k} className={`chip ${cat === k ? "on" : ""}`} onClick={() => setCat(k)}>{l} ({s.data!.rows.filter((r) => r.tags.includes(k)).length})</button>)}</div>
-      <p className="tiny faint" style={{ margin: 0 }}>Liquid NEPSE stocks (Rs. 10 lakh+ daily turnover) scanned on the close of {s.data.asOf ? nptDate(s.data.asOf) : "—"}. Tap one to open its chart.</p>
+      <p className="tiny faint" style={{ margin: 0 }}>Liquid NEPSE stocks (Rs. 10 lakh+ daily turnover) scanned on the close of {s.data.asOf ? nptDate(s.data.asOf) : "-"}. Tap one to open its chart.</p>
       {rows.length === 0 ? <p className="small muted">No stock in this list today.</p> : rows.map((r) => (
         <button key={r.symbol} className={`scan-row ${r.symbol === current ? "on" : ""}`} onClick={() => onSymbol(r.symbol)}>
           <div className="row between"><span><strong>{r.symbol}</strong> <span className="tiny faint">{r.sector}</span></span><span className="mono small">{num(r.close)} <span className={(r.changePct ?? 0) >= 0 ? "up" : "down"}>{pctS(r.changePct)}</span></span></div>
-          <div className="row between tiny"><span className={`vchip ${VCLASS[r.verdict]}`}>{r.verdict}</span><span className="faint">RSI {r.rsi != null ? num(r.rsi, 0) : "—"} · Vol {r.volumeRatio ?? "—"}×</span></div>
+          <div className="row between tiny"><span className={`vchip ${VCLASS[r.verdict]}`}>{r.verdict}</span><span className="faint">RSI {r.rsi != null ? num(r.rsi, 0) : "-"}, Vol {r.volumeRatio ?? "-"}x</span></div>
           <div className="tiny muted" style={{ textAlign: "left" }}>{r.notes[cat]}</div>
         </button>
       ))}
-      <Link className="tiny" to="/signals">Full technical signal board →</Link>
+      <Link className="tiny" to="/signals">Full technical signal board</Link>
     </div>
   );
 }

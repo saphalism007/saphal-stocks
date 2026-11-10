@@ -26,7 +26,7 @@ interface Briefing {
 interface Mover { symbol: string; name: string; changePct: number; close: number }
 interface SetupRow { symbol: string; name?: string; type: string; side: string; price: number; entryLow: number; entryHigh: number; stopLoss: number; targets: number[]; riskReward: number; quality: number }
 
-const SECTION_LABELS: Record<string, string> = { pillars: "NEPSE Intelligence and My Financial Life shortcuts", today: "8 · Smartest action today", stats: "Key numbers (index, breadth, turnover, trend)", market: "What happened in NEPSE + my portfolio", attention: "Stocks that deserve attention + setups", reports: "Reports, news on my stocks, opportunities", money: "Bank rates, opportunities and my money" };
+const SECTION_LABELS: Record<string, string> = { pillars: "NEPSE Intelligence and My Financial Life shortcuts", today: "8, Smartest action today", stats: "Key numbers (index, breadth, turnover, trend)", market: "What happened in NEPSE + my portfolio", attention: "Stocks that deserve attention + setups", reports: "Reports, news on my stocks, opportunities", money: "Bank rates, opportunities and my money" };
 const DEFAULT_LAYOUT = Object.keys(SECTION_LABELS).map((key) => ({ key, on: true }));
 
 function loadLayout() {
@@ -62,7 +62,7 @@ export default function Overview() {
           </div>
         </div>
         <div className="pillar">
-          <h2>My Financial Life</h2><div className="small muted">{b.money?.saved ? <>Net worth <strong>{compact(b.money.netWorth)}</strong> · saving <strong className={tone(b.money.cashFlow)}>{compact(b.money.cashFlow)}</strong>/month{b.money.savingsRatePct != null ? ` (${num(b.money.savingsRatePct, 0)}%)` : ""}</> : "Money dashboard, savings, investment comparison, AI advisor and goals"}</div>
+          <h2>My Financial Life</h2><div className="small muted">{b.money?.saved ? <>Net worth <strong>{compact(b.money.netWorth)}</strong>, saving <strong className={tone(b.money.cashFlow)}>{compact(b.money.cashFlow)}</strong>/month{b.money.savingsRatePct != null ? ` (${num(b.money.savingsRatePct, 0)}%)` : ""}</> : "Money dashboard, savings, investment comparison, AI advisor and goals"}</div>
           <div className="pillar-links">
             <Link to="/money"><I.money />Money dashboard</Link><Link to="/money?tab=tracker"><I.planner />Income & expenses</Link><Link to="/invest"><I.invest />Investment planner</Link><Link to="/future"><I.planner />Invest for the future</Link>
             <Link to={`/analyst?q=${encodeURIComponent("Look at my money, goals and current rates. Where should I put my savings in Nepal, and what is the most useful thing I can do this month?")}`}><I.ai />AI financial advisor</Link><Link to="/planner"><I.opportunities />Financial goals</Link><Link to="/start"><I.check />Start investing</Link>
@@ -78,11 +78,11 @@ export default function Overview() {
     money: b.rates ? (
       <div className="grid g3">
         <Card title="Interest rates" sub={b.rates.inflationPct != null ? `Inflation ${num(b.rates.inflationPct)}% (NRB)` : undefined} actions={<Link className="small" to="/invest?tab=rates">Rates</Link>}>
-          {b.rates.changes.length === 0 ? <div className="small muted">No official NRB rate changes in the last 30 days.</div> : b.rates.changes.map((c) => <div key={c.label + c.asOf} className="row between small"><span>{c.label}</span><span className="mono">{c.prev != null ? `${num(c.prev)} → ` : ""}{num(c.value)}% <span className="faint">{nptDate(c.asOf)}</span></span></div>)}
-          <div className="small" style={{ marginTop: 8 }}>{b.rates.noticeCount} bank / finance rate notice{b.rates.noticeCount === 1 ? "" : "s"} in 30 days · <Link to="/invest?tab=deposits">compare</Link></div>
+          {b.rates.changes.length === 0 ? <div className="small muted">No official NRB rate changes in the last 30 days.</div> : b.rates.changes.map((c) => <div key={c.label + c.asOf} className="row between small"><span>{c.label}</span><span className="mono">{c.prev != null ? `${num(c.prev)} ` : ""}{num(c.value)}% <span className="faint">{nptDate(c.asOf)}</span></span></div>)}
+          <div className="small" style={{ marginTop: 8 }}>{b.rates.noticeCount} bank / finance rate notice{b.rates.noticeCount === 1 ? "" : "s"} in 30 days, <Link to="/invest?tab=deposits">compare</Link></div>
         </Card>
         <Card title="Attractive opportunities" actions={<Link className="small" to="/invest">Where to invest</Link>}>
-          {b.rates.bestDeposit ? <div className="small">Best tracked 1-year deposit: <strong>{b.rates.bestDeposit.institution} {num(b.rates.bestDeposit.ratePct)}%</strong> ({num(b.rates.bestDeposit.netAnnualPct)}% after tax){b.rates.bestDeposit.method === "ai" ? " · AI-read, check the notice" : ""}</div> : <div className="small muted">Deposit rates used: {b.rates.fdPct != null ? `${num(b.rates.fdPct)}%` : "—"} ({b.rates.fdSource}). Read bank notices under Deposit rates to compare institutions.</div>}
+          {b.rates.bestDeposit ? <div className="small">Best tracked 1-year deposit: <strong>{b.rates.bestDeposit.institution} {num(b.rates.bestDeposit.ratePct)}%</strong> ({num(b.rates.bestDeposit.netAnnualPct)}% after tax){b.rates.bestDeposit.method === "ai" ? ", AI-read, check the notice" : ""}</div> : <div className="small muted">Deposit rates used: {b.rates.fdPct != null ? `${num(b.rates.fdPct)}%` : "-"} ({b.rates.fdSource}). Read bank notices under Deposit rates to compare institutions.</div>}
           {(b.openIssues ?? []).map((x) => <div key={x.company + x.issue_type} className="small">Open: <strong>{x.company}</strong> {x.issue_type} until {x.final_date ?? x.closing_date}</div>)}
         </Card>
         <Card title="My money" actions={<Link className="small" to="/money">Open</Link>}>
@@ -94,9 +94,9 @@ export default function Overview() {
       <>
       <div className="grid g4">
         <Stat label="NEPSE Index" value={num(m.nepse?.close)} sub={<span className={tone(m.nepse?.changePct)}>{num(m.nepse?.change)} ({pct(m.nepse?.changePct)})</span>} />
-        <Stat label="Breadth" value={<><span className="up">{m.breadth.advancers}</span> / <span className="down">{m.breadth.decliners}</span></>} sub={m.sentiment ? `${m.sentiment.label} · ${m.breadth.unchanged} unchanged` : "—"} />
+        <Stat label="Breadth" value={<><span className="up">{m.breadth.advancers}</span> / <span className="down">{m.breadth.decliners}</span></>} sub={m.sentiment ? `${m.sentiment.label}, ${m.breadth.unchanged} unchanged` : "-"} />
         <Stat label="Turnover" value={compact(m.turnover)} sub={`${int(m.breadth.traded)} scrips traded`} />
-        <Stat label="Market trend" value={<span className="stat-text">{m.trend?.label ?? "—"}</span>} sub={m.trend?.notes[0] ?? "Needs index history"} />
+        <Stat label="Market trend" value={<span className="stat-text">{m.trend?.label ?? "-"}</span>} sub={m.trend?.notes[0] ?? "Needs index history"} />
       </div>
       </>
     ),
@@ -126,7 +126,7 @@ export default function Overview() {
             <div key={p.id} style={{ marginBottom: 12 }}>
               <div className="row between"><strong>{p.name}</strong>{p.kind === "paper" && <Badge tone="blue">Paper</Badge>}</div>
               <div className="row between small"><span className="muted">Value {compact(p.marketValue)}</span><span className={tone(p.dayChange)}>Today {p.dayChange >= 0 ? "+" : ""}{compact(p.dayChange)}</span></div>
-              {p.movers.length > 0 && <div className="tiny muted">{p.movers.map((x) => `${x.symbol} ${pct(x.changePct, 1)}`).join(" · ")}</div>}
+              {p.movers.length > 0 && <div className="tiny muted">{p.movers.map((x) => `${x.symbol} ${pct(x.changePct, 1)}`).join(", ")}</div>}
               {p.issues.length > 0 && <div className="tiny warn" style={{ marginTop: 4 }}>⚠ {p.issues[0]}</div>}
             </div>
           ))}
@@ -173,13 +173,13 @@ export default function Overview() {
       <div className="page-head">
         <div>
           <h1>Good {greeting()}{prefs.name?.trim() ? `, ${prefs.name.trim()}` : ""}</h1>
-          <p className="small muted">{b.date ? <>NEPSE data for <strong>{nptDate(b.date)}</strong>{latest?.last_success_at ? <> · updated {ago(latest.last_success_at)}</> : null}</> : "No market data yet."} <button className="btn ghost sm show-phone-inline" onClick={() => setEditing(!editing)}>Customize</button></p>
+          <p className="small muted">{b.date ? <>NEPSE data for <strong>{nptDate(b.date)}</strong>{latest?.last_success_at ? <>, updated {ago(latest.last_success_at)}</> : null}</> : "No market data yet."} <button className="btn ghost sm show-phone-inline" onClick={() => setEditing(!editing)}>Customize</button></p>
         </div>
         <div className="row hide-phone"><button className="btn" onClick={() => setEditing(!editing)}>Customize</button><Link className="btn" to="/analyst">Ask the AI analyst</Link></div>
       </div>
       {BROWSER_BACKEND && b.money?.saved && backupDue() && <Notice>It has been over a week since your last backup. <Link to="/money?tab=tracker">Back up to iCloud or Google Drive</Link> (one tap).</Notice>}
-      {running.length > 0 && <Notice>Data refresh in progress: {running.map((j) => `${j.name} (${j.message})`).join(" · ")}. Pages fill in as data arrives.</Notice>}
-      {!b.date && <Notice tone="warn">No market data has been loaded yet. Go to <Link to="/settings">Settings → Data</Link> and run a refresh.</Notice>}
+      {running.length > 0 && <Notice>Data refresh in progress: {running.map((j) => `${j.name} (${j.message})`).join(", ")}. Pages fill in as data arrives.</Notice>}
+      {!b.date && <Notice tone="warn">No market data has been loaded yet. Go to <Link to="/settings">Settings &gt; Data</Link> and run a refresh.</Notice>}
 
       {editing && (
         <Card title="Customize dashboard" actions={<button className="btn sm primary" onClick={() => setEditing(false)}>Done</button>}>
@@ -215,15 +215,15 @@ function MoverRow({ m }: { m: Mover }) {
 
 export function SetupTable({ rows, onSelect }: { rows: SetupRow[]; onSelect?: (s: SetupRow) => void }) {
   const nav = useNavigate();
-  if (!rows.length) return <Empty title="No active setups">Setups appear when rules (breakout, pullback, momentum…) trigger on liquid stocks.</Empty>;
+  if (!rows.length) return <Empty title="No active setups">Setups appear when rules (breakout, pullback, momentum...) trigger on liquid stocks.</Empty>;
   return (
     <div className="table-wrap"><table className="t">
       <thead><tr><th>Stock</th><th>Setup</th><th className="num">Entry</th><th className="num">Stop</th><th className="num">T1</th><th className="num">R:R</th><th className="num">Quality</th></tr></thead>
       <tbody>{rows.map((s, i) => (
         <tr key={s.symbol + s.type + i} className="click" onClick={() => (onSelect ? onSelect(s) : nav(`/stocks/${s.symbol}`))}>
           <td className="sym">{s.symbol}</td><td><Badge tone={s.side === "buy" ? "up" : "down"}>{s.type}</Badge></td>
-          <td className="num">{num(s.entryLow)}–{num(s.entryHigh)}</td><td className="num">{num(s.stopLoss)}</td><td className="num">{num(s.targets[0])}</td>
-          <td className="num">{s.side === "buy" ? num(s.riskReward) : "—"}</td><td className="num"><Score value={s.quality} /></td>
+          <td className="num">{num(s.entryLow)}-{num(s.entryHigh)}</td><td className="num">{num(s.stopLoss)}</td><td className="num">{num(s.targets[0])}</td>
+          <td className="num">{s.side === "buy" ? num(s.riskReward) : "-"}</td><td className="num"><Score value={s.quality} /></td>
         </tr>))}</tbody>
     </table></div>
   );
@@ -234,7 +234,7 @@ export function NewsRow({ r }: { r: { symbol?: string | null; title: string; url
     <div className="list-item" style={{ padding: "8px 0" }}>
       <div style={{ flex: 1 }}>
         <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--text)" }}>{r.title}</a>
-        <div className="tiny faint">{r.symbol && <Link to={`/stocks/${r.symbol}`}>{r.symbol}</Link>} {r.category && `· ${r.category}`} · {nptDate(r.published_date)}</div>
+        <div className="tiny faint">{[r.symbol ? <Link key="s" to={`/stocks/${r.symbol}`}>{r.symbol}</Link> : null, r.category, nptDate(r.published_date)].filter(Boolean).map((x, i) => <span key={i}>{i ? " | " : ""}{x}</span>)}</div>
       </div>
     </div>
   );

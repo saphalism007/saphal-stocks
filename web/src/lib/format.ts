@@ -2,30 +2,30 @@
 
 export const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 
-// "nepali" = lakh/crore grouping (12,50,000 · 1.25 Cr); "international" = millions/billions (1,250,000 · 1.25 M).
+// "nepali" = lakh/crore grouping (12,50,000, 1.25 Cr); "international" = millions/billions (1,250,000, 1.25 M).
 let style: "nepali" | "international" = "nepali";
 export function setNumberStyle(s: "nepali" | "international") { style = s; }
 const LOCALE = () => (style === "nepali" ? "en-IN" : "en-US");
 export const numberLocale = () => LOCALE();
 
 export function num(x: unknown, digits = 2): string {
-  if (!isNum(x)) return "—";
+  if (!isNum(x)) return "-";
   return x.toLocaleString(LOCALE(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 export function int(x: unknown): string {
-  if (!isNum(x)) return "—";
+  if (!isNum(x)) return "-";
   return Math.round(x).toLocaleString(LOCALE());
 }
 
 export function rs(x: unknown, digits = 2): string {
-  if (!isNum(x)) return "—";
+  if (!isNum(x)) return "-";
   return `Rs. ${num(x, digits)}`;
 }
 
 /** Compact NPR: 1.25 Cr, 45.2 L, 12.5 K. */
 export function compact(x: unknown, prefix = "Rs. "): string {
-  if (!isNum(x)) return "—";
+  if (!isNum(x)) return "-";
   const a = Math.abs(x);
   const sign = x < 0 ? "-" : "";
   if (style === "international") {
@@ -44,14 +44,14 @@ export function compact(x: unknown, prefix = "Rs. "): string {
 }
 
 export function pct(x: unknown, digits = 2, sign = true): string {
-  if (!isNum(x)) return "—";
+  if (!isNum(x)) return "-";
   return `${sign && x > 0 ? "+" : ""}${x.toFixed(digits)}%`;
 }
 
 export const tone = (x: unknown) => (!isNum(x) || x === 0 ? "" : x > 0 ? "up" : "down");
 
 export function nptDate(iso: string | null | undefined, withTime = false): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
     const d = new Date(iso + "T00:00:00Z");
     return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });

@@ -67,7 +67,7 @@ export interface Mapper {
 export interface Geo { paths: { d: string; dash?: boolean; fill?: string; stroke?: string; width?: number; opacity?: number }[]; labels: { x: number; y: number; text: string; anchor?: "start" | "middle" | "end"; color?: string; bg?: string; size?: number }[]; handles: { x: number; y: number; i: number }[] }
 
 const L = (a: [number, number], b: [number, number]) => `M${a[0]},${a[1]}L${b[0]},${b[1]}`;
-/** Points where the infinite line through a→b crosses the left/right edges (or top/bottom for verticals). */
+/** Points where the infinite line through a>b crosses the left/right edges (or top/bottom for verticals). */
 function extend(a: [number, number], b: [number, number], w: number, h: number, both: boolean): [number, number][] {
   const dx = b[0] - a[0], dy = b[1] - a[1];
   if (Math.abs(dx) < 1e-6) return [both ? [a[0], 0] : a, [a[0], dy >= 0 ? h : 0]];
@@ -90,7 +90,7 @@ export function geometry(d: Drawing, m: Mapper): Geo | null {
       if (!B) { g.handles = [{ x: A[0], y: A[1], i: 0 }]; break; }
       line(A, B);
       if (d.tool === "arrow") { const ang = Math.atan2(B[1] - A[1], B[0] - A[0]), s = 10 + d.width * 2; g.paths.push({ d: `M${B[0]},${B[1]}L${B[0] - s * Math.cos(ang - 0.45)},${B[1] - s * Math.sin(ang - 0.45)}L${B[0] - s * Math.cos(ang + 0.45)},${B[1] - s * Math.sin(ang + 0.45)}Z`, fill: d.color }); }
-      if (d.tool === "info") { const a = d.pts[0], b = d.pts[1], n = m.idx(b.t) - m.idx(a.t); g.labels.push({ x: B[0] + 6, y: B[1], text: `${m.fmt(b.p - a.p)} (${pctTxt(a.p, b.p)}) · ${Math.round(n)} bars`, bg: "panel" }); }
+      if (d.tool === "info") { const a = d.pts[0], b = d.pts[1], n = m.idx(b.t) - m.idx(a.t); g.labels.push({ x: B[0] + 6, y: B[1], text: `${m.fmt(b.p - a.p)} (${pctTxt(a.p, b.p)}), ${Math.round(n)} bars`, bg: "panel" }); }
       if (d.tool === "angle") { const deg = (-Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI; g.paths.push({ d: L(A, [A[0] + 40, A[1]]), dash: true, width: 1 }); g.labels.push({ x: A[0] + 44, y: A[1] - 4, text: `${deg.toFixed(1)}°` }); }
       break;
     case "ray": case "extended": if (!B) break; { const [s, e] = extend(A, B, m.w, m.h, d.tool === "extended"); line(s, e); } break;
@@ -120,7 +120,7 @@ export function geometry(d: Drawing, m: Mapper): Geo | null {
       const sd = Math.sqrt(pts.reduce((s, q) => s + (q.c - at(q.i)) ** 2, 0) / n);
       const i0 = pts[0].i, i1 = pts[n - 1].i, x0 = A[0], x1 = B[0];
       for (const k of [0, 2, -2]) { const y0 = m.y(at(i0) + k * sd), y1 = m.y(at(i1) + k * sd); if (y0 != null && y1 != null) g.paths.push({ d: L([x0, y0], [x1, y1]), dash: k !== 0 }); }
-      g.labels.push({ x: x1 + 4, y: B[1], text: `slope ${m.fmt(slope)}/bar · σ ${m.fmt(sd)}` });
+      g.labels.push({ x: x1 + 4, y: B[1], text: `slope ${m.fmt(slope)}/bar, σ ${m.fmt(sd)}` });
       break;
     }
     case "pitchfork": {
@@ -153,8 +153,8 @@ export function geometry(d: Drawing, m: Mapper): Geo | null {
       const a = d.pts[0], b = d.pts[1], up = b.p >= a.p, col = up ? "#22c55e" : "#ef4444";
       const bars = Math.round(m.idx(b.t) - m.idx(a.t)), days = Math.round((Date.parse(b.t) - Date.parse(a.t)) / 86_400_000);
       if (d.tool === "pricerange") { g.paths.push({ d: box, fill: col, opacity: 0.12, stroke: "none" }); g.paths.push({ d: L([(A[0] + B[0]) / 2, A[1]], [(A[0] + B[0]) / 2, B[1]]), stroke: col }); g.labels.push({ x: (A[0] + B[0]) / 2, y: up ? y - 6 : y + h + 14, text: `${m.fmt(b.p - a.p)} (${pctTxt(a.p, b.p)})`, anchor: "middle", bg: col }); }
-      else if (d.tool === "daterange") { g.paths.push({ d: box, fill: "#2962ff", opacity: 0.1, stroke: "none" }); g.paths.push({ d: L([A[0], (A[1] + B[1]) / 2], [B[0], (A[1] + B[1]) / 2]), stroke: "#2962ff" }); g.labels.push({ x: (A[0] + B[0]) / 2, y: y + h + 14, text: `${bars} bars · ${days} days`, anchor: "middle", bg: "#2962ff" }); }
-      else { g.paths.push({ d: box, fill: col, opacity: 0.12, stroke: "none" }); g.paths.push({ d: L(A, B), stroke: col, dash: true }); g.labels.push({ x: (A[0] + B[0]) / 2, y: up ? y - 6 : y + h + 14, text: `${m.fmt(b.p - a.p)} (${pctTxt(a.p, b.p)}) · ${bars} bars · ${days}d`, anchor: "middle", bg: col }); }
+      else if (d.tool === "daterange") { g.paths.push({ d: box, fill: "#2962ff", opacity: 0.1, stroke: "none" }); g.paths.push({ d: L([A[0], (A[1] + B[1]) / 2], [B[0], (A[1] + B[1]) / 2]), stroke: "#2962ff" }); g.labels.push({ x: (A[0] + B[0]) / 2, y: y + h + 14, text: `${bars} bars, ${days} days`, anchor: "middle", bg: "#2962ff" }); }
+      else { g.paths.push({ d: box, fill: col, opacity: 0.12, stroke: "none" }); g.paths.push({ d: L(A, B), stroke: col, dash: true }); g.labels.push({ x: (A[0] + B[0]) / 2, y: up ? y - 6 : y + h + 14, text: `${m.fmt(b.p - a.p)} (${pctTxt(a.p, b.p)}), ${bars} bars, ${days}d`, anchor: "middle", bg: col }); }
       break;
     }
     case "ellipse": if (!B) break; { const cx = (A[0] + B[0]) / 2, cy = (A[1] + B[1]) / 2, rx = Math.abs(B[0] - A[0]) / 2, ry = Math.abs(B[1] - A[1]) / 2; const e = `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${2 * rx},0a${rx},${ry} 0 1,0 ${-2 * rx},0`; g.paths.push({ d: e, fill: d.color, opacity: 0.1 }); g.paths.push({ d: e }); } break;
@@ -173,7 +173,7 @@ export function geometry(d: Drawing, m: Mapper): Geo | null {
       g.paths.push({ d: `M${x0},${A[1]}H${x1}V${B[1]}H${x0}Z`, fill: "#ef4444", opacity: 0.18, stroke: "none" });
       g.paths.push({ d: `M${x0},${A[1]}H${x1}`, stroke: "#94a3b8" });
       const rr = risk ? Math.abs(target - entry) / risk : 0;
-      g.labels.push({ x: x0 + 4, y: yT + (target > entry ? -4 : 12), text: `Target ${m.fmt(target)} (${pctTxt(entry, target)}) · R:R ${rr.toFixed(2)}`, bg: "#22c55e" });
+      g.labels.push({ x: x0 + 4, y: yT + (target > entry ? -4 : 12), text: `Target ${m.fmt(target)} (${pctTxt(entry, target)}), R:R ${rr.toFixed(2)}`, bg: "#22c55e" });
       g.labels.push({ x: x0 + 4, y: B[1] + (stop < entry ? 12 : -4), text: `Stop ${m.fmt(stop)} (${pctTxt(entry, stop)})`, bg: "#ef4444" });
       g.labels.push({ x: x0 + 4, y: A[1] - 4, text: `Entry ${m.fmt(entry)}` });
       g.handles = [{ x: x0, y: A[1], i: 0 }, { x: x1, y: B[1], i: 1 }, { x: x0 + (x1 - x0) / 2, y: yT, i: 20 }];
@@ -184,7 +184,7 @@ export function geometry(d: Drawing, m: Mapper): Geo | null {
   return g;
 }
 
-/** Old terminal format (trend / hline / fib with a, b) → new drawings. */
+/** Old terminal format (trend / hline / fib with a, b) > new drawings. */
 export function migrate(old: { id: string; kind: string; a: { time: string; price: number }; b?: { time: string; price: number } }[]): Drawing[] {
   return old.map((o) => ({ id: o.id, tool: (o.kind === "trend" ? "trend" : o.kind === "hline" ? "hline" : "fib") as ToolId, pts: [o.a, ...(o.b ? [o.b] : [])].map((x) => ({ t: x.time, p: x.price })), color: o.kind === "fib" ? "#eab308" : "#2962ff", width: 2, dash: false }));
 }

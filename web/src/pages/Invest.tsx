@@ -1,4 +1,4 @@
-// Where to invest: "I have Rs. X — where should it go?" Allocation advice from your situation and
+// Where to invest: "I have Rs. X, where should it go?" Allocation advice from your situation and
 // official rates; deposit rates by institution (from their official notices); NRB rates and
 // inflation; mutual funds; debentures; government securities; prepay a loan or invest.
 import { useState } from "react";
@@ -81,7 +81,7 @@ function Advisor() {
             <div className="row between"><strong className="small">Amount for each month (Rs.); leave a month empty or 0 if you can't invest then</strong>
               <span className="row" style={{ gap: 6 }}><button className="btn sm ghost" onClick={() => setMonths(Array(12).fill(months.find((x) => x !== "" && x > 0) ?? 0))}>Same for all</button><button className="btn sm ghost" onClick={() => setMonths(Array(12).fill(""))}>Clear</button></span></div>
             <div className="month-grid">{MONTHS.map((m, i) => <label key={m} className="field">{m}<NumInput className="input" placeholder="0" value={months[i]} onChange={(e) => setMonths(months.map((x, j) => (j === i ? (e.target.value === "" ? "" : Number(e.target.value)) : x)))} /></label>)}</div>
-            <p className="tiny faint">Total {rs(pattern.reduce((s, x) => s + x, 0), 0)} a year · average {rs(pattern.reduce((s, x) => s + x, 0) / 12, 0)} a month. The pattern repeats each year.</p>
+            <p className="tiny faint">Total {rs(pattern.reduce((s, x) => s + x, 0), 0)} a year, average {rs(pattern.reduce((s, x) => s + x, 0) / 12, 0)} a month. The pattern repeats each year.</p>
           </div>
         )}
         <div className="row" style={{ marginTop: 10 }}>
@@ -97,9 +97,9 @@ function Advisor() {
         <>
           <div className="grid g4">
             <Stat label="You put in" value={compact(r.totalIn)} sub={`${v(lump) > 0 ? `${compact(v(lump))} now` : "Nothing now"}${r.avgMonthly ? ` + avg ${compact(r.avgMonthly)}/month` : ""} over ${num(r.months / 12, 0)} yr`} />
-            <Stat label={`Expected in ${num(r.months / 12, 0)} years`} value={compact(finalYear.mid)} sub={`Weak ${compact(finalYear.low)} · strong ${compact(finalYear.high)}`} />
+            <Stat label={`Expected in ${num(r.months / 12, 0)} years`} value={compact(finalYear.mid)} sub={`Weak ${compact(finalYear.low)}, strong ${compact(finalYear.high)}`} />
             <Stat label="Guaranteed / contractual" value={`${num(r.guaranteedPct, 0)}%`} sub="Deposits, bonds, CIT, debt repaid, emergency fund" />
-            <Stat label="Market-linked" value={`${r.equityCapPct}%`} sub={`Shares & funds ${r.equityPart}%${r.metalsPct ? ` · gold/silver ${r.metalsPct}%` : ""} · ${r.inputs.risk} risk, ${r.inputs.horizonYears}-yr`} />
+            <Stat label="Market-linked" value={`${r.equityCapPct}%`} sub={`Shares & funds ${r.equityPart}%${r.metalsPct ? `, gold/silver ${r.metalsPct}%` : ""}, ${r.inputs.risk} risk, ${r.inputs.horizonYears}-yr`} />
           </div>
           {r.priorities.length > 0 && (
             <Card title="First, protect yourself" sub="New money fills these before anything is invested">
@@ -119,8 +119,8 @@ function Advisor() {
               <div key={c.key} className="list-row" style={{ alignItems: "flex-start" }}>
                 <span className="dot" style={{ background: CH_COL[c.key], marginTop: 6 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="row between"><strong>{c.name}</strong><Badge tone={c.group === "guaranteed" ? "up" : "warn"}>{c.pct}% · {c.group === "guaranteed" ? "contractual" : "market-linked"}</Badge></div>
-                  <div className="small">{c.lump > 0 && <>Now <b>{rs(c.lump, 0)}</b> · </>}{c.monthlyAvg > 0 && <>about <b>{rs(c.monthlyAvg, 0)}</b> a month · </>}expected {compact(c.final.mid)}{c.group === "market" ? ` (${compact(c.final.low)}–${compact(c.final.high)})` : ""}</div>
+                  <div className="row between"><strong>{c.name}</strong><Badge tone={c.group === "guaranteed" ? "up" : "warn"}>{c.pct}%, {c.group === "guaranteed" ? "contractual" : "market-linked"}</Badge></div>
+                  <div className="small">{c.lump > 0 && <>Now <b>{rs(c.lump, 0)}</b>, </>}{c.monthlyAvg > 0 && <>about <b>{rs(c.monthlyAvg, 0)}</b> a month, </>}expected {compact(c.final.mid)}{c.group === "market" ? ` (${compact(c.final.low)}-${compact(c.final.high)})` : ""}</div>
                   <div className="small muted">{c.howTo}</div>
                   <div className="tiny faint">Return: {c.rateNote}. Liquidity: {c.liquidity}.</div>
                   <div className="row" style={{ marginTop: 4, gap: 6 }}>
@@ -164,9 +164,9 @@ function BestReturns() {
     { name: "Savings account", rate: d.savingPct, how: "NRB average savings rate", tax: "6% on interest", worst: "None (deposit insurance up to a limit)", liquidity: "Instant", safety: 5, to: "/invest?tab=rates" },
     { name: "Fixed deposit", rate: d.fdPct, how: d.sources?.fd ?? "best verified FD rate", tax: "6% on interest", worst: "None (deposit insurance up to a limit)", liquidity: "At maturity", safety: 5, to: "/invest?tab=deposits" },
     { name: "Treasury bills", rate: d.tbillPct, how: "NRB 364-day T-bill yield", tax: "6% on interest (assumed)", worst: "None (government)", liquidity: "At maturity (via banks)", safety: 5, to: "/invest?tab=funds" },
-    { name: "Mutual funds / NEPSE shares", rate: d.equityLongRunPct, how: "NEPSE last 10 years incl. dividends", tax: "7.5% CGT on gains (held > 1 year)", worst: d.nepseWorst ? `${d.nepseWorst.pct}% (${d.nepseWorst.from.slice(0, 4)}–${d.nepseWorst.to.slice(0, 4)})` : "Large", liquidity: "2–3 days", safety: 2, to: "/invest?tab=funds" },
-    { name: "Gold", rate: d.goldPct, how: "FENEGOSIDA gold, planning rate", tax: "Dealer buy-back gap ~2%", worst: d.goldWorst ? `${d.goldWorst.pct}% (${d.goldWorst.from.slice(0, 4)}–${d.goldWorst.to.slice(0, 4)})` : "Large", liquidity: "Same day (dealer)", safety: 3, to: "/invest?tab=metals" },
-    { name: "Silver", rate: d.silverPct, how: "FENEGOSIDA silver, planning rate", tax: "Dealer buy-back gap ~4%", worst: d.silverWorst ? `${d.silverWorst.pct}% (${d.silverWorst.from.slice(0, 4)}–${d.silverWorst.to.slice(0, 4)})` : "Very large", liquidity: "Same day (dealer)", safety: 1, to: "/invest?tab=metals" },
+    { name: "Mutual funds / NEPSE shares", rate: d.equityLongRunPct, how: "NEPSE last 10 years incl. dividends", tax: "7.5% CGT on gains (held > 1 year)", worst: d.nepseWorst ? `${d.nepseWorst.pct}% (${d.nepseWorst.from.slice(0, 4)}-${d.nepseWorst.to.slice(0, 4)})` : "Large", liquidity: "2-3 days", safety: 2, to: "/invest?tab=funds" },
+    { name: "Gold", rate: d.goldPct, how: "FENEGOSIDA gold, planning rate", tax: "Dealer buy-back gap ~2%", worst: d.goldWorst ? `${d.goldWorst.pct}% (${d.goldWorst.from.slice(0, 4)}-${d.goldWorst.to.slice(0, 4)})` : "Large", liquidity: "Same day (dealer)", safety: 3, to: "/invest?tab=metals" },
+    { name: "Silver", rate: d.silverPct, how: "FENEGOSIDA silver, planning rate", tax: "Dealer buy-back gap ~4%", worst: d.silverWorst ? `${d.silverWorst.pct}% (${d.silverWorst.from.slice(0, 4)}-${d.silverWorst.to.slice(0, 4)})` : "Very large", liquidity: "Same day (dealer)", safety: 1, to: "/invest?tab=metals" },
   ];
   for (const o of opts) {
     if (o.rate == null) continue;
@@ -179,8 +179,8 @@ function BestReturns() {
   const max = Math.max(...ranked.map((o) => o.value ?? 0), 1);
   const safest = ranked.filter((o) => o.safety >= 5).sort((a, b) => (b.real ?? 0) - (a.real ?? 0))[0];
   const advice = Y < 2 ? "For under 2 years, keep the money safe: the best fixed deposit (or T-bills). Shares and gold can be down when you need the money."
-    : Y < 5 ? "For 2–5 years: mostly fixed deposits/T-bills, with up to a quarter in mutual funds and a little gold."
-    : "For 5+ years: a mix grows most — mutual funds/strong shares for growth, deposits for safety and 5–15% gold as a hedge. Spread it; don't pick only the top line.";
+    : Y < 5 ? "For 2-5 years: mostly fixed deposits/T-bills, with up to a quarter in mutual funds and a little gold."
+    : "For 5+ years: a mix grows most, mutual funds/strong shares for growth, deposits for safety and 5-15% gold as a hedge. Spread it; don't pick only the top line.";
   return (
     <div className="col">
       <Card title="Which investment is best for me?" sub="What you'd have after tax, and what it can actually buy after inflation">
@@ -201,10 +201,10 @@ function BestReturns() {
             <span>Worst fall <b>{o.worst}</b></span>
             <span>Cash out <b>{o.liquidity}</b></span>
           </div>
-          <div className="tiny faint">{o.how} · {o.tax}{o === safest ? " · safest with the best return" : ""}{(o.real ?? 0) < paid ? " · loses buying power" : ""}</div>
+          <div className="tiny faint">{o.how}, {o.tax}{o === safest ? ", safest with the best return" : ""}{(o.real ?? 0) < paid ? ", loses buying power" : ""}</div>
         </Link>
       ))}</div>
-      <Notice>{advice} <Link to="/invest">Build my diversified plan →</Link></Notice>
+      <Notice>{advice} <Link to="/invest">Build my diversified plan</Link></Notice>
       <p className="tiny faint">Rates are the latest official and historical figures in the app; past returns are not a promise. Debentures, CIT and land are left out because they have no public rate history here (see <Link to="/future">all channels</Link>).</p>
     </div>
   );
@@ -220,7 +220,7 @@ function Metals() {
   if (!x) return <Empty title="Gold and silver rates are not loaded yet">They are collected with the daily market data.</Empty>;
   const cut = range === "all" ? "" : new Date(Date.now() - Number(range) * 365.25 * 86_400_000).toISOString().slice(0, 10);
   const data = x.history.filter(([d]: [string, number]) => d >= cut).map(([date, value]: [string, number]) => ({ date, value }));
-  const pct = (v: Any) => (v == null ? "—" : `${v > 0 ? "+" : ""}${num(v, 1)}%`);
+  const pct = (v: Any) => (v == null ? "-" : `${v > 0 ? "+" : ""}${num(v, 1)}%`);
   return (
     <div className="col">
       <div className="grid g4">
@@ -313,11 +313,11 @@ function Deposits() {
         {!cmp.data ? <Loading /> : cmp.data.rows.length <= 1 && <Notice>Only the NRB average is available. Read the latest bank notices below (AI) or add rates you have checked, to compare institutions.</Notice>}
         {cmp.data && <DataTable rows={cmp.data.rows} rowKey={(r: Any, i) => `${r.institution}-${r.product}-${i}`} initialSort={{ key: "maturity", dir: -1 }} cols={[
           { key: "institution", label: "Institution", render: (r: Any) => <span>{r.institution} {r.instType === "benchmark" ? <Badge>NRB average</Badge> : r.instType ? <span className="tiny faint">{r.instType}</span> : null}</span> },
-          { key: "product", label: "Product", render: (r: Any) => <span className="small">{r.product ?? "—"}{r.tenorMonths ? ` · ${r.tenorMonths} m` : ""}</span> },
+          { key: "product", label: "Product", render: (r: Any) => <span className="small">{r.product ?? "-"}{r.tenorMonths ? `, ${r.tenorMonths} m` : ""}</span> },
           { key: "ratePct", label: "Rate", num: true, render: (r: Any) => `${num(r.ratePct)}%` },
           { key: "maturity", label: "You get", num: true, render: (r: Any) => compact(r.maturity) },
           { key: "netAnnualPct", label: "After tax", num: true, render: (r: Any) => `${num(r.netAnnualPct)}%` },
-          { key: "realPct", label: "After inflation", num: true, render: (r: Any) => <span className={tone(r.realPct)}>{r.realPct != null ? `${num(r.realPct)}%` : "—"}</span> },
+          { key: "realPct", label: "After inflation", num: true, render: (r: Any) => <span className={tone(r.realPct)}>{r.realPct != null ? `${num(r.realPct)}%` : "-"}</span> },
           { key: "method", label: "Source", render: (r: Any) => <span className="small">{r.method === "ai" ? <Badge tone="warn">AI-read, check</Badge> : r.method === "verified" ? <Badge tone="up">Verified</Badge> : r.method === "official" ? <Badge tone="up">Official</Badge> : <Badge>Entered</Badge>} {r.sourceUrl && <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer">notice</a>} {r.effectiveFrom ? <span className="faint">{r.effectiveFrom}</span> : null}</span> },
         ]} />}
         {cmp.data?.inflationPct != null && <p className="tiny faint">Inflation {num(cmp.data.inflationPct)}% (NRB). A negative real return means the deposit keeps your money safe but loses purchasing power.</p>}
@@ -327,12 +327,12 @@ function Deposits() {
         {!notices.data ? <Loading /> : notices.data.length === 0 ? <Empty title="No rate notices in the last 75 days" /> : (
           <DataTable rows={notices.data.filter((n) => filter === "all" || n.inst_type === filter)} rowKey={(n: Any) => n.url} maxHeight={420} cols={[
             { key: "institution", label: "Institution", render: (n: Any) => <span>{n.symbol ? <Link className="sym" to={`/stocks/${n.symbol}`}>{n.symbol}</Link> : null} {n.institution}</span> },
-            { key: "inst_type", label: "Type", render: (n: Any) => <span className="small">{n.inst_type ?? "—"}</span> },
+            { key: "inst_type", label: "Type", render: (n: Any) => <span className="small">{n.inst_type ?? "-"}</span> },
             { key: "published", label: "Published", render: (n: Any) => nptDate(n.published) },
             { key: "x", label: "", render: (n: Any) => <span className="row" style={{ gap: 6 }}>{n.image_url && <a className="btn ghost sm" href={n.image_url} target="_blank" rel="noopener noreferrer">View notice</a>}<a className="btn ghost sm" href={n.url} target="_blank" rel="noopener noreferrer"><I.external /></a>{n.image_url && <button className="btn sm" disabled={!!reading} onClick={() => read(n.url)}>{reading === n.url ? <span className="spinner" /> : "Read rates"}</button>}</span> },
           ]} />
         )}
-        <p className="tiny faint">"Read rates" sends the notice image to Claude with your API key (Settings → AI) and saves the rates as AI-read with the notice link. Nothing is guessed: rates not printed on the notice are not saved.</p>
+        <p className="tiny faint">"Read rates" sends the notice image to Claude with your API key (Settings &gt; AI) and saves the rates as AI-read with the notice link. Nothing is guessed: rates not printed on the notice are not saved.</p>
       </Card>
       <MyRates rows={mine.data} onDel={del} onVerify={verify} onAdded={() => { mine.reload(); cmp.reload(); }} />
     </div>
@@ -357,7 +357,7 @@ function MyRates({ rows, onDel, onVerify, onAdded }: { rows: Any[] | null; onDel
         <DataTable rows={rows} rowKey={(r: Any) => r.id} maxHeight={360} initialSort={{ key: "rate", dir: -1 }} cols={[
           { key: "institution", label: "Institution" }, { key: "product", label: "Product", render: (r: Any) => <span className="small">{r.product}{r.depositor !== "individual" ? ` (${r.depositor})` : ""}</span> },
           { key: "tenor_months", label: "Months", num: true }, { key: "rate", label: "Rate", num: true, render: (r: Any) => `${num(r.rate)}%` },
-          { key: "effective_from", label: "Effective", render: (r: Any) => <span className="small">{r.effective_from ?? "—"}</span> },
+          { key: "effective_from", label: "Effective", render: (r: Any) => <span className="small">{r.effective_from ?? "-"}</span> },
           { key: "method", label: "", render: (r: Any) => <span className="row" style={{ gap: 6 }}>{r.method === "ai" ? <button className="btn sm" onClick={() => onVerify(r.id)} title="Mark as checked against the notice"><I.check /> Verified</button> : <Badge tone="up">{r.method === "verified" ? "Verified" : "Entered"}</Badge>}{r.source_url && <a href={r.source_url} target="_blank" rel="noopener noreferrer" className="small">notice</a>}<button className="btn ghost sm" onClick={() => onDel(r.id)} aria-label="Delete"><I.trash /></button></span> },
         ]} />
       )}
@@ -374,10 +374,10 @@ function Rates() {
   return (
     <div className="col">
       <div className="grid g4">
-        <Stat label="Inflation (CPI, y-o-y)" value={m.inflationPct != null ? `${num(m.inflationPct)}%` : "—"} sub={d.macro ? `NRB, published ${nptDate(d.macro.published)}` : "Unavailable"} />
-        <Stat label="Average FD rate (banks)" value={d.groups.find((g: Any) => g.grp === "deposit")?.rows.find((x: Any) => x.key === "deposit.fixed_deposit") ? `${num(d.groups.find((g: Any) => g.grp === "deposit").rows.find((x: Any) => x.key === "deposit.fixed_deposit").value)}%` : "—"} sub="NRB weighted average" />
-        <Stat label="Real return on FDs" value={fdNet != null && m.inflationPct != null ? `${num(fdNet - m.inflationPct)}%` : "—"} tone={fdNet != null && m.inflationPct != null ? tone(fdNet - m.inflationPct) : ""} sub="After tax and inflation" />
-        <Stat label="NEPSE long-run growth" value={d.nepse ? `${num(d.nepse.pct, 1)}%/yr` : "—"} sub={d.nepse ? `${d.nepse.from.slice(0, 4)}–${d.nepse.to.slice(0, 4)}: ${num(d.nepse.pricePct, 1)}% price + ${num(d.nepse.dividendYieldPct, 1)}% dividends, not guaranteed` : ""} />
+        <Stat label="Inflation (CPI, y-o-y)" value={m.inflationPct != null ? `${num(m.inflationPct)}%` : "-"} sub={d.macro ? `NRB, published ${nptDate(d.macro.published)}` : "Unavailable"} />
+        <Stat label="Average FD rate (banks)" value={d.groups.find((g: Any) => g.grp === "deposit")?.rows.find((x: Any) => x.key === "deposit.fixed_deposit") ? `${num(d.groups.find((g: Any) => g.grp === "deposit").rows.find((x: Any) => x.key === "deposit.fixed_deposit").value)}%` : "-"} sub="NRB weighted average" />
+        <Stat label="Real return on FDs" value={fdNet != null && m.inflationPct != null ? `${num(fdNet - m.inflationPct)}%` : "-"} tone={fdNet != null && m.inflationPct != null ? tone(fdNet - m.inflationPct) : ""} sub="After tax and inflation" />
+        <Stat label="NEPSE long-run growth" value={d.nepse ? `${num(d.nepse.pct, 1)}%/yr` : "-"} sub={d.nepse ? `${d.nepse.from.slice(0, 4)}-${d.nepse.to.slice(0, 4)}: ${num(d.nepse.pricePct, 1)}% price + ${num(d.nepse.dividendYieldPct, 1)}% dividends, not guaranteed` : ""} />
       </div>
       {d.macro && (
         <Card title={d.macro.title} sub={`Nepal Rastra Bank, published ${nptDate(d.macro.published)}`} actions={<a className="btn sm" href={d.macro.pdf_url || d.macro.url} target="_blank" rel="noopener noreferrer"><I.external /> Report</a>}>
@@ -388,7 +388,7 @@ function Rates() {
         {d.groups.map((g: Any) => (
           <Card key={g.grp} title={g.title}>
             <table className="t small"><thead><tr><th>Rate</th><th className="num">Current</th><th className="num">Previous</th><th>Since</th></tr></thead>
-              <tbody>{g.rows.map((x: Any) => <tr key={x.key}><td>{x.label}</td><td className="num"><strong>{num(x.value)}%</strong></td><td className={`num ${x.change ? (x.change > 0 ? "up" : "down") : "muted"}`}>{x.prev_value != null ? `${num(x.prev_value)}%` : "—"}</td><td className="small muted">{nptDate(x.as_of)}</td></tr>)}</tbody></table>
+              <tbody>{g.rows.map((x: Any) => <tr key={x.key}><td>{x.label}</td><td className="num"><strong>{num(x.value)}%</strong></td><td className={`num ${x.change ? (x.change > 0 ? "up" : "down") : "muted"}`}>{x.prev_value != null ? `${num(x.prev_value)}%` : "-"}</td><td className="small muted">{nptDate(x.as_of)}</td></tr>)}</tbody></table>
             <a className="tiny" href={g.rows[0]?.source_url} target="_blank" rel="noopener noreferrer">Source: nrb.org.np</a>
           </Card>
         ))}
@@ -399,7 +399,7 @@ function Rates() {
           <li><strong>T-bill yields</strong> show how much spare cash banks have. Very low yields mean excess liquidity, which tends to push deposit rates down.</li>
           <li><strong>Inflation vs your deposit rate</strong>: if inflation is higher than your after-tax FD rate, deposits protect money but lose purchasing power. Keep near-term money safe and consider a measured long-term share in diversified investments.</li>
         </ul>
-        <p className="tiny faint">Fetched {d.fetchedAt ? nptDate(d.fetchedAt, true) : "—"}. {d.source}.</p>
+        <p className="tiny faint">Fetched {d.fetchedAt ? nptDate(d.fetchedAt, true) : "-"}. {d.source}.</p>
       </Card>
     </div>
   );
@@ -418,8 +418,8 @@ function FundsBonds() {
           { key: "kind", label: "Type", render: (f: Any) => <span className="small">{f.kind}</span> },
           { key: "weekly_nav", label: "NAV", num: true, render: (f: Any) => num(f.weekly_nav) },
           { key: "ltp", label: "Price", num: true, render: (f: Any) => num(f.ltp) },
-          { key: "premium_pct", label: "vs NAV", num: true, render: (f: Any) => <span className={f.premium_pct < 0 ? "up" : f.premium_pct > 0 ? "down" : ""} title="Negative = buying below NAV (discount)">{f.premium_pct != null ? `${num(f.premium_pct, 1)}%` : "—"}</span> },
-          { key: "priceReturn1y", label: "Price 1Y", num: true, render: (f: Any) => <span className={tone(f.priceReturn1y)}>{f.priceReturn1y != null ? `${num(f.priceReturn1y, 1)}%` : "—"}</span> },
+          { key: "premium_pct", label: "vs NAV", num: true, render: (f: Any) => <span className={f.premium_pct < 0 ? "up" : f.premium_pct > 0 ? "down" : ""} title="Negative = buying below NAV (discount)">{f.premium_pct != null ? `${num(f.premium_pct, 1)}%` : "-"}</span> },
+          { key: "priceReturn1y", label: "Price 1Y", num: true, render: (f: Any) => <span className={tone(f.priceReturn1y)}>{f.priceReturn1y != null ? `${num(f.priceReturn1y, 1)}%` : "-"}</span> },
           { key: "maturity_date", label: "Maturity", render: (f: Any) => <span className="small">{f.maturity_date ?? "Open-ended"}</span> },
         ]} />}
         <p className="tiny faint">Price returns exclude dividends. Fund fees are in each scheme's offer document (link on the fund's page).</p>
@@ -427,11 +427,11 @@ function FundsBonds() {
       <Card title="Listed debentures" sub="Fixed coupon paid by the issuer (contractual, but depends on the issuer staying sound)">
         {!deb.data ? <Loading /> : <DataTable rows={deb.data.rows} rowKey={(r: Any) => r.symbol} initialSort={{ key: "approxYtmPct", dir: -1 }} cols={[
           { key: "symbol", label: "Debenture", render: (r: Any) => <span><Link className="sym" to={`/stocks/${r.symbol}`}>{r.symbol}</Link> <span className="tiny faint">{r.name}</span></span> },
-          { key: "couponPct", label: "Coupon", num: true, render: (r: Any) => r.couponPct != null ? `${num(r.couponPct)}%` : "—" },
+          { key: "couponPct", label: "Coupon", num: true, render: (r: Any) => r.couponPct != null ? `${num(r.couponPct)}%` : "-" },
           { key: "maturityBs", label: "Matures (BS)", num: true },
           { key: "close", label: "Price", num: true, render: (r: Any) => num(r.close) },
-          { key: "currentYieldPct", label: "Current yield", num: true, render: (r: Any) => r.currentYieldPct != null ? `${num(r.currentYieldPct)}%` : "—" },
-          { key: "approxYtmPct", label: "Approx. YTM", num: true, render: (r: Any) => r.approxYtmPct != null ? `${num(r.approxYtmPct)}%` : "—" },
+          { key: "currentYieldPct", label: "Current yield", num: true, render: (r: Any) => r.currentYieldPct != null ? `${num(r.currentYieldPct)}%` : "-" },
+          { key: "approxYtmPct", label: "Approx. YTM", num: true, render: (r: Any) => r.approxYtmPct != null ? `${num(r.approxYtmPct)}%` : "-" },
           { key: "volume", label: "90-day volume", num: true, render: (r: Any) => r.volume ? num(r.volume, 0) : <span className="warn small">illiquid</span> },
         ]} />}
         {deb.data && <p className="tiny faint">{deb.data.note} Prices as of {deb.data.asOf}. Coupon interest is taxed at source.</p>}
@@ -439,7 +439,7 @@ function FundsBonds() {
       <Card title="Government securities">
         {tb ? <table className="t small"><thead><tr><th>Treasury bill</th><th className="num">Latest auction yield</th><th>Date</th></tr></thead><tbody>{tb.rows.map((x: Any) => <tr key={x.key}><td>{x.label}</td><td className="num">{num(x.value)}%</td><td className="small muted">{nptDate(x.as_of)}</td></tr>)}</tbody></table> : <Loading />}
         <ul className="small" style={{ marginTop: 10, paddingLeft: 18 }}>
-          <li><strong>Treasury bills</strong> (28–364 days) are auctioned by NRB mainly to banks and institutions; individuals usually buy through banks/brokers. Very safe, but yields are currently low.</li>
+          <li><strong>Treasury bills</strong> (28-364 days) are auctioned by NRB mainly to banks and institutions; individuals usually buy through banks/brokers. Very safe, but yields are currently low.</li>
           <li><strong>Development bonds and citizen/savings bonds</strong> (Nagarik Bachat Patra, Baideshik Rojgar Bachat Patra) are issued from time to time with fixed coupons; watch NRB's public debt notices and the <Link to="/monitor">Market Monitor</Link>.</li>
           <li>Details, eligibility and official links: <Link to="/opportunities">Investment Opportunities directory</Link>.</li>
         </ul>
@@ -466,7 +466,7 @@ function LoanVsInvest() {
           <label className="field">Invest in<select className="input" value={f.investGuaranteed ? "g" : "m"} onChange={(e) => setF({ ...f, investGuaranteed: e.target.value === "g", investReturnPct: 0 })}><option value="g">Fixed deposit (guaranteed)</option><option value="m">Shares / funds (market-linked)</option></select></label>
           <label className="field">Expected return after tax (%)<NumInput className="input" placeholder={num(ret)} value={f.investReturnPct || ""} onChange={(e) => setF({ ...f, investReturnPct: Number(e.target.value) || 0 })} /></label>
         </div>
-        <p className="tiny faint">Default return: {f.investGuaranteed ? `FD ${fdNet != null ? num(fdNet) : "—"}% after tax (${rates?.sources?.fd ?? "NRB"})` : `NEPSE long-run ${rates?.equityLongRunPct ?? "—"}% (not guaranteed)`}.</p>
+        <p className="tiny faint">Default return: {f.investGuaranteed ? `FD ${fdNet != null ? num(fdNet) : "-"}% after tax (${rates?.sources?.fd ?? "NRB"})` : `NEPSE long-run ${rates?.equityLongRunPct ?? "-"}% (not guaranteed)`}.</p>
         <button className="btn primary" onClick={run}>Compare</button>
       </Card>
       <Card title="Result">
@@ -485,12 +485,12 @@ function ProfileCompare({ c }: { c: Any }) {
   const r = c.rates;
   const fdNet = r.fdPct != null ? r.fdPct * (1 - r.interestTaxPct / 100) : null;
   const opts = [
-    { o: "Savings / call account", ret: r.savingPct != null ? `${num(r.savingPct * (1 - r.interestTaxPct / 100), 2)}% after tax` : "—", risk: "Very low", liq: "Instant", dur: "Any", tax: "6% TDS on interest", min: "Bank minimum (often Rs. 0–1,000)", prot: "Yes (deposit insurance up to the limit)", acc: "Any bank branch / app", link: "/invest?tab=deposits" },
-    { o: "Fixed deposit", ret: fdNet != null ? `${num(fdNet, 2)}% after tax (contractual)` : "—", risk: "Low", liq: "At maturity; early break with penalty", dur: "3 months – 5 years", tax: "6% TDS on interest", min: "Often Rs. 1,000–10,000", prot: "Yes (deposit insurance up to the limit)", acc: "Any bank / finance company", link: "/invest?tab=deposits" },
-    { o: "Treasury bills", ret: r.tbillPct != null ? `${num(r.tbillPct, 2)}% (364-day auction)` : "—", risk: "Very low (government)", liq: "To maturity", dur: "28–364 days", tax: "Interest tax applies", min: "Large lots; mainly via banks", prot: "Yes (government)", acc: "Limited for individuals", link: "/invest?tab=funds" },
-    { o: "Listed debentures", ret: "Coupon 6–11%; yield depends on price (see table)", risk: "Low–medium (issuer)", liq: "Thinly traded", dur: "Up to maturity (years)", tax: "Interest tax on coupon; CGT on gains", min: "1 unit (≈ Rs. 1,000)", prot: "Issuer must stay sound", acc: "Broker (TMS) / IPO", link: "/invest?tab=funds" },
-    { o: "Mutual funds (SIP)", ret: r.equityLongRunPct != null ? `≈ ${num(r.equityLongRunPct, 1)}%/yr NEPSE 10-yr (not guaranteed)` : "Variable", risk: "Medium–high", liq: "Days", dur: "3+ years", tax: "CGT on gains; fund fees", min: "Often Rs. 1,000/month (SIP)", prot: "No", acc: "Fund manager / Mero Share", link: "/future" },
-    { o: "NEPSE stocks", ret: r.equityLongRunPct != null ? `≈ ${num(r.equityLongRunPct, 1)}%/yr 10-yr incl. dividends (not guaranteed)` : "Variable", risk: "High", liq: "T+2 (liquid stocks)", dur: "5+ years", tax: "CGT 7.5% / 5%; 5% dividend tax; broker fees", min: "1 share", prot: "No", acc: "Demat + Mero Share + broker TMS", link: "/trading?tab=longterm" },
+    { o: "Savings / call account", ret: r.savingPct != null ? `${num(r.savingPct * (1 - r.interestTaxPct / 100), 2)}% after tax` : "-", risk: "Very low", liq: "Instant", dur: "Any", tax: "6% TDS on interest", min: "Bank minimum (often Rs. 0-1,000)", prot: "Yes (deposit insurance up to the limit)", acc: "Any bank branch / app", link: "/invest?tab=deposits" },
+    { o: "Fixed deposit", ret: fdNet != null ? `${num(fdNet, 2)}% after tax (contractual)` : "-", risk: "Low", liq: "At maturity; early break with penalty", dur: "3 months - 5 years", tax: "6% TDS on interest", min: "Often Rs. 1,000-10,000", prot: "Yes (deposit insurance up to the limit)", acc: "Any bank / finance company", link: "/invest?tab=deposits" },
+    { o: "Treasury bills", ret: r.tbillPct != null ? `${num(r.tbillPct, 2)}% (364-day auction)` : "-", risk: "Very low (government)", liq: "To maturity", dur: "28-364 days", tax: "Interest tax applies", min: "Large lots; mainly via banks", prot: "Yes (government)", acc: "Limited for individuals", link: "/invest?tab=funds" },
+    { o: "Listed debentures", ret: "Coupon 6-11%; yield depends on price (see table)", risk: "Low-medium (issuer)", liq: "Thinly traded", dur: "Up to maturity (years)", tax: "Interest tax on coupon; CGT on gains", min: "1 unit (about Rs. 1,000)", prot: "Issuer must stay sound", acc: "Broker (TMS) / IPO", link: "/invest?tab=funds" },
+    { o: "Mutual funds (SIP)", ret: r.equityLongRunPct != null ? `about ${num(r.equityLongRunPct, 1)}%/yr NEPSE 10-yr (not guaranteed)` : "Variable", risk: "Medium-high", liq: "Days", dur: "3+ years", tax: "CGT on gains; fund fees", min: "Often Rs. 1,000/month (SIP)", prot: "No", acc: "Fund manager / Mero Share", link: "/future" },
+    { o: "NEPSE stocks", ret: r.equityLongRunPct != null ? `about ${num(r.equityLongRunPct, 1)}%/yr 10-yr incl. dividends (not guaranteed)` : "Variable", risk: "High", liq: "T+2 (liquid stocks)", dur: "5+ years", tax: "CGT 7.5% / 5%; 5% dividend tax; broker fees", min: "1 share", prot: "No", acc: "Demat + Mero Share + broker TMS", link: "/trading?tab=longterm" },
     { o: "CIT / EPF / SSF", ret: "Published by each fund (see provider)", risk: "Low", liq: "Long lock-in", dur: "Until retirement / scheme term", tax: "Tax benefits within limits", min: "Scheme-specific", prot: "Generally yes (scheme rules)", acc: "Employer or provider", link: "/future" },
   ];
   return (
@@ -502,8 +502,8 @@ function ProfileCompare({ c }: { c: Any }) {
             <div className="small muted">{p.why}</div>
             {p.parts.map((x: Any) => <div key={x.option} className="row between small" style={{ flexWrap: "nowrap", gap: 8 }}><span>{x.pct}% {x.option}</span><span className="mono">{compact(x.amount)}</span></div>)}
             <div className="sep" />
-            <div className="row between small"><span>Expected a year</span><strong>{p.expectedPct != null ? `${num(p.expectedPct, 2)}%` : "—"}</strong></div>
-            <div className="row between small"><span>In 5 years (expected)</span><strong>{p.in5y != null ? compact(p.in5y) : "—"}</strong></div>
+            <div className="row between small"><span>Expected a year</span><strong>{p.expectedPct != null ? `${num(p.expectedPct, 2)}%` : "-"}</strong></div>
+            <div className="row between small"><span>In 5 years (expected)</span><strong>{p.in5y != null ? compact(p.in5y) : "-"}</strong></div>
             <div className="row between small"><span>A bad year</span><strong className={tone(p.worstYearPct)}>{num(p.worstYearPct, 1)}%</strong></div>
           </div>
         ))}</div>

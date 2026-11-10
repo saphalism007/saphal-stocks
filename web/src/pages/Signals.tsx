@@ -23,12 +23,12 @@ export default function Signals() {
   rows = [...rows].sort((a: Any, c: Any) => sort === "move" ? (c.changePct ?? 0) - (a.changePct ?? 0) : sort === "symbol" ? a.symbol.localeCompare(c.symbol) : c.net - a.net || c.signals.length - a.signals.length);
   return (
     <div className="page">
-      <div className="page-head"><div><h1>Technical Signals</h1><p className="small muted">RSI, MACD, the 20/50/200-day moving averages, VWAP, breakouts, volume and the 10% circuit across every stock with enough history. Session {d.asOf ? nptDate(d.asOf) : "—"}. Crosses count if they happened in the last 15 sessions.</p></div></div>
+      <div className="page-head"><div><h1>Technical Signals</h1><p className="small muted">RSI, MACD, the 20/50/200-day moving averages, VWAP, breakouts, volume and the 10% circuit across every stock with enough history. Session {d.asOf ? nptDate(d.asOf) : "-"}. Crosses count if they happened in the last 15 sessions.</p></div></div>
       <Card title="Breadth" sub={`Where ${br.counted} stocks sit against their 20, 50 and 200-day averages`}>
         <div className="breadth-bar"><span className="down" style={{ width: `${(br.below / br.counted) * 100}%` }} /><span className="mid" style={{ width: `${(br.between / br.counted) * 100}%` }} /><span className="up" style={{ width: `${(br.above / br.counted) * 100}%` }} /></div>
         <div className="row between small"><span className="down">{br.below} below all three</span><span className="faint">{br.between} in between</span><span className="up">{br.above} above all three</span></div>
         <div className="grid g4" style={{ marginTop: 10 }}>
-          {[["oversold", "oversold"], ["overbought", "overbought"], ["vol2x", "traded 2× usual volume"], ["circuit_up", "hit a circuit"]].map(([k, l]) => <button key={k} className="card stat" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => setSig(k)}><div className="value">{d.counts[k] + (k === "circuit_up" ? d.counts.circuit_dn : 0)}</div><div className="sub">{l}</div></button>)}
+          {[["oversold", "oversold"], ["overbought", "overbought"], ["vol2x", "traded 2x usual volume"], ["circuit_up", "hit a circuit"]].map(([k, l]) => <button key={k} className="card stat" style={{ textAlign: "left", cursor: "pointer" }} onClick={() => setSig(k)}><div className="value">{d.counts[k] + (k === "circuit_up" ? d.counts.circuit_dn : 0)}</div><div className="sub">{l}</div></button>)}
         </div>
       </Card>
       <div className="signals-layout">
@@ -40,10 +40,10 @@ export default function Signals() {
             </div>
           ))}
         </Card>
-        <Card title={sig ? d.defs.find((x: Any) => x.key === sig)?.label : "Every stock that fired a signal"} sub={`${rows.length} stocks · sorted by ${sort === "weight" ? "how many signals fired and which way they lean" : sort === "move" ? "today's move" : "symbol"}`} actions={<>
+        <Card title={sig ? d.defs.find((x: Any) => x.key === sig)?.label : "Every stock that fired a signal"} sub={`${rows.length} stocks, sorted by ${sort === "weight" ? "how many signals fired and which way they lean" : sort === "move" ? "today's move" : "symbol"}`} actions={<>
           <input className="input" style={{ width: 140 }} placeholder="Find a stock" value={q} onChange={(e) => setQ(e.target.value)} />
           <Seg value={lean} onChange={setLean} options={[{ key: "both", label: "Both" }, { key: "bull", label: "Bullish" }, { key: "bear", label: "Bearish" }]} />
-          <Seg value={sort} onChange={setSort} options={[{ key: "weight", label: "Weight" }, { key: "move", label: "Move" }, { key: "symbol", label: "A–Z" }]} />
+          <Seg value={sort} onChange={setSort} options={[{ key: "weight", label: "Weight" }, { key: "move", label: "Move" }, { key: "symbol", label: "A-Z" }]} />
         </>}>
           {rows.length === 0 ? <Empty title="No stock matches" /> : (
             <div className="table-scroll"><table className="t small">

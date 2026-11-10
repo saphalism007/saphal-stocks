@@ -129,7 +129,7 @@ function AppInner() {
   useEffect(() => { api<Partial<Prefs>>("/settings/appearance").then((r) => { if (r && Object.keys(r).length) { const p = { ...DEFAULT_PREFS, ...r }; setPrefs(p); setTheme(applyPrefs(p)); cachePrefs(p); } }).catch(() => {}); }, []);
   useEffect(() => onSystemThemeChange(() => { if (prefs.theme === "auto") setTheme(applyPrefs(prefs)); }), [prefs]);
   const toggle = () => save({ ...prefs, theme: theme === "dark" ? "light" : "dark" });
-  if (!status) return down ? <div className="auth-wrap"><Notice tone="warn">Cannot reach the Saphal Stocks server. Make sure it is running (<code>npm run dev</code>); retrying automatically…</Notice></div> : <Loading label="Starting Saphal Stocks" />;
+  if (!status) return down ? <div className="auth-wrap"><Notice tone="warn">Cannot reach the Saphal Stocks server. Make sure it is running (<code>npm run dev</code>); retrying automatically...</Notice></div> : <Loading label="Starting Saphal Stocks" />;
   return (
     <PrefsCtx.Provider value={{ prefs, save }}>
       <ThemeCtx.Provider value={{ theme, toggle }}>
@@ -213,7 +213,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           })}
         </nav>
         <div style={{ marginTop: "auto", padding: 14, borderTop: "1px solid var(--border)" }} className="row between">
-          <span className="small muted nav-label" title="App version and build code">{BROWSER_BACKEND ? "On this device" : user.username}<br /><span className="faint">v{VERSION} · {CODE}</span></span>
+          <span className="small muted nav-label" title="App version and build code">{BROWSER_BACKEND ? "On this device" : user.username}<br /><span className="faint">v{VERSION}, {CODE}</span></span>
           {!BROWSER_BACKEND && <button className="btn ghost sm" onClick={async () => { await api("/auth/logout", { body: {} }); onLogout(); }} title="Sign out"><I.logout /></button>}
         </div>
       </aside>
@@ -290,7 +290,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
 }
 
 const ACTIONS: { label: string; hint: string; run: (nav: (p: string) => void, toggle: () => void) => void }[] = [
-  { label: "Refresh all market data", hint: "action", run: async () => { await api("/data/refresh", { body: { job: "all" } }); alert("Refresh queued. Progress is on Settings → Data."); } },
+  { label: "Refresh all market data", hint: "action", run: async () => { await api("/data/refresh", { body: { job: "all" } }); alert("Refresh queued. Progress is on Settings > Data."); } },
   { label: "Toggle dark / light theme", hint: "action", run: (_n, t) => t() },
   { label: "New AI conversation", hint: "action", run: (n) => n("/analyst") },
   { label: "Log a trade in the journal", hint: "action", run: (n) => n("/journal") },
@@ -328,20 +328,20 @@ function GlobalSearch() {
     for (const sc of res.sectors) items.push({ key: "c" + sc.sector, group: "Sectors", label: sc.sector, sub: `All ${sc.n} listed companies`, tag: "sector", go: () => nav(`/stocks?sector=${encodeURIComponent(sc.sector)}`) });
     for (const r of res.stocks) {
       const to = res.intent ? res.intent.sample.replace("SYM", r.symbol) : `/stocks/${r.symbol}`;
-      items.push({ key: "s" + r.symbol, group: res.intent ? `Stocks · ${res.intent.label}` : "Stocks", label: r.symbol, sub: r.name, tag: r.price != null ? `${num(r.price)}${r.changePct != null ? ` ${r.changePct >= 0 ? "+" : ""}${num(r.changePct)}%` : ""}` : r.sector ?? "", tone: r.changePct, go: () => nav(to), extra: res.intent ? undefined : { label: "Chart", go: () => nav(`/terminal/${r.symbol}`) } });
+      items.push({ key: "s" + r.symbol, group: res.intent ? `Stocks, ${res.intent.label}` : "Stocks", label: r.symbol, sub: r.name, tag: r.price != null ? `${num(r.price)}${r.changePct != null ? ` ${r.changePct >= 0 ? "+" : ""}${num(r.changePct)}%` : ""}` : r.sector ?? "", tone: r.changePct, go: () => nav(to), extra: res.intent ? undefined : { label: "Chart", go: () => nav(`/terminal/${r.symbol}`) } });
     }
   }
   for (const f of features) items.push({ key: "f" + f.to, group: "Pages & tools", label: f.label, sub: "", tag: "open", go: () => nav(f.to) });
   for (const a of actions) items.push({ key: "a" + a.label, group: "Pages & tools", label: a.label, sub: "", tag: "action", go: () => a.run(nav, toggle) });
-  for (const n of res?.news ?? []) items.push({ key: "n" + n.id, group: "News", label: n.title, sub: `${n.symbol ? n.symbol + " · " : ""}${n.published_date}`, tag: "news", go: () => (n.symbol ? nav(`/stocks/${n.symbol}?tab=notices`) : window.open(n.url, "_blank", "noopener")) });
-  if (term.length >= 2) items.push({ key: "ai", group: "Ask", label: `Ask AI: “${term}”`, sub: "Get an answer using the app's data", tag: "AI", go: () => nav(`/analyst?q=${encodeURIComponent(term)}`) });
+  for (const n of res?.news ?? []) items.push({ key: "n" + n.id, group: "News", label: n.title, sub: `${n.symbol ? n.symbol + ", " : ""}${n.published_date}`, tag: "news", go: () => (n.symbol ? nav(`/stocks/${n.symbol}?tab=notices`) : window.open(n.url, "_blank", "noopener")) });
+  if (term.length >= 2) items.push({ key: "ai", group: "Ask", label: `Ask AI: '${term}'`, sub: "Get an answer using the app's data", tag: "AI", go: () => nav(`/analyst?q=${encodeURIComponent(term)}`) });
   const go = (it: Item) => { setQ(""); setRes(null); setOpen(false); it.go(); (document.activeElement as HTMLElement | null)?.blur(); };
   let lastGroup = "";
   return (
     <div className="search" ref={box}>
       <I.search />
       <input className="input" type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
-        placeholder={typeof window !== "undefined" && window.innerWidth < 600 ? "Search stocks, tools…" : "Search stocks, sectors, tools, news (⌘ K)"} value={q}
+        placeholder={typeof window !== "undefined" && window.innerWidth < 600 ? "Search stocks, tools..." : "Search stocks, sectors, tools, news (⌘ K)"} value={q}
         onFocus={() => setOpen(true)} onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, items.length - 1)); } if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); } if (e.key === "Enter" && items[sel]) go(items[sel]); if (e.key === "Escape") { setQ(""); setOpen(false); } }} />
       {open && items.length > 0 && (
@@ -373,12 +373,12 @@ function MarketBadge() {
   useEffect(() => { const id = setInterval(() => m.reload(), 60_000); return () => clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!m.data) return null;
   const d = m.data;
-  const label = d.session === "open" ? (d.live ? "Market open · live" : "Market open") : d.session === "pre-open" ? "Opens 11:00" : d.holiday ? "No trading today" : "Market closed";
+  const label = d.session === "open" ? (d.live ? "Market open, live" : "Market open") : d.session === "pre-open" ? "Opens 11:00" : d.holiday ? "No trading today" : "Market closed";
   const mins = d.lastUpdate ? Math.round((Date.now() - Date.parse(d.lastUpdate)) / 60000) : null;
   return (
-    <span className="badge" title={`${d.note} Hours ${d.hours}. Data date ${d.dataDate ?? "—"}.`} style={{ gap: 6 }}>
+    <span className="badge" title={`${d.note} Hours ${d.hours}. Data date ${d.dataDate ?? "-"}.`} style={{ gap: 6 }}>
       <span className="dot" style={{ background: d.session === "open" ? "var(--up)" : d.session === "pre-open" ? "var(--warn)" : "var(--text-3)" }} />
-      <span className="hide-phone">{label}{d.session === "open" && mins != null ? (mins <= 90 ? ` · ${mins} min ago` : d.dataDate ? ` · prices from ${nptDate(d.dataDate)}` : "") : ""}</span><span className="show-phone">{d.session === "open" ? "Open" : d.session === "pre-open" ? "11:00" : "Closed"}</span>
+      <span className="hide-phone">{label}{d.session === "open" && mins != null ? (mins <= 90 ? `, ${mins} min ago` : d.dataDate ? `, prices from ${nptDate(d.dataDate)}` : "") : ""}</span><span className="show-phone">{d.session === "open" ? "Open" : d.session === "pre-open" ? "11:00" : "Closed"}</span>
     </span>
   );
 }
@@ -401,7 +401,7 @@ function AskAiButton() {
       <button className="ai-fab" onClick={() => setOpen(!open)} aria-label="Ask AI"><I.ai /><span>Ask AI</span></button>
       {open && (
         <div className="ai-pop" role="dialog" aria-label="Ask the AI assistant">
-          <div className="small muted" style={{ marginBottom: 6 }}>Ask about NEPSE or your money · on {where}</div>
+          <div className="small muted" style={{ marginBottom: 6 }}>Ask about NEPSE or your money, on {where}</div>
           <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) go(q.trim()); }} className="row" style={{ flexWrap: "nowrap" }}>
             <input className="input" autoFocus style={{ flex: 1 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type a question" />
             <button className="btn primary" disabled={!q.trim()}><I.send /></button>

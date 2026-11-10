@@ -23,7 +23,7 @@ export async function backupToCloud(): Promise<"shared" | "downloaded" | "cancel
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   if (nav.canShare?.({ files: [file] }) && nav.share) {
     try {
-      await nav.share({ files: [file], title: "Saphal Stocks backup", text: "Save to Files → iCloud Drive or Google Drive" });
+      await nav.share({ files: [file], title: "Saphal Stocks backup", text: "Save to Files > iCloud Drive or Google Drive" });
       try { localStorage.setItem(LAST, new Date().toISOString()); } catch { /* ignore */ }
       return "shared";
     } catch (e) {

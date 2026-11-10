@@ -76,7 +76,7 @@ export function sectorHeatmap(period: "1D" | "1W" | "1M" | "1Y") {
 // ---------- technical signal board ----------
 export interface SignalRow { symbol: string; name: string; sector: string; close: number; changePct: number | null; signals: { key: string; label: string; dir: 1 | -1 | 0 }[]; net: number }
 export const SIGNAL_DEFS: { key: string; label: string; group: string; dir: 1 | -1 | 0 }[] = [
-  { key: "oversold", label: "Oversold (RSI ≤ 30)", group: "Momentum", dir: 1 }, { key: "overbought", label: "Overbought (RSI ≥ 70)", group: "Momentum", dir: -1 },
+  { key: "oversold", label: "Oversold (RSI up to 30)", group: "Momentum", dir: 1 }, { key: "overbought", label: "Overbought (RSI at least 70)", group: "Momentum", dir: -1 },
   { key: "macd_above", label: "MACD above signal", group: "Momentum", dir: 1 }, { key: "macd_up", label: "MACD crossed up (15 sessions)", group: "Momentum", dir: 1 }, { key: "macd_down", label: "MACD crossed down (15 sessions)", group: "Momentum", dir: -1 },
   { key: "x_up_20", label: "Crossed above SMA 20", group: "Moving averages", dir: 1 }, { key: "x_dn_20", label: "Crossed below SMA 20", group: "Moving averages", dir: -1 },
   { key: "x_up_50", label: "Crossed above SMA 50", group: "Moving averages", dir: 1 }, { key: "x_dn_50", label: "Crossed below SMA 50", group: "Moving averages", dir: -1 },
@@ -85,7 +85,7 @@ export const SIGNAL_DEFS: { key: string; label: string; group: string; dir: 1 | 
   { key: "above_all", label: "Above 20, 50 and 200 day", group: "Moving averages", dir: 1 }, { key: "below_all", label: "Below 20, 50 and 200 day", group: "Moving averages", dir: -1 },
   { key: "above_vwap", label: "Above 20-day VWAP", group: "Moving averages", dir: 1 },
   { key: "hi20", label: "Broke the 20-day high", group: "Breakout", dir: 1 }, { key: "hi50", label: "Broke the 50-day high", group: "Breakout", dir: 1 }, { key: "lo20", label: "Broke the 20-day low", group: "Breakout", dir: -1 },
-  { key: "vol2x", label: "Volume 2× or more", group: "Volume & circuit", dir: 0 }, { key: "circuit_up", label: "Hit the +10% circuit", group: "Volume & circuit", dir: 1 }, { key: "circuit_dn", label: "Hit the −10% circuit", group: "Volume & circuit", dir: -1 },
+  { key: "vol2x", label: "Volume 2x or more", group: "Volume & circuit", dir: 0 }, { key: "circuit_up", label: "Hit the +10% circuit", group: "Volume & circuit", dir: 1 }, { key: "circuit_dn", label: "Hit the −10% circuit", group: "Volume & circuit", dir: -1 },
 ];
 
 export function computeSignalBoard() {

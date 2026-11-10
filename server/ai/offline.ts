@@ -79,14 +79,14 @@ export function buildStockReport(symbol: string) {
 export function reportMarkdown(r: NonNullable<ReturnType<typeof buildStockReport>>) {
   const s = r.scores;
   return [
-    `### ${r.symbol} · ${r.name ?? ""} (${r.sector ?? "sector n/a"})`,
+    `### ${r.symbol}, ${r.name ?? ""} (${r.sector ?? "sector n/a"})`,
     `Last close **Rs. ${f2(r.price)}** on ${r.priceDate ?? "n/a"}.`,
     `**Long-term:** ${r.verdict.longTerm}  \n**Short-term:** ${r.verdict.shortTerm}`,
     `| Fundamental | Technical | Valuation | Financial health | Risk (higher = safer) |\n|---|---|---|---|---|\n| ${s.fundamental ?? "n/a"} | ${s.technical ?? "n/a"} | ${s.valuation ?? "n/a"} | ${s.financialHealth ?? "n/a"} | ${s.risk ?? "n/a"} |`,
     `**Market context:** ${r.marketContext}`,
     r.bullish.length ? `**Bullish:**\n${r.bullish.map((b) => `- ${b}`).join("\n")}` : "",
     r.bearish.length ? `**Bearish:**\n${r.bearish.map((b) => `- ${b}`).join("\n")}` : "",
-    r.entry ? `**Entry zone (${r.entry.setup}):** Rs. ${f2(r.entry.low)} - ${f2(r.entry.high)} · **Stop:** Rs. ${f2(r.stopLoss)} · **Targets:** ${r.targets.map((t) => "Rs. " + f2(t)).join(", ")} · **R:R** ${f2(r.riskReward)}` : "",
+    r.entry ? `**Entry zone (${r.entry.setup}):** Rs. ${f2(r.entry.low)} - ${f2(r.entry.high)}, **Stop:** Rs. ${f2(r.stopLoss)}, **Targets:** ${r.targets.map((t) => "Rs. " + f2(t)).join(", ")}, **R:R** ${f2(r.riskReward)}` : "",
     `**Support:** ${r.supports.map((l) => `Rs. ${f2(l.price)} (${l.strength}, ${l.reactions} reactions)`).join(", ") || "n/a"}  \n**Resistance:** ${r.resistances.map((l) => `Rs. ${f2(l.price)} (${l.strength}, ${l.reactions} reactions)`).join(", ") || "n/a"}`,
     r.invalidation.length ? `**Invalidation:** ${r.invalidation.join(" ")}` : "",
     `*Data: prices to ${r.dataFreshness.lastPriceDate ?? "n/a"}, statements ${r.dataFreshness.latestReport ?? "not stored"}. ${r.facts}*`,
@@ -109,8 +109,8 @@ export async function answerOffline(message: string, userId: number): Promise<st
     const d = fundDirectory();
     const open = d.funds.filter((f) => f.type === "Open-ended"), closed = d.funds.filter((f) => f.type === "Close-ended" && f.premium_pct != null).sort((a, b) => (a.premium_pct ?? 0) - (b.premium_pct ?? 0)).slice(0, 8);
     const link = (f: (typeof d.funds)[number]) => f.applyUrl ? `[Apply / SIP](${f.applyUrl})` : f.website ? `[${f.website.replace(/^https?:\/\//, "")}](${f.website})` : "contact the manager";
-    return header + `**Open-ended funds (buy units or start a SIP directly with the fund manager):**\n\n| Fund | Manager | NAV | Where to apply |\n|---|---|---|---|\n` + open.map((f) => `| ${f.name} | ${f.manager ?? "—"} | ${f.daily_nav ?? f.weekly_nav ?? "—"} | ${link(f)} |`).join("\n") +
-      `\n\n**Close-ended funds at the biggest discount to NAV (buy through your broker like shares):**\n\n| Fund | Price | NAV | vs NAV |\n|---|---|---|---|\n` + closed.map((f) => `| ${f.symbol} ${f.name} | ${f.ltp ?? "—"} | ${f.weekly_nav ?? f.daily_nav ?? "—"} | ${f.premium_pct}% |`).join("\n") +
+    return header + `**Open-ended funds (buy units or start a SIP directly with the fund manager):**\n\n| Fund | Manager | NAV | Where to apply |\n|---|---|---|---|\n` + open.map((f) => `| ${f.name} | ${f.manager ?? "-"} | ${f.daily_nav ?? f.weekly_nav ?? "-"} | ${link(f)} |`).join("\n") +
+      `\n\n**Close-ended funds at the biggest discount to NAV (buy through your broker like shares):**\n\n| Fund | Price | NAV | vs NAV |\n|---|---|---|---|\n` + closed.map((f) => `| ${f.symbol} ${f.name} | ${f.ltp ?? "-"} | ${f.weekly_nav ?? f.daily_nav ?? "-"} | ${f.premium_pct}% |`).join("\n") +
       `\n\nFull list with every fund: **Brokers & Mutual Funds** page. A SIP in a diversified open-ended equity fund is the simplest way to invest monthly.`;
   }
   if (/broker|tms/.test(lower)) {
@@ -118,17 +118,17 @@ export async function answerOffline(message: string, userId: number): Promise<st
     const place = lower.match(/in ([a-z]+)/)?.[1];
     const list = place ? d.sebon.filter((b) => (b.address ?? "").toLowerCase().includes(place)) : [];
     const act = d.activity.slice(0, 8);
-    return header + (place ? `**Brokers in ${place[0].toUpperCase() + place.slice(1)}** (SEBON list): ${list.length ? "\n\n" + list.map((b) => `- **${b.name}** — ${b.address ?? ""}${b.phone ? `, ${b.phone}` : ""}`).join("\n") : "none found; check the full list on the Brokers & Mutual Funds page."}\n\n` : `There are **${d.sebon.length} SEBON-licensed brokers** (full list with phone and email on the Brokers & Mutual Funds page).\n\n`) +
+    return header + (place ? `**Brokers in ${place[0].toUpperCase() + place.slice(1)}** (SEBON list): ${list.length ? "\n\n" + list.map((b) => `- **${b.name}**, ${b.address ?? ""}${b.phone ? `, ${b.phone}` : ""}`).join("\n") : "none found; check the full list on the Brokers & Mutual Funds page."}\n\n` : `There are **${d.sebon.length} SEBON-licensed brokers** (full list with phone and email on the Brokers & Mutual Funds page).\n\n`) +
       (act.length ? `**Most active brokers** (${d.sessions} session${d.sessions === 1 ? "" : "s"} to ${d.to}):\n\n| Broker | Bought | Sold | Net | Buying most |\n|---|---|---|---|---|\n` + act.map((a) => `| #${a.broker} | ${Math.round(a.buy / 1e5) / 10}M | ${Math.round(a.sell / 1e5) / 10}M | ${Math.round(a.net / 1e5) / 10}M | ${a.accumulating.map((x) => x.symbol).join(", ")} |`).join("\n") : "");
   }
   if (/what (should|to) (i )?(buy|invest)|best stock|strong stock|which stock|invest or trade|long.?term stock|stocks to trade/.test(lower)) {
     const p = picks(), mood = marketMood();
-    return header + (mood ? `Market mood: **${mood.score}/100 (${moodLabel(mood.score)})**.\n\n` : "") + `**Best to invest (strong businesses):** ${p.invest.slice(0, 8).map((x) => `${x.symbol} (${x.score})`).join(", ")}.\n\n**Best to trade (strong setups):** ${p.trade.slice(0, 8).map((x) => `${x.symbol} (${x.score}${x.setup ? `, ${x.setup}` : ""})`).join(", ")}.\n\n**Strong on both:** ${p.both.slice(0, 6).map((x) => x.symbol).join(", ") || "none today"}.\n\nOpen any stock's ⚡ Buy/Sell signal for exact entry, stop-loss and targets. Spread money over 5+ stocks in different sectors.`;
+    return header + (mood ? `Market mood: **${mood.score}/100 (${moodLabel(mood.score)})**.\n\n` : "") + `**Best to invest (strong businesses):** ${p.invest.slice(0, 8).map((x) => `${x.symbol} (${x.score})`).join(", ")}.\n\n**Best to trade (strong setups):** ${p.trade.slice(0, 8).map((x) => `${x.symbol} (${x.score}${x.setup ? `, ${x.setup}` : ""})`).join(", ")}.\n\n**Strong on both:** ${p.both.slice(0, 6).map((x) => x.symbol).join(", ") || "none today"}.\n\nOpen any stock's Buy/Sell signal for exact entry, stop-loss and targets. Spread money over 5+ stocks in different sectors.`;
   }
   if (/fixed deposit|\bfd\b|interest rate|best bank|which bank/.test(lower)) {
     const c = (await executeTool("compare_deposits", { amount: amt ?? 100000, months: /2 ?year|24 ?month/.test(lower) ? 24 : /6 ?month/.test(lower) ? 6 : 12 }, userId)) as { rows: { institution: string; product?: string | null; ratePct: number; netAnnualPct: number; realPct: number | null; maturity: number; method?: string | null; effectiveFrom?: string | null }[]; months: number; amount: number; inflationPct: number | null };
     return header + `**Fixed deposits for Rs. ${f2(c.amount, 0)} over ${c.months} months** (after 6% tax on interest):\n\n| Institution | Rate | After tax | After inflation | You get | Source |\n|---|---|---|---|---|---|\n` + c.rows.slice(0, 12).map((r) => `| ${r.institution}${r.product ? ` (${r.product})` : ""} | ${f2(r.ratePct)}% | ${f2(r.netAnnualPct)}% | ${f2(r.realPct)}% | Rs. ${f2(r.maturity, 0)} | ${r.method ?? ""} ${r.effectiveFrom ?? ""} |`).join("\n") +
-      `\n\n${c.rows.length <= 1 ? "Only the NRB average is available. Open **Where to Invest → Deposit rates** to read the latest bank notices or add rates you have checked." : "AI-read rates should be checked against the linked notice."} Inflation: ${f2(c.inflationPct)}% (NRB).`;
+      `\n\n${c.rows.length <= 1 ? "Only the NRB average is available. Open **Where to Invest > Deposit rates** to read the latest bank notices or add rates you have checked." : "AI-read rates should be checked against the linked notice."} Inflation: ${f2(c.inflationPct)}% (NRB).`;
   }
   if (/where should i (put|invest)|how should i invest|invest it|allocate|save .* every month|per month|monthly/.test(lower) && amt) {
     const monthly = /every month|per month|monthly|each month/.test(lower);
@@ -181,8 +181,8 @@ export async function answerOffline(message: string, userId: number): Promise<st
     if (re.test(lower)) {
       const sector = all<{ sector: string }>("SELECT DISTINCT sector FROM companies WHERE sector IS NOT NULL").map((r) => r.sector).find((s) => lower.includes(s.toLowerCase().replace(/ bank$/, "").split(" ")[0]));
       const r = (await executeTool("rank_stocks", { strategy: key, limit: 10, sector }, userId)) as { strategy: { name: string; description: string; weights: string[]; filters: string[] }; ranked: { rank: number; symbol: string; name: string; score: number; dataCoveragePct: number; price: number | null }[]; universe: number; excludedOrInsufficientData: number; asOf: string };
-      return header + `**${r.strategy.name}${sector ? ` · ${sector}` : ""}** (as of ${r.asOf}). ${r.strategy.description}\n\nWeights: ${r.strategy.weights.join(", ")}. Filters: ${r.strategy.filters.join("; ") || "none"}. ${r.excludedOrInsufficientData} of ${r.universe} stocks excluded by filters or missing data.\n\n| # | Stock | Score | Price | Data coverage |\n|---|---|---|---|---|\n` +
-        r.ranked.map((x) => `| ${x.rank} | ${x.symbol} · ${x.name} | ${x.score} | ${f2(x.price)} | ${x.dataCoveragePct}% |`).join("\n") +
+      return header + `**${r.strategy.name}${sector ? `, ${sector}` : ""}** (as of ${r.asOf}). ${r.strategy.description}\n\nWeights: ${r.strategy.weights.join(", ")}. Filters: ${r.strategy.filters.join("; ") || "none"}. ${r.excludedOrInsufficientData} of ${r.universe} stocks excluded by filters or missing data.\n\n| # | Stock | Score | Price | Data coverage |\n|---|---|---|---|---|\n` +
+        r.ranked.map((x) => `| ${x.rank} | ${x.symbol}, ${x.name} | ${x.score} | ${f2(x.price)} | ${x.dataCoveragePct}% |`).join("\n") +
         "\n\nScores rank stocks against each other on this model only. Open a stock for the full picture before acting.";
     }
   }

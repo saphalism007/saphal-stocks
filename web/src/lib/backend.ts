@@ -5,7 +5,7 @@ export const BROWSER_BACKEND = import.meta.env.VITE_BACKEND !== "server";
 type Listener = (e: { type: string; message?: string; market?: unknown; title?: string; body?: string }) => void;
 const listeners = new Set<Listener>();
 export const onBackendEvent = (fn: Listener) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
-export let backendState: { status: "starting" | "ready" | "error"; message: string; market?: Record<string, unknown> } = { status: "starting", message: "Starting…" };
+export let backendState: { status: "starting" | "ready" | "error"; message: string; market?: Record<string, unknown> } = { status: "starting", message: "Starting..." };
 
 let worker: Worker | null = null;
 let seq = 0;

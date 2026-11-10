@@ -14,7 +14,7 @@ const r0 = (x: number) => Math.round(x);
 export function parkWhere(months: number) {
   if (months <= 3) return { place: "A separate savings account", why: "You need it within 3 months: keep it instantly available but away from your spending account." };
   if (months <= 12) return { place: "A recurring deposit (RD) or a separate savings account", why: "Set an automatic monthly transfer on salary day. An RD earns more and is harder to break on impulse." };
-  return { place: "A recurring deposit or short fixed deposits", why: "Over a year away: lock it in deposits that mature just before the purchase date. Never shares — prices can be down when you need the money." };
+  return { place: "A recurring deposit or short fixed deposits", why: "Over a year away: lock it in deposits that mature just before the purchase date. Never shares, prices can be down when you need the money." };
 }
 
 export function potStatus(p: Pot, today: string) {
@@ -36,10 +36,10 @@ export function affordability(monthlyNeeded: number, m: { income: number; cashFl
   if (!m || m.income <= 0) return { level: "unknown" as const, text: "Fill in My Money (income and spending) to check whether this fits your budget." };
   const shareOfIncome = (monthlyNeeded / m.income) * 100, shareOfSurplus = m.cashFlow > 0 ? (monthlyNeeded / m.cashFlow) * 100 : Infinity;
   if (m.cashFlow <= 0) return { level: "no" as const, text: "You currently spend all your income. Free up money in the budget first; don't fund this with loans or your emergency fund." };
-  const note = m.emergencyGap > 0 && kind === "want" ? " Your emergency fund isn't full yet — fill it first, or split new savings between both." : "";
+  const note = m.emergencyGap > 0 && kind === "want" ? " Your emergency fund isn't full yet, fill it first, or split new savings between both." : "";
   if (shareOfSurplus <= 50) return { level: "yes" as const, text: `Uses ${Math.round(shareOfSurplus)}% of what you save each month (${shareOfIncome.toFixed(1)}% of income). Comfortable.${note}` };
-  if (shareOfSurplus <= 100) return { level: "tight" as const, text: `Uses ${Math.round(shareOfSurplus)}% of your monthly savings — little left for investing or surprises. Consider a later date or a cheaper option.${note}` };
-  return { level: "no" as const, text: `Needs ${Math.round(shareOfSurplus)}% of what you save each month. Move the date later (to about ${Math.ceil(monthlyNeeded / (m.cashFlow * 0.5))}× as long) or lower the budget.${note}` };
+  if (shareOfSurplus <= 100) return { level: "tight" as const, text: `Uses ${Math.round(shareOfSurplus)}% of your monthly savings, little left for investing or surprises. Consider a later date or a cheaper option.${note}` };
+  return { level: "no" as const, text: `Needs ${Math.round(shareOfSurplus)}% of what you save each month. Move the date later (to about ${Math.ceil(monthlyNeeded / (m.cashFlow * 0.5))}x as long) or lower the budget.${note}` };
 }
 
 /** Buy now on EMI, or save first and buy later? */

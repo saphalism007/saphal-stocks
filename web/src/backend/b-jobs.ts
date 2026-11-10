@@ -2,7 +2,7 @@
 // pipeline (or the desktop server); the web app downloads the published snapshot.
 import { all, get } from "./b-db.ts";
 
-const notHere = () => { throw Object.assign(new Error("Data refresh runs automatically in the cloud pipeline; the app downloads new data when it is published. Use Settings → Data → Check for new data."), { status: 400 }); };
+const notHere = () => { throw Object.assign(new Error("Data refresh runs automatically in the cloud pipeline; the app downloads new data when it is published. Use Settings > Data > Check for new data."), { status: 400 }); };
 export const syncListing = notHere, syncHistory = notHere, syncIndices = notHere, syncCompanyDetail = notHere, syncAllDetails = notHere,
   syncNews = notHere, syncForex = notHere, syncIssues = notHere, syncFunds = notHere;
 export const enqueue = () => ({ status: "done" });

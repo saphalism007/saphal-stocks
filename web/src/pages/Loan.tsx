@@ -73,7 +73,7 @@ export default function Loan() {
             <F label="Interest calculated"><select className="input" value={f.basis} onChange={(e) => set("basis", e.target.value as Form["basis"])}><option value="periodic">Per instalment (rate ÷ payments a year)</option><option value="actual365">Daily on actual days, 365-day year (bank style)</option></select></F>
             <F label="Round instalment up to"><select className="input" value={String(f.roundTo)} onChange={(e) => set("roundTo", e.target.value === "" ? "" : Number(e.target.value))}><option value="">No rounding</option><option value="1">Rs. 1</option><option value="10">Rs. 10</option><option value="100">Rs. 100</option></select></F>
             {!["daily", "weekly", "fortnightly"].includes(f.freq) && <F label="Instalment dates follow"><select className="input" value={f.cal} onChange={(e) => set("cal", e.target.value as Form["cal"])}><option value="bs">Nepali calendar: same Nepali date each period (bank style)</option><option value="ad">English calendar: same AD date each period</option></select></F>}
-            <F label="Loan start (disbursement) date — AD"><input type="date" className="input" value={f.start} onChange={(e) => set("start", e.target.value)} /></F>
+            <F label="Loan start (disbursement) date, AD"><input type="date" className="input" value={f.start} onChange={(e) => set("start", e.target.value)} /></F>
             <BsDateInput iso={f.start} onChange={(iso) => set("start", iso)} />
           </Sec>
           <Sec title="3. Grace period" closed>
@@ -123,7 +123,7 @@ function BsDateInput({ iso, onChange }: { iso: string; onChange: (iso: string) =
         <select className="input" value={b.m} onChange={(e) => upd(b.y, Number(e.target.value), b.d)}>{BS_MONTHS.map((n, i) => <option key={n} value={i + 1}>{n}</option>)}</select>
         <NumInput plain className="input" value={b.d} onChange={(e) => upd(b.y, b.m, Number(e.target.value) || 1)} />
       </div>
-      {err ? <span className="tiny warn">{err}</span> : <span className="tiny faint">{bsLabel(b)} · fiscal year {fiscalYearOf(b)}</span>}
+      {err ? <span className="tiny warn">{err}</span> : <span className="tiny faint">{bsLabel(b)}, fiscal year {fiscalYearOf(b)}</span>}
     </div>
   );
 }
@@ -146,10 +146,10 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
   return (
     <div className="col">
       <div className="grid g4 ln-stats">
-        <Stat label={`${FREQ_LABEL[res.freq]} instalment`} value={rs(res.installment, 0)} sub={res.freq !== "monthly" && monthlyEq ? `≈ ${rs(monthlyEq, 0)} a month` : `${res.installments} instalments`} />
+        <Stat label={`${FREQ_LABEL[res.freq]} instalment`} value={rs(res.installment, 0)} sub={res.freq !== "monthly" && monthlyEq ? `about ${rs(monthlyEq, 0)} a month` : `${res.installments} instalments`} />
         <Stat label="Total interest" value={compact(res.totalInterest)} sub={`${num(res.interestToPrincipalPct, 1)}% of the loan`} tone="down" />
         <Stat label="Total you pay" value={compact(res.totalPaid + res.fees)} sub={res.fees ? `incl. fees ${rs(res.fees, 0)}` : `on a ${compact(res.principal)} loan`} />
-        <Stat label="Loan ends" value={nptDate(res.payoffDate)} sub={`${res.installments} × ${FREQ_LABEL[res.freq].toLowerCase()}`} />
+        <Stat label="Loan ends" value={nptDate(res.payoffDate)} sub={`${res.installments} x ${FREQ_LABEL[res.freq].toLowerCase()}`} />
       </div>
       <div className="ln-facts small">
         <span>Loan <b>{rs(res.principal, 0)}</b></span><span>Rate <b>{num(res.ratePct, 3)}%</b></span><span>Effective yearly <b>{num(res.effectiveAnnualPct, 2)}%</b></span>
@@ -163,14 +163,14 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
         {decide && <>
           <p className="small" style={{ margin: "0 0 6px" }}>At the end of the loan ({nptDate(res.payoffDate)}):</p>
           <dl className="kv text small">
-            <dt>Pay in full, invest what's left</dt><dd style={{ textAlign: "right" }}><b>{decide.canAfford ? rs(decide.cashLeftIfFull, 0) : "can't — not enough cash"}</b></dd>
+            <dt>Pay in full, invest what's left</dt><dd style={{ textAlign: "right" }}><b>{decide.canAfford ? rs(decide.cashLeftIfFull, 0) : "can't, not enough cash"}</b></dd>
             <dt>Take the loan, invest your cash, pay instalments from it</dt><dd style={{ textAlign: "right" }}><b className={decide.investmentLeftIfLoan < 0 ? "down" : ""}>{rs(decide.investmentLeftIfLoan, 0)}</b></dd>
           </dl>
           <div className={`notice ${decide.better === "loan" ? "info" : ""}`}><div>{decide.better === "loan"
-            ? `Taking the loan and investing leaves you about ${rs(decide.difference, 0)} richer — but only if the investment really earns that return every year. Loan interest is certain; investment returns are not. Use safe, steady investments (FD, bonds) for this, not shares, and keep an emergency fund.`
+            ? `Taking the loan and investing leaves you about ${rs(decide.difference, 0)} richer, but only if the investment really earns that return every year. Loan interest is certain; investment returns are not. Use safe, steady investments (FD, bonds) for this, not shares, and keep an emergency fund.`
             : `Paying cash leaves you about ${rs(decide.difference, 0)} better off: the loan costs more than your investment would earn after tax.${decide.ranOut ? ` Your invested cash would also run out around ${nptDate(decide.ranOut)}.` : ""}`}</div></div>
         </>}
-        <div className="tiny faint" style={{ marginTop: 6 }}>The rule: borrowing to keep your money invested only pays when the after-tax return is reliably higher than the loan's true cost (here {num(res.aprWithFeesPct ?? res.effectiveAnnualPct, 2)}% a year). For things that lose value (phones, TVs, cars), saving first is usually cheaper — see the <Link to="/purchases">Purchase Planner</Link>.</div>
+        <div className="tiny faint" style={{ marginTop: 6 }}>The rule: borrowing to keep your money invested only pays when the after-tax return is reliably higher than the loan's true cost (here {num(res.aprWithFeesPct ?? res.effectiveAnnualPct, 2)}% a year). For things that lose value (phones, TVs, cars), saving first is usually cheaper, see the <Link to="/purchases">Purchase Planner</Link>.</div>
       </Card>}
 
       <Card title={bsAvailable ? "By Nepali fiscal year" : "By year"} sub="Interest and principal paid each year, and what you still owe" flush>
@@ -185,7 +185,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
         <ul className="small" style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
           <li><b>Borrow for things that earn or grow</b> (a home you live in or rent out, a business, education). Avoid loans for things that lose value.</li>
           <li><b>EMI + invest only works when your safe, after-tax return beats the loan's true cost.</b> Example: a 9% loan vs an FD paying 5% after tax loses money; a 12% loan vs shares that might return 15% is a gamble, not a plan.</li>
-          <li><b>Keep total EMIs under about 35% of income</b> and an emergency fund of 3–6 months, including the EMI.</li>
+          <li><b>Keep total EMIs under about 35% of income</b> and an emergency fund of 3-6 months, including the EMI.</li>
           <li><b>Prepay early.</b> Interest is highest in the first years; even small extra payments save a lot (try the Prepayments section).</li>
           <li><b>Ask the bank for:</b> the base rate + premium, how often it changes, prepayment charges, processing and other fees. Compare the "true cost with fees", not just the rate.</li>
         </ul>
@@ -204,11 +204,11 @@ function periodOf(view: View, date: string): { key: string; label: string; sub: 
   if (view === "day") return { key: date, label: b ? bsLabel(b) : date, sub: nptDate(date), projected: !!b?.projected };
   if (!b) return { key: date.slice(0, 4), label: `AD ${date.slice(0, 4)}`, sub: "", projected: false };
   const fy = fiscalYearOf(b), star = b.projected ? "*" : "";
-  const fm = (b.m + 8) % 12; // months into the fiscal year: Shrawan = 0 … Ashadh = 11
+  const fm = (b.m + 8) % 12; // months into the fiscal year: Shrawan = 0 ... Ashadh = 11
   if (view === "month") return { key: `${b.y}-${String(b.m).padStart(2, "0")}`, label: `${BS_MONTHS[b.m - 1]} ${b.y}${star}`, sub: `FY ${fy}`, projected: !!b.projected };
-  if (view === "quarter") { const q = Math.floor(fm / 3); const names = ["Shrawan–Ashwin", "Kartik–Poush", "Magh–Chaitra", "Baisakh–Ashadh"]; return { key: `${fy}-Q${q + 1}`, label: `FY ${fy} Q${q + 1}${star}`, sub: names[q], projected: !!b.projected }; }
-  if (view === "half") { const h = fm < 6 ? 1 : 2; return { key: `${fy}-H${h}`, label: `FY ${fy} H${h}${star}`, sub: h === 1 ? "Shrawan–Poush" : "Magh–Ashadh", projected: !!b.projected }; }
-  return { key: fy, label: `FY ${fy}${star}`, sub: "Shrawan–Ashadh", projected: !!b.projected };
+  if (view === "quarter") { const q = Math.floor(fm / 3); const names = ["Shrawan-Ashwin", "Kartik-Poush", "Magh-Chaitra", "Baisakh-Ashadh"]; return { key: `${fy}-Q${q + 1}`, label: `FY ${fy} Q${q + 1}${star}`, sub: names[q], projected: !!b.projected }; }
+  if (view === "half") { const h = fm < 6 ? 1 : 2; return { key: `${fy}-H${h}`, label: `FY ${fy} H${h}${star}`, sub: h === 1 ? "Shrawan-Poush" : "Magh-Ashadh", projected: !!b.projected }; }
+  return { key: fy, label: `FY ${fy}${star}`, sub: "Shrawan-Ashadh", projected: !!b.projected };
 }
 function aggregate(rows: Row[], view: View): Agg[] {
   const out: Agg[] = []; let cur: Agg | null = null;
@@ -253,24 +253,24 @@ function Schedule({ res }: { res: Extract<ReturnType<typeof amortise>, { ok: tru
         {!agg ? <>
           <thead><tr><th>#</th><th>Date</th><th>Nepali date</th><th className="num">Opening</th><th className="num">Rate</th><th className="num">Instalment</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
           <tbody>{res.rows.slice(from, to).map((r) => { const b = toBS(r.date); return (
-            <tr key={r.n} id={`ln-r${r.n}`}><td>{r.n}</td><td>{nptDate(r.date)}</td><td>{b ? bsLabel(b) : "—"}</td><td className="num">{npr(r.opening)}</td><td className="num">{r.rate}%</td><td className="num">{npr(r.payment)}</td><td className="num down">{npr(r.interest)}</td><td className="num">{npr(r.principal)}</td><td className="num">{r.extra ? npr(r.extra) : "—"}</td><td className="num"><b>{npr(r.closing)}</b></td></tr>
+            <tr key={r.n} id={`ln-r${r.n}`}><td>{r.n}</td><td>{nptDate(r.date)}</td><td>{b ? bsLabel(b) : "-"}</td><td className="num">{npr(r.opening)}</td><td className="num">{r.rate}%</td><td className="num">{npr(r.payment)}</td><td className="num down">{npr(r.interest)}</td><td className="num">{npr(r.principal)}</td><td className="num">{r.extra ? npr(r.extra) : "-"}</td><td className="num"><b>{npr(r.closing)}</b></td></tr>
           ); })}</tbody>
         </> : <>
           <thead><tr><th>Period</th><th className="num">Instalments</th><th className="num">Opening</th><th className="num">Paid</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
           <tbody>{agg.slice(from, to).map((a) => (
-            <tr key={a.key}><td><b>{a.label}</b><div className="tiny faint">{a.sub}</div></td><td className="num">{a.count}</td><td className="num">{npr(a.opening)}</td><td className="num">{npr(a.paid)}</td><td className="num down">{npr(a.interest)}</td><td className="num">{npr(a.principal)}</td><td className="num">{a.extra ? npr(a.extra) : "—"}</td><td className="num"><b>{npr(a.closing)}</b></td></tr>
+            <tr key={a.key}><td><b>{a.label}</b><div className="tiny faint">{a.sub}</div></td><td className="num">{a.count}</td><td className="num">{npr(a.opening)}</td><td className="num">{npr(a.paid)}</td><td className="num down">{npr(a.interest)}</td><td className="num">{npr(a.principal)}</td><td className="num">{a.extra ? npr(a.extra) : "-"}</td><td className="num"><b>{npr(a.closing)}</b></td></tr>
           ))}</tbody>
         </>}
-        <tfoot><tr><td colSpan={agg ? 3 : 5}><b>Total (whole loan)</b></td><td className="num"><b>{npr(res.totalPaid - (agg ? 0 : res.totalExtra))}</b></td><td className="num down"><b>{npr(res.totalInterest)}</b></td><td className="num"><b>{npr(res.principal - res.totalExtra)}</b></td><td className="num"><b>{res.totalExtra ? npr(res.totalExtra) : "—"}</b></td><td className="num"><b>0.00</b></td></tr></tfoot>
+        <tfoot><tr><td colSpan={agg ? 3 : 5}><b>Total (whole loan)</b></td><td className="num"><b>{npr(res.totalPaid - (agg ? 0 : res.totalExtra))}</b></td><td className="num down"><b>{npr(res.totalInterest)}</b></td><td className="num"><b>{npr(res.principal - res.totalExtra)}</b></td><td className="num"><b>{res.totalExtra ? npr(res.totalExtra) : "-"}</b></td><td className="num"><b>0.00</b></td></tr></tfoot>
       </table></div>
       <div className="ln-pager">
-        <button className="btn sm ghost" disabled={pg === 0} onClick={() => setPage(0)}>« First</button>
-        <button className="btn sm ghost" disabled={pg === 0} onClick={() => setPage(pg - 1)}>‹ Prev</button>
-        <span className="small">Rows {(from + 1).toLocaleString("en-IN")}–{to.toLocaleString("en-IN")} of {total.toLocaleString("en-IN")} · page {pg + 1} of {pages}</span>
-        <button className="btn sm ghost" disabled={pg >= pages - 1} onClick={() => setPage(pg + 1)}>Next ›</button>
-        <button className="btn sm ghost" disabled={pg >= pages - 1} onClick={() => setPage(pages - 1)}>Last »</button>
+        <button className="btn sm ghost" disabled={pg === 0} onClick={() => setPage(0)}>First</button>
+        <button className="btn sm ghost" disabled={pg === 0} onClick={() => setPage(pg - 1)}>Prev</button>
+        <span className="small">Rows {(from + 1).toLocaleString("en-IN")}-{to.toLocaleString("en-IN")} of {total.toLocaleString("en-IN")}, page {pg + 1} of {pages}</span>
+        <button className="btn sm ghost" disabled={pg >= pages - 1} onClick={() => setPage(pg + 1)}>Next</button>
+        <button className="btn sm ghost" disabled={pg >= pages - 1} onClick={() => setPage(pages - 1)}>Last</button>
       </div>
-      <div className="tiny faint">Amounts in Nepali format (lakh, crore). Quarters and half-years follow the fiscal year: Q1 Shrawan–Ashwin, Q2 Kartik–Poush, Q3 Magh–Chaitra, Q4 Baisakh–Ashadh. * Projected Nepali date (after BS 2090). The CSV downloads the view you are looking at, every row.</div>
+      <div className="tiny faint">Amounts in Nepali format (lakh, crore). Quarters and half-years follow the fiscal year: Q1 Shrawan-Ashwin, Q2 Kartik-Poush, Q3 Magh-Chaitra, Q4 Baisakh-Ashadh. * Projected Nepali date (after BS 2090). The CSV downloads the view you are looking at, every row.</div>
     </Card>
   );
 }

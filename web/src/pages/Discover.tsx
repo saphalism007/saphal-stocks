@@ -44,12 +44,12 @@ function Mood() {
   return (
     <div className="col">
       <div className="grid g2">
-        <Card title="NEPSE Market Mood" sub={`Fear & greed, 0–100 · close of ${nptDate(d.asOf)}`}>
+        <Card title="NEPSE Market Mood" sub={`Fear & greed, 0-100, close of ${nptDate(d.asOf)}`}>
           <div className="mood-top">
             <MoodGauge score={d.score} />
             <div className="mood-txt">
               <b className={`mood-l s${d.score < 25 ? 0 : d.score < 45 ? 1 : d.score <= 55 ? 2 : d.score <= 75 ? 3 : 4}`}>{moodLabel(d.score)}</b>
-              <span className="small muted">A week ago: <b>{d.weekAgo ?? "—"}</b> · a month ago: <b>{d.monthAgo ?? "—"}</b></span>
+              <span className="small muted">A week ago: <b>{d.weekAgo ?? "-"}</b>, a month ago: <b>{d.monthAgo ?? "-"}</b></span>
               <p className="small" style={{ margin: "6px 0 0" }}>{moodAdvice(d.score)}</p>
             </div>
           </div>
@@ -57,7 +57,7 @@ function Mood() {
         <Card title="What the mood is made of" sub="Each reading scaled 0 (fear) to 100 (greed)">
           {d.parts.map((p: Any) => (
             <div key={p.key} className="mood-part">
-              <div className="row between small" style={{ flexWrap: "nowrap" }}><span>{p.label}</span><b>{p.value == null ? "—" : p.key === "volume" ? `${num(p.value, 2)}×` : p.key === "momentum" ? pct(p.value) : p.key === "rsi" ? num(p.value, 1) : `${num(p.value, 0)}%`}</b></div>
+              <div className="row between small" style={{ flexWrap: "nowrap" }}><span>{p.label}</span><b>{p.value == null ? "-" : p.key === "volume" ? `${num(p.value, 2)}x` : p.key === "momentum" ? pct(p.value) : p.key === "rsi" ? num(p.value, 1) : `${num(p.value, 0)}%`}</b></div>
               <div className="mood-bar"><i style={{ width: `${p.score ?? 0}%`, background: (p.score ?? 50) < 45 ? "#f97316" : (p.score ?? 50) > 55 ? "#16a34a" : "#a3a3a3" }} /></div>
             </div>
           ))}
@@ -69,7 +69,7 @@ function Mood() {
           <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="var(--border)" strokeDasharray="4 4" />
           <polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
         </svg>
-        <div className="row between tiny faint"><span>{h[0] ? nptDate(h[0][0]) : ""}</span><span>green band = greed · red band = fear</span><span>{h.length ? nptDate(h[h.length - 1][0]) : ""}</span></div>
+        <div className="row between tiny faint"><span>{h[0] ? nptDate(h[0][0]) : ""}</span><span>green band = greed, red band = fear</span><span>{h.length ? nptDate(h[h.length - 1][0]) : ""}</span></div>
       </Card>
       <p className="tiny faint">Built from all listed company shares (no mutual funds or debentures) and the NEPSE index: share of rising stocks over 10 days, stocks above their 50-day average, new 52-week highs vs lows, NEPSE against its 125-day average, turnover against its 3-month average, and NEPSE's RSI. A guide to crowd emotion, not a prediction.</p>
     </div>
@@ -97,7 +97,7 @@ function Baskets() {
         <div key={bk.key} className="bk">
           <div className="row between" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}><b>{bk.name}</b><Badge tone={bk.risk === "Low" ? "up" : bk.risk === "High" ? "down" : "warn"}>{bk.risk} risk</Badge></div>
           <p className="small muted" style={{ margin: 0 }}>{bk.idea}</p>
-          <div className="bk-kv"><span>3 months <b className={tone(bk.m3)}>{pct(bk.m3)}</b></span><span>1 year <b className={tone(bk.y1)}>{pct(bk.y1)}</b></span><span>vs NEPSE <b className={tone(bk.y1 != null && d.nepse.y1 != null ? bk.y1 - d.nepse.y1 : null)}>{bk.y1 != null && d.nepse.y1 != null ? pct(bk.y1 - d.nepse.y1) : "—"}</b></span><span>Stocks <b>{bk.members.length}</b></span></div>
+          <div className="bk-kv"><span>3 months <b className={tone(bk.m3)}>{pct(bk.m3)}</b></span><span>1 year <b className={tone(bk.y1)}>{pct(bk.y1)}</b></span><span>vs NEPSE <b className={tone(bk.y1 != null && d.nepse.y1 != null ? bk.y1 - d.nepse.y1 : null)}>{bk.y1 != null && d.nepse.y1 != null ? pct(bk.y1 - d.nepse.y1) : "-"}</b></span><span>Stocks <b>{bk.members.length}</b></span></div>
           <div className="tiny faint">For: {bk.who}</div>
           <div className="bk-chips">{bk.members.map((m: Any) => <Link key={m.symbol} to={`/terminal/${m.symbol}`} className="chip">{m.symbol}</Link>)}</div>
           <div className="row" style={{ gap: 6 }}>
@@ -105,10 +105,10 @@ function Baskets() {
             <button className="btn sm ghost" onClick={() => addAll(bk)}>Add all to watchlist</button>
           </div>
           {open === bk.key && <div className="table-scroll"><table className="t small"><thead><tr><th>Stock</th><th className="num">Price</th><th className="num">P/E</th><th className="num">Div. yield</th><th className="num">Fund.</th><th className="num">Tech.</th><th className="num">1 yr</th></tr></thead>
-            <tbody>{bk.members.map((m: Any) => <tr key={m.symbol}><td><Link className="mono" to={`/stocks/${m.symbol}`}>{m.symbol}</Link><div className="tiny faint">{m.sector}</div></td><td className="num">{num(m.price)}</td><td className="num">{m.pe != null ? num(m.pe, 1) : "—"}</td><td className="num">{m.cashYield != null ? `${num(m.cashYield, 1)}%` : "—"}</td><td className="num">{m.fundamentalScore ?? "—"}</td><td className="num">{m.technicalScore ?? "—"}</td><td className={`num ${tone(m.return1y)}`}>{pct(m.return1y)}</td></tr>)}</tbody></table></div>}
+            <tbody>{bk.members.map((m: Any) => <tr key={m.symbol}><td><Link className="mono" to={`/stocks/${m.symbol}`}>{m.symbol}</Link><div className="tiny faint">{m.sector}</div></td><td className="num">{num(m.price)}</td><td className="num">{m.pe != null ? num(m.pe, 1) : "-"}</td><td className="num">{m.cashYield != null ? `${num(m.cashYield, 1)}%` : "-"}</td><td className="num">{m.fundamentalScore ?? "-"}</td><td className="num">{m.technicalScore ?? "-"}</td><td className={`num ${tone(m.return1y)}`}>{pct(m.return1y)}</td></tr>)}</tbody></table></div>}
         </div>
       ))}</div>
-      <p className="tiny faint">Past returns use today's members held equally over the period (price only, no dividends). Because members are chosen with today's data, past returns look better than a real basket would have done. Use baskets as a shortlist, then check each stock's ⚡ signal.</p>
+      <p className="tiny faint">Past returns use today's members held equally over the period (price only, no dividends). Because members are chosen with today's data, past returns look better than a real basket would have done. Use baskets as a shortlist, then check each stock's signal.</p>
     </div>
   );
 }

@@ -9,7 +9,7 @@ import { num, pct, tone, nptDate, int } from "../lib/format.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const LINKS = [
-  { label: "Apply in Mero Share", url: "https://meroshare.cdsc.com.np", note: "Log in → My ASBA → Apply for Issue" },
+  { label: "Apply in Mero Share", url: "https://meroshare.cdsc.com.np", note: "Log in > My ASBA > Apply for Issue" },
   { label: "Check IPO allotment", url: "https://iporesult.cdsc.com.np", note: "Choose the company, enter your BOID" },
   { label: "Read prospectuses (SEBON)", url: "https://www.sebon.gov.np/prospectus", note: "Issue price, use of funds, risks" },
 ];
@@ -36,8 +36,8 @@ export default function Ipo() {
       <div className="grid g4">
         <Stat label="Open now" value={open.length} />
         <Stat label="Upcoming" value={upcoming.length} />
-        <Stat label="Median first-day gain" value={stats.data?.medianFirstDayPct != null ? pct(stats.data.medianFirstDayPct, 0) : "—"} sub={stats.data ? `${stats.data.count} listings with history` : ""} />
-        <Stat label="Above issue price after 20 sessions" value={stats.data?.pctAboveIssueAfter20 != null ? `${stats.data.pctAboveIssueAfter20}%` : "—"} />
+        <Stat label="Median first-day gain" value={stats.data?.medianFirstDayPct != null ? pct(stats.data.medianFirstDayPct, 0) : "-"} sub={stats.data ? `${stats.data.count} listings with history` : ""} />
+        <Stat label="Above issue price after 20 sessions" value={stats.data?.pctAboveIssueAfter20 != null ? `${stats.data.pctAboveIssueAfter20}%` : "-"} />
       </div>
       <div className="grid g3">{LINKS.map((l) => <a key={l.url} className="opt" href={l.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }}><strong>{l.label} <I.external /></strong><span className="small muted">{l.note}</span></a>)}</div>
       <Card title="Issues" actions={<Seg value={tab} onChange={setTab} options={[{ key: "open", label: `Open (${open.length})` }, { key: "upcoming", label: `Upcoming (${upcoming.length})` }, { key: "listed", label: "Recent listings" }, { key: "all", label: "All" }]} />}>
@@ -46,10 +46,10 @@ export default function Ipo() {
             <div key={i} className="list-row" style={{ alignItems: "flex-start" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div>{r.symbol ? <Link className="sym" to={`/stocks/${r.symbol}`}>{r.symbol}</Link> : null} <strong className="small">{r.company}</strong> <Badge tone={r.statusLabel === "Open now" ? "up" : r.statusLabel === "Listed" ? "" : "blue"}>{r.statusLabel}</Badge></div>
-                <div className="tiny faint">{r.issue_type} · {r.sector ?? ""} · {r.units ? `${int(r.units)} units` : ""} {r.price ? `at Rs. ${num(r.price, 0)}` : ""} {r.issue_manager ? `· manager: ${r.issue_manager}` : ""}</div>
-                <div className="tiny">{r.opening_date ? `Opens ${nptDate(r.opening_date)}` : "Opening date not announced"}{r.final_date || r.closing_date ? ` · closes ${nptDate(r.final_date || r.closing_date)}` : ""}{r.listing_date ? ` · listed ${nptDate(r.listing_date)}` : ""}</div>
+                <div className="tiny faint">{r.issue_type}, {r.sector ?? ""}, {r.units ? `${int(r.units)} units` : ""} {r.price ? `at Rs. ${num(r.price, 0)}` : ""} {r.issue_manager ? `, manager: ${r.issue_manager}` : ""}</div>
+                <div className="tiny">{r.opening_date ? `Opens ${nptDate(r.opening_date)}` : "Opening date not announced"}{r.final_date || r.closing_date ? `, closes ${nptDate(r.final_date || r.closing_date)}` : ""}{r.listing_date ? `, listed ${nptDate(r.listing_date)}` : ""}</div>
               </div>
-              {r.performance?.firstDayPct != null && <div style={{ textAlign: "right" }}><div className={`mono small ${tone(r.performance.sinceIssuePct)}`}>{pct(r.performance.sinceIssuePct, 0)}</div><div className="tiny faint">since issue · day 1 {pct(r.performance.firstDayPct, 0)}</div></div>}
+              {r.performance?.firstDayPct != null && <div style={{ textAlign: "right" }}><div className={`mono small ${tone(r.performance.sinceIssuePct)}`}>{pct(r.performance.sinceIssuePct, 0)}</div><div className="tiny faint">since issue, day 1 {pct(r.performance.firstDayPct, 0)}</div></div>}
               {r.statusLabel === "Open now" && <a className="btn sm primary" href="https://meroshare.cdsc.com.np" target="_blank" rel="noopener noreferrer">Apply</a>}
             </div>
           ))}</div>
