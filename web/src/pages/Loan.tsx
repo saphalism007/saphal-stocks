@@ -5,17 +5,17 @@ import { Link } from "react-router-dom";
 import { Card, Stat, Notice, NumInput } from "../components/ui.tsx";
 import { compact, num, nptDate, rs } from "../lib/format.ts";
 import { amortise, buyOrFinance, PER_YEAR, type Freq, type LoanInput, type Method, type Row } from "../../../shared/loan.ts";
-import { toBS, fiscalYearOf, bsLabel, bsAvailable } from "../lib/bs.ts";
+import { toBS, fromBS, fiscalYearOf, bsLabel, bsAvailable, BS_MONTHS } from "../lib/bs.ts";
 
 type N = number | "";
 interface Form {
   mode: "amount" | "price"; principal: N; price: N; down: N; downIsPct: boolean; rate: N; years: N; months: N; installment: N;
   freq: Freq; method: Method; basis: "periodic" | "actual365"; balloon: N; roundTo: N; start: string;
   grace: N; capGrace: boolean; extraEach: N; extraFrom: N; lumps: { at: N; amount: N }[]; prepayMode: "shorten" | "reduce";
-  rateChanges: { at: N; rate: N }[]; feePct: N; feeFixed: N; cash: N; invRet: N; invTax: N; income: N;
+  rateChanges: { at: N; rate: N }[]; feePct: N; feeFixed: N; cash: N; invRet: N; invTax: N; income: N; cal: "bs" | "ad";
 }
 const today = new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 10);
-const DEF: Form = { mode: "amount", principal: 1_000_000, price: "", down: 20, downIsPct: true, rate: 11, years: 5, months: "", installment: "", freq: "monthly", method: "emi", basis: "periodic", balloon: "", roundTo: "", start: today, grace: "", capGrace: false, extraEach: "", extraFrom: "", lumps: [], prepayMode: "shorten", rateChanges: [], feePct: "", feeFixed: "", cash: "", invRet: "", invTax: 6, income: "" };
+const DEF: Form = { mode: "amount", principal: 1_000_000, price: "", down: 20, downIsPct: true, rate: 11, years: 5, months: "", installment: "", freq: "monthly", method: "emi", basis: "periodic", balloon: "", roundTo: "", start: today, grace: "", capGrace: false, extraEach: "", extraFrom: "", lumps: [], prepayMode: "shorten", rateChanges: [], feePct: "", feeFixed: "", cash: "", invRet: "", invTax: 6, income: "", cal: "bs" };
 const KEY = "ss-loan-form";
 const v = (x: N) => (x === "" || !Number.isFinite(Number(x)) ? null : Number(x));
 const FREQ_LABEL: Record<Freq, string> = { daily: "Daily", weekly: "Weekly", fortnightly: "Every 2 weeks", monthly: "Monthly", quarterly: "Quarterly", "half-yearly": "Half-yearly", yearly: "Yearly" };
@@ -35,6 +35,12 @@ export default function Loan() {
     lumps: f.lumps.filter((l) => v(l.at) && v(l.amount)).map((l) => ({ at: v(l.at)!, amount: v(l.amount)! })), prepayMode: f.prepayMode,
     rateChanges: f.rateChanges.filter((c) => v(c.at) && v(c.rate) != null).map((c) => ({ at: v(c.at)!, ratePct: v(c.rate)! })),
     feePct: v(f.feePct), feeFixed: v(f.feeFixed),
+    // Bank style: monthly/quarterly/half-yearly/yearly instalments fall on the same Nepali date (shortened in shorter months).
+    dateAt: f.cal === "bs" && !["daily", "weekly", "fortnightly"].includes(f.freq) ? (() => {
+      const b0 = toBS(f.start || today); if (!b0) return undefined;
+      const step = f.freq === "monthly" ? 1 : f.freq === "quarterly" ? 3 : f.freq === "half-yearly" ? 6 : 12;
+      return (k: number) => { const t = b0.m - 1 + k * step, y = b0.y + Math.floor(t / 12), m = (t % 12) + 1; for (let d = b0.d; d >= 28; d--) { const ad = fromBS({ y, m, d }); if (ad) return ad; } return fromBS({ y, m, d: Math.min(b0.d, 28) }); };
+    })() : undefined,
   }), [f]);
   // If only years is blank but months is given (or vice versa) that's fine; if both blank, tenure is solved from the instalment.
   const res = useMemo(() => amortise({ ...input, years: input.years ?? (input.months != null ? 0 : null) }), [input]);
@@ -66,7 +72,9 @@ export default function Loan() {
             {f.method === "balloon" && <F label="Balloon (% of loan paid at the end)"><NumInput className="input" value={f.balloon} onChange={(e) => set("balloon", e.target.value === "" ? "" : Number(e.target.value))} /></F>}
             <F label="Interest calculated"><select className="input" value={f.basis} onChange={(e) => set("basis", e.target.value as Form["basis"])}><option value="periodic">Per instalment (rate ÷ payments a year)</option><option value="actual365">Daily on actual days, 365-day year (bank style)</option></select></F>
             <F label="Round instalment up to"><select className="input" value={String(f.roundTo)} onChange={(e) => set("roundTo", e.target.value === "" ? "" : Number(e.target.value))}><option value="">No rounding</option><option value="1">Rs. 1</option><option value="10">Rs. 10</option><option value="100">Rs. 100</option></select></F>
-            <F label="Loan start (disbursement) date"><input type="date" className="input" value={f.start} onChange={(e) => set("start", e.target.value)} /></F>
+            {!["daily", "weekly", "fortnightly"].includes(f.freq) && <F label="Instalment dates follow"><select className="input" value={f.cal} onChange={(e) => set("cal", e.target.value as Form["cal"])}><option value="bs">Nepali calendar: same Nepali date each period (bank style)</option><option value="ad">English calendar: same AD date each period</option></select></F>}
+            <F label="Loan start (disbursement) date — AD"><input type="date" className="input" value={f.start} onChange={(e) => set("start", e.target.value)} /></F>
+            <BsDateInput iso={f.start} onChange={(iso) => set("start", iso)} />
           </Sec>
           <Sec title="3. Grace period" closed>
             <F label="Interest-only instalments at the start"><NumInput className="input" value={f.grace} onChange={(e) => set("grace", e.target.value === "" ? "" : Number(e.target.value))} /></F>
@@ -102,6 +110,24 @@ export default function Loan() {
   );
 }
 
+/** The same date in Nepali (BS): change year, month or day and the AD date follows. */
+function BsDateInput({ iso, onChange }: { iso: string; onChange: (iso: string) => void }) {
+  const b = toBS(iso || today);
+  const [err, setErr] = useState<string | null>(null);
+  if (!b) return <div className="tiny faint">This date is outside the Nepali calendar range (BS 2000–2090).</div>;
+  const upd = (y: number, m: number, d: number) => { const ad = fromBS({ y, m, d }); if (ad) { setErr(null); onChange(ad); } else setErr(`${d} ${BS_MONTHS[m - 1]} ${y} doesn't exist (that month is shorter).`); };
+  return (
+    <div className="field">Same date in Nepali (BS)
+      <div className="ln-bs">
+        <NumInput className="input" value={b.y} onChange={(e) => upd(Number(e.target.value) || b.y, b.m, b.d)} />
+        <select className="input" value={b.m} onChange={(e) => upd(b.y, Number(e.target.value), b.d)}>{BS_MONTHS.map((n, i) => <option key={n} value={i + 1}>{n}</option>)}</select>
+        <NumInput className="input" value={b.d} onChange={(e) => upd(b.y, b.m, Number(e.target.value) || 1)} />
+      </div>
+      {err ? <span className="tiny warn">{err}</span> : <span className="tiny faint">{bsLabel(b)} · fiscal year {fiscalYearOf(b)}</span>}
+    </div>
+  );
+}
+
 function Sec({ title, children, closed }: { title: string; children: React.ReactNode; closed?: boolean }) {
   const [open, setOpen] = useState(!closed);
   return <section className="ln-sec"><button className="ln-sec-h" onClick={() => setOpen(!open)}><b>{title}</b><span>{open ? "−" : "+"}</span></button>{open && <div className="ln-sec-b">{children}</div>}</section>;
@@ -112,7 +138,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
   // Group by Nepali fiscal year when the calendar is available, otherwise by calendar year.
   const groups = useMemo(() => {
     const m = new Map<string, Row[]>();
-    for (const r of res.rows) { const b = toBS(r.date); const k = b ? fiscalYearOf(b) : r.date.slice(0, 4); const a = m.get(k); if (a) a.push(r); else m.set(k, [r]); }
+    for (const r of res.rows) { const b = toBS(r.date); const k = b ? fiscalYearOf(b) : `AD ${r.date.slice(0, 4)}`; const a = m.get(k); if (a) a.push(r); else m.set(k, [r]); }
     return [...m.entries()].map(([k, rows]) => ({ k, rows, interest: rows.reduce((a, x) => a + x.interest, 0), principal: rows.reduce((a, x) => a + x.principal + x.extra, 0), paid: rows.reduce((a, x) => a + x.payment + x.extra, 0), closing: rows[rows.length - 1].closing }));
   }, [res]);
   const [open, setOpen] = useState<Record<string, number>>({});
@@ -120,7 +146,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
   const maxPaid = Math.max(...groups.map((g) => g.paid), 1);
   const csv = () => {
     const head = ["No", "Date (AD)", ...(bsAvailable ? ["Date (BS)", "Fiscal year"] : []), "Opening balance", "Rate %", "Instalment", "Interest", "Principal", "Extra", "Closing balance"];
-    const lines = res.rows.map((r) => { const b = toBS(r.date); return [r.n, r.date, ...(bsAvailable && b ? [bsLabel(b), fiscalYearOf(b)] : []), r.opening, r.rate, r.payment, r.interest, r.principal, r.extra, r.closing].join(","); });
+    const lines = res.rows.map((r) => { const b = toBS(r.date); return [r.n, r.date, ...(bsAvailable ? (b ? [bsLabel(b), fiscalYearOf(b)] : ["", ""]) : []), r.opening, r.rate, r.payment, r.interest, r.principal, r.extra, r.closing].join(","); });
     const url = URL.createObjectURL(new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" }));
     const a = document.createElement("a"); a.href = url; a.download = `loan-schedule-${res.principal}-${res.ratePct}pct.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
@@ -167,7 +193,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
           <button className="btn sm ghost" onClick={() => setOpen(Object.fromEntries(groups.map((g) => [g.k, PAGE])))}>Open all years</button><button className="btn sm ghost" onClick={() => setOpen({})}>Close all</button></div>
         <div className="ln-sched">{groups.map((g) => { const shown = open[g.k] ?? 0; return (
           <div key={g.k} className="ln-group">
-            <button className="ln-gh" onClick={() => setOpen((o) => ({ ...o, [g.k]: shown ? 0 : PAGE }))}><b>{bsAvailable ? `FY ${g.k}` : g.k}</b><span>{g.rows.length} instalment{g.rows.length === 1 ? "" : "s"} · interest {compact(g.interest)} · balance {compact(g.closing)}</span><span>{shown ? "−" : "+"}</span></button>
+            <button className="ln-gh" onClick={() => setOpen((o) => ({ ...o, [g.k]: shown ? 0 : PAGE }))}><b>{g.k.startsWith("AD") ? g.k : `FY ${g.k}`}</b><span>{g.rows.length} instalment{g.rows.length === 1 ? "" : "s"} · interest {compact(g.interest)} · balance {compact(g.closing)}</span><span>{shown ? "−" : "+"}</span></button>
             {shown > 0 && <div className="table-scroll"><table className="t small ln-t">
               <thead><tr><th>#</th><th>Date</th>{bsAvailable && <th>Nepali date</th>}<th className="num">Opening</th><th className="num">Instalment</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
               <tbody>{g.rows.slice(0, shown).map((r) => { const b = bsAvailable ? toBS(r.date) : null; return (
@@ -176,7 +202,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
             </table>{g.rows.length > shown && <button className="btn sm ghost" style={{ margin: 6 }} onClick={() => setOpen((o) => ({ ...o, [g.k]: shown + PAGE }))}>Show {Math.min(PAGE, g.rows.length - shown)} more of {g.rows.length - shown}</button>}</div>}
           </div>
         ); })}</div>
-        <div className="tiny faint" style={{ marginTop: 6 }}>Totals: instalments {rs(res.totalPaid - res.totalExtra, 2)} · interest {rs(res.totalInterest, 2)} · prepayments {rs(res.totalExtra, 2)}. {bsAvailable ? "" : "Nepali dates and fiscal years appear once the Nepali calendar is added."}</div>
+        <div className="tiny faint" style={{ marginTop: 6 }}>Totals: instalments {rs(res.totalPaid - res.totalExtra, 2)} · interest {rs(res.totalInterest, 2)} · prepayments {rs(res.totalExtra, 2)}. Nepali dates and fiscal years (1 Shrawan – end of Ashadh) cover BS 2000–2090 (up to about 2034 AD); later instalments are grouped by AD year.</div>
       </Card>
 
       <Card title="Using a loan wisely">

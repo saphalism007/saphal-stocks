@@ -19,6 +19,7 @@ export interface LoanInput {
   prepayMode?: "shorten" | "reduce";
   rateChanges?: { at: number; ratePct: number }[]; // new rate from instalment `at`
   feePct?: number | null; feeFixed?: number | null; roundTo?: number | null;
+  dateAt?: (k: number) => string | null; // custom instalment dates (e.g. the same Nepali date each month); falls back to AD dates
 }
 export interface Row { n: number; date: string; opening: number; rate: number; payment: number; interest: number; principal: number; extra: number; closing: number }
 export interface LoanResult {
@@ -98,7 +99,8 @@ export function amortise(inp: LoanInput, opts: { maxRows?: number } = {}): LoanO
   let graceLeft = grace;
   if (grace > 0) remaining = s.n - grace;
   while (bal > 0.005 && k <= maxRows) {
-    const date = addPeriod(start, freq, k);
+    let date = inp.dateAt?.(k) ?? addPeriod(start, freq, k);
+    if (date <= prevDate) date = addPeriod(prevDate, freq, 1); // never step backwards (e.g. where a custom calendar ends)
     const r = rateAt(k);
     const opening = bal;
     const interest = basis === "actual365" ? (bal * (r / 100) * days(prevDate, date)) / 365 : (bal * (r / 100)) / f;

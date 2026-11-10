@@ -57,3 +57,15 @@ describe("loan amortisation", () => {
     expect(hi.better).toBe("loan"); expect(lo.better).toBe("cash");
   });
 });
+
+import { toBS, fromBS, fiscalYearOf } from "../web/src/lib/bs.ts";
+describe("Nepali calendar", () => {
+  it("matches known dates and fiscal years", () => {
+    expect(toBS("2026-04-14")).toEqual({ y: 2083, m: 1, d: 1 });
+    expect(toBS("2026-07-17")).toEqual({ y: 2083, m: 4, d: 1 });
+    expect(fiscalYearOf(toBS("2026-07-16")!)).toBe("2082/83");
+    expect(fiscalYearOf(toBS("2026-07-17")!)).toBe("2083/84");
+    expect(fromBS({ y: 2083, m: 4, d: 1 })).toBe("2026-07-17");
+    expect(toBS("2040-01-01")).toBeNull(); // beyond BS 2090
+  });
+});

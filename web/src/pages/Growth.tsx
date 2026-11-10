@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { Card, Stat, Tabs, Badge, Empty, Loading, ErrorBox, NumInput, Notice } from "../components/ui.tsx";
 import { compact, num, nptDate, rs, tone, todayNpt } from "../lib/format.ts";
+import { bsOf } from "../lib/bs.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Tab = "today" | "roadmap" | "holdings" | "coach" | "calendar";
@@ -207,7 +208,7 @@ function Calendar() {
       <Card title="Upcoming book closures" sub="Hold the shares through the book-closure date to receive the dividend or bonus">
         {f(c.bookClosures).length === 0 ? <p className="small muted">{all ? "No upcoming book closures in the data." : "None for your stocks. Tick the box above to see the whole market."}</p> : (
           <div className="table-scroll"><table className="t small"><thead><tr><th>Stock</th><th>Book closure</th><th className="num">Cash</th><th className="num">Bonus</th><th>Year</th></tr></thead>
-            <tbody>{f(c.bookClosures).map((b: Any, i: number) => <tr key={i}><td><Link className="mono" to={`/stocks/${b.symbol}?tab=dividends`}>{b.symbol}</Link> {tag(b.mine)}</td><td>{nptDate(b.bookclose_date)} <span className="tiny faint">{b.days === 0 ? "today" : b.days > 0 ? `in ${b.days}d` : `${-b.days}d ago`}</span></td><td className="num">{b.cash_pct ? `${num(b.cash_pct)}%` : "—"}</td><td className="num">{b.bonus_pct ? `${num(b.bonus_pct)}%` : "—"}</td><td>{b.fiscal_year}</td></tr>)}</tbody></table></div>
+            <tbody>{f(c.bookClosures).map((b: Any, i: number) => <tr key={i}><td><Link className="mono" to={`/stocks/${b.symbol}?tab=dividends`}>{b.symbol}</Link> {tag(b.mine)}</td><td>{nptDate(b.bookclose_date)} <span className="tiny faint">{bsOf(b.bookclose_date)} · </span><span className="tiny faint">{b.days === 0 ? "today" : b.days > 0 ? `in ${b.days}d` : `${-b.days}d ago`}</span></td><td className="num">{b.cash_pct ? `${num(b.cash_pct)}%` : "—"}</td><td className="num">{b.bonus_pct ? `${num(b.bonus_pct)}%` : "—"}</td><td>{b.fiscal_year}</td></tr>)}</tbody></table></div>
         )}
       </Card>
       <Card title="IPOs, right shares and other issues" sub="Open now or opening soon (apply in MeroShare)">

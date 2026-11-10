@@ -1,7 +1,7 @@
 {
   "name": "saphal-stocks",
   "private": true,
-  "version": "0.19.0",
+  "version": "0.19.1",
   "type": "module",
   "description": "Saphal Stocks: NEPSE intelligence, AI analyst, portfolio and wealth planning for Nepal",
   "scripts": {
@@ -32,6 +32,7 @@
     "lightweight-charts": "^5.2.1",
     "minisearch": "^7.2.0",
     "multer": "^2.5.0",
+    "nepali-date-converter": "3.4.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",

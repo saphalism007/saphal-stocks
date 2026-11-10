@@ -5,12 +5,11 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.19.0";
+export const VERSION = "0.19.1";
 export const RELEASED = "2026-11-10";
 export const NOTES = [
-  "Loan & EMI Planner (new page): bank-style amortisation with daily, weekly, fortnightly, monthly, quarterly, half-yearly or yearly payments; EMI, equal principal, interest-only or balloon; interest per instalment or daily on actual days (365); grace period; extra and lump-sum prepayments (finish sooner or lower the EMI); floating rate changes; processing fees and the true cost with fees. Leave one of amount, rate, tenure or instalment empty and it is calculated.",
-  "Schedules of any length (a daily loan over 100 years has 36,500+ rows) are grouped by year, open one year at a time, jump to any instalment number, and download as CSV. A yearly summary shows interest and principal paid each year.",
-  "Pay cash or take the loan and invest the rest? Compares your money at the end both ways, checks the EMI against your income, and explains when borrowing to invest makes sense.",
+  "Nepali calendar added (verified against Nepali New Year 2081–2083 and 1 Shrawan 2083 = 17 July 2026). The Loan & EMI Planner now shows every instalment's Nepali date, groups the schedule and yearly summary by Nepali fiscal year (Shrawan–Ashadh), lets you enter the start date in BS, and — bank style — can put instalments on the same Nepali date each month. The CSV includes Nepali dates and fiscal years.",
+  "Book closures in My Growth → Dividends & events now show the Nepali date too.",
 ];
 
 declare const __BUILD__: string;

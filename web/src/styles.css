@@ -863,3 +863,4 @@ a.gr-item:hover { text-decoration: none; background: var(--panel-2); }
 @media (max-width: 900px) { .ln-grid { grid-template-columns: minmax(0, 1fr); } .ln-in { position: static; max-height: none; overflow: visible; } }
 .ln-in, .ln-sec, .ln-sec-b, .ln-sec-b .field, .ln-sec-b .input { min-width: 0; max-width: 100%; }
 .ln-sec-b .input { width: 100%; }
+.ln-bs { display: grid; grid-template-columns: 80px minmax(0, 1fr) 60px; gap: 6px; }
