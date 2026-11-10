@@ -114,7 +114,7 @@ export default function Loan() {
 function BsDateInput({ iso, onChange }: { iso: string; onChange: (iso: string) => void }) {
   const b = toBS(iso || today);
   const [err, setErr] = useState<string | null>(null);
-  if (!b) return <div className="tiny faint">This date is outside the Nepali calendar range (BS 2000–2090).</div>;
+  if (!b) return <div className="tiny faint">Nepali dates start from BS 2000 (1943 AD).</div>;
   const upd = (y: number, m: number, d: number) => { const ad = fromBS({ y, m, d }); if (ad) { setErr(null); onChange(ad); } else setErr(`${d} ${BS_MONTHS[m - 1]} ${y} doesn't exist (that month is shorter).`); };
   return (
     <div className="field">Same date in Nepali (BS)
@@ -138,8 +138,9 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
   // Group by Nepali fiscal year when the calendar is available, otherwise by calendar year.
   const groups = useMemo(() => {
     const m = new Map<string, Row[]>();
-    for (const r of res.rows) { const b = toBS(r.date); const k = b ? fiscalYearOf(b) : `AD ${r.date.slice(0, 4)}`; const a = m.get(k); if (a) a.push(r); else m.set(k, [r]); }
-    return [...m.entries()].map(([k, rows]) => ({ k, rows, interest: rows.reduce((a, x) => a + x.interest, 0), principal: rows.reduce((a, x) => a + x.principal + x.extra, 0), paid: rows.reduce((a, x) => a + x.payment + x.extra, 0), closing: rows[rows.length - 1].closing }));
+    const proj = new Set<string>();
+    for (const r of res.rows) { const b = toBS(r.date); const k = b ? fiscalYearOf(b) : `AD ${r.date.slice(0, 4)}`; if (b?.projected) proj.add(k); const a = m.get(k); if (a) a.push(r); else m.set(k, [r]); }
+    return [...m.entries()].map(([k, rows]) => ({ k, rows, projected: proj.has(k), interest: rows.reduce((a, x) => a + x.interest, 0), principal: rows.reduce((a, x) => a + x.principal + x.extra, 0), paid: rows.reduce((a, x) => a + x.payment + x.extra, 0), closing: rows[rows.length - 1].closing }));
   }, [res]);
   const [open, setOpen] = useState<Record<string, number>>({});
   const [jump, setJump] = useState<N>("");
@@ -184,7 +185,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
       <Card title={bsAvailable ? "By Nepali fiscal year" : "By year"} sub="Interest and principal paid each year, and what you still owe" flush>
         <div className="table-scroll" style={{ maxHeight: 340 }}><table className="t small">
           <thead><tr><th>{bsAvailable ? "Fiscal year" : "Year"}</th><th className="num">Paid</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Balance</th><th style={{ width: 90 }}></th></tr></thead>
-          <tbody>{groups.map((g) => <tr key={g.k}><td>{g.k}</td><td className="num">{num(g.paid, 0)}</td><td className="num down">{num(g.interest, 0)}</td><td className="num">{num(g.principal, 0)}</td><td className="num">{num(g.closing, 0)}</td><td><div className="ln-bar"><i className="i" style={{ width: `${(g.interest / maxPaid) * 100}%` }} /><i className="p" style={{ width: `${(g.principal / maxPaid) * 100}%` }} /></div></td></tr>)}</tbody>
+          <tbody>{groups.map((g) => <tr key={g.k}><td>{g.k}{g.projected ? "*" : ""}</td><td className="num">{num(g.paid, 0)}</td><td className="num down">{num(g.interest, 0)}</td><td className="num">{num(g.principal, 0)}</td><td className="num">{num(g.closing, 0)}</td><td><div className="ln-bar"><i className="i" style={{ width: `${(g.interest / maxPaid) * 100}%` }} /><i className="p" style={{ width: `${(g.principal / maxPaid) * 100}%` }} /></div></td></tr>)}</tbody>
         </table></div>
       </Card>
 
@@ -193,7 +194,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
           <button className="btn sm ghost" onClick={() => setOpen(Object.fromEntries(groups.map((g) => [g.k, PAGE])))}>Open all years</button><button className="btn sm ghost" onClick={() => setOpen({})}>Close all</button></div>
         <div className="ln-sched">{groups.map((g) => { const shown = open[g.k] ?? 0; return (
           <div key={g.k} className="ln-group">
-            <button className="ln-gh" onClick={() => setOpen((o) => ({ ...o, [g.k]: shown ? 0 : PAGE }))}><b>{g.k.startsWith("AD") ? g.k : `FY ${g.k}`}</b><span>{g.rows.length} instalment{g.rows.length === 1 ? "" : "s"} · interest {compact(g.interest)} · balance {compact(g.closing)}</span><span>{shown ? "−" : "+"}</span></button>
+            <button className="ln-gh" onClick={() => setOpen((o) => ({ ...o, [g.k]: shown ? 0 : PAGE }))}><b>{g.k.startsWith("AD") ? g.k : `FY ${g.k}`}{g.projected ? "*" : ""}</b><span>{g.rows.length} instalment{g.rows.length === 1 ? "" : "s"} · interest {compact(g.interest)} · balance {compact(g.closing)}</span><span>{shown ? "−" : "+"}</span></button>
             {shown > 0 && <div className="table-scroll"><table className="t small ln-t">
               <thead><tr><th>#</th><th>Date</th>{bsAvailable && <th>Nepali date</th>}<th className="num">Opening</th><th className="num">Instalment</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
               <tbody>{g.rows.slice(0, shown).map((r) => { const b = bsAvailable ? toBS(r.date) : null; return (
@@ -202,7 +203,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
             </table>{g.rows.length > shown && <button className="btn sm ghost" style={{ margin: 6 }} onClick={() => setOpen((o) => ({ ...o, [g.k]: shown + PAGE }))}>Show {Math.min(PAGE, g.rows.length - shown)} more of {g.rows.length - shown}</button>}</div>}
           </div>
         ); })}</div>
-        <div className="tiny faint" style={{ marginTop: 6 }}>Totals: instalments {rs(res.totalPaid - res.totalExtra, 2)} · interest {rs(res.totalInterest, 2)} · prepayments {rs(res.totalExtra, 2)}. Nepali dates and fiscal years (1 Shrawan – end of Ashadh) cover BS 2000–2090 (up to about 2034 AD); later instalments are grouped by AD year.</div>
+        <div className="tiny faint" style={{ marginTop: 6 }}>Totals: instalments {rs(res.totalPaid - res.totalExtra, 2)} · interest {rs(res.totalInterest, 2)} · prepayments {rs(res.totalExtra, 2)}. Nepali dates and fiscal years run 1 Shrawan – end of Ashadh. * After BS 2090 the official calendar isn't published yet, so those dates are projected from the sun's cycle (exact for about 94% of months in testing, otherwise one day off); your bank will use the official calendar once it is published.</div>
       </Card>
 
       <Card title="Using a loan wisely">

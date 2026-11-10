@@ -66,6 +66,18 @@ describe("Nepali calendar", () => {
     expect(fiscalYearOf(toBS("2026-07-16")!)).toBe("2082/83");
     expect(fiscalYearOf(toBS("2026-07-17")!)).toBe("2083/84");
     expect(fromBS({ y: 2083, m: 4, d: 1 })).toBe("2026-07-17");
-    expect(toBS("2040-01-01")).toBeNull(); // beyond BS 2090
+    expect(toBS("2040-01-01")?.projected).toBe(true); // beyond the published calendar: projected
+  });
+  it("projection stays a valid calendar for centuries", () => {
+    let prev = toBS("2034-01-01")!;
+    for (let dn = Date.parse("2034-01-02T00:00:00Z"); dn < Date.parse("2145-01-01T00:00:00Z"); dn += 86_400_000) {
+      const b = toBS(new Date(dn).toISOString().slice(0, 10))!;
+      const next = b.d === prev.d + 1 && b.m === prev.m && b.y === prev.y || b.d === 1 && (b.m === prev.m + 1 && b.y === prev.y || b.m === 1 && prev.m === 12 && b.y === prev.y + 1);
+      if (!next) throw new Error(`jump ${JSON.stringify(prev)} -> ${JSON.stringify(b)}`);
+      if (b.d === 1) expect(prev.d).toBeGreaterThanOrEqual(29), expect(prev.d).toBeLessThanOrEqual(32);
+      prev = b;
+    }
+    for (let y = 2091; y <= 2200; y++) { const ny = fromBS({ y, m: 1, d: 1 })!; expect(["04-13", "04-14", "04-15", "04-16"]).toContain(ny.slice(5)); }
+    expect(fromBS({ y: 2150, m: 9, d: 33 })).toBeNull();
   });
 });
