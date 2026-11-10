@@ -5,13 +5,10 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.18.0";
+export const VERSION = "0.18.1";
 export const RELEASED = "2026-11-10";
 export const NOTES = [
-  "Brokers & Mutual Funds (new page): every open-ended and close-ended mutual fund with its NAV, price vs NAV, fund manager, the manager's verified official website and — where the manager's own site links one — the direct online SIP/apply page. Close-ended funds link to buying through your broker.",
-  "All 90 SEBON-licensed stockbrokers with address, phone, email and contact person (searchable by name or city), plus broker activity by number: who bought and sold most, which stocks they're accumulating, and their TMS address.",
-  "Open-ended mutual funds (with daily NAV) are now collected every day.",
-  "Smarter AI Analyst: ask about mutual funds and SIPs, brokers (e.g. 'brokers in Pokhara'), market mood, or the best stocks to invest in or trade — it answers from the app's data even without an AI key, and with your Claude key it can look all of this up itself.",
+  "Clearer investment-channel links: every button now says what it does ('Register a business', 'Tax on rent (IRD)', 'Apply in MeroShare', 'Check IPO result', 'Today's official gold rates'…) instead of a bare web address, with the most useful in-app tool first (e.g. Rent vs buy calculator, Every fund + apply links). 'Your own business' now links to the Office of the Company Registrar.",
 ];
 
 declare const __BUILD__: string;

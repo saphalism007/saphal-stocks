@@ -7,6 +7,7 @@ import { api, useApi } from "../lib/api.ts";
 import { Card, Stat, Loading, ErrorBox, Tabs, Badge, Notice, Empty, DataTable, Seg, NumInput } from "../components/ui.tsx";
 import { I } from "../components/icons.tsx";
 import { LineChart } from "../components/PriceChart.tsx";
+import { CHANNEL_LINKS } from "../../../shared/links.ts";
 import { compact, num, nptDate, rs, tone } from "../lib/format.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -266,10 +267,10 @@ function ChannelsCard({ products }: { products?: Any[] }) {
                 {p.how_to_apply && <div className="tiny faint">How to start: {p.how_to_apply}</div>}
               </div>
               <div className="row" style={{ gap: 6 }}>
-                {p.official_url && <a className="btn sm" href={p.official_url} target="_blank" rel="noopener noreferrer"><I.external /> {new URL(p.official_url).host.replace(/^www\./, "")}</a>}
-                {p.info_url && <a className="btn sm ghost" href={p.info_url} target="_blank" rel="noopener noreferrer"><I.external /> {new URL(p.info_url).host.replace(/^www\./, "")}</a>}
-                {/^mf-/.test(p.seed_key ?? "") && <Link className="btn sm primary" to="/directory">Every fund + apply links</Link>}
-                {p.officialCheck && <span className={`tiny ${p.officialCheck.ok ? "up" : "warn"}`}>{p.officialCheck.ok ? "✓ opened" : "couldn't reach"} {nptDate(p.officialCheck.checked_at)}</span>}
+                {CHANNEL_LINKS[p.seed_key]?.app && <Link className="btn sm primary" to={CHANNEL_LINKS[p.seed_key].app!.to}>{CHANNEL_LINKS[p.seed_key].app!.label}</Link>}
+                {p.official_url && <a className="btn sm" href={p.official_url} target="_blank" rel="noopener noreferrer" title={p.official_url}><I.external /> {CHANNEL_LINKS[p.seed_key]?.official ?? new URL(p.official_url).host.replace(/^www\./, "")}</a>}
+                {p.info_url && <a className="btn sm ghost" href={p.info_url} target="_blank" rel="noopener noreferrer" title={p.info_url}><I.external /> {CHANNEL_LINKS[p.seed_key]?.info ?? new URL(p.info_url).host.replace(/^www\./, "")}</a>}
+                {p.officialCheck && <span className={`tiny ${p.officialCheck.ok ? "up" : "warn"}`} title={`${p.officialCheck.ok ? "Link opened" : "Couldn't reach (some Nepal sites block checks from abroad)"} ${nptDate(p.officialCheck.checked_at)}`}>{p.officialCheck.ok ? "✓" : "!"}</span>}
               </div>
             </div>))}</div>
         </div>))}</div>

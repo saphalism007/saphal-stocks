@@ -3,6 +3,7 @@
 // link, provider websites (banks, finance companies, fund managers) and long-term stock ideas.
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { CHANNEL_LINKS } from "../../../shared/links.ts";
 import { useApi } from "../lib/api.ts";
 import { Card, Loading, ErrorBox, Badge, Seg, NumInput, DataTable } from "../components/ui.tsx";
 import { I } from "../components/icons.tsx";
@@ -68,9 +69,9 @@ export default function Future() {
                 {p.suitableFor && <><dt>Suits</dt><dd>{p.suitableFor}</dd></>}
               </dl>
               <div className="row" style={{ marginTop: 6 }}>
-                {p.official_url && <a className="btn sm primary" href={p.official_url} target="_blank" rel="noopener noreferrer"><I.external /> Visit provider</a>}
-                {p.info_url && <a className="btn sm" href={p.info_url} target="_blank" rel="noopener noreferrer">Learn more</a>}
-                {/^mf-/.test(p.seed_key ?? "") && <Link className="btn sm" to="/directory">Every fund + apply links</Link>}
+                {CHANNEL_LINKS[p.seed_key]?.app && <Link className="btn sm primary" to={CHANNEL_LINKS[p.seed_key].app!.to}>{CHANNEL_LINKS[p.seed_key].app!.label}</Link>}
+                {p.official_url && <a className="btn sm" href={p.official_url} target="_blank" rel="noopener noreferrer" title={p.official_url}><I.external /> {CHANNEL_LINKS[p.seed_key]?.official ?? "Official site"}</a>}
+                {p.info_url && <a className="btn sm ghost" href={p.info_url} target="_blank" rel="noopener noreferrer" title={p.info_url}><I.external /> {CHANNEL_LINKS[p.seed_key]?.info ?? "More info"}</a>}
               </div>
               <div className="row" style={{ gap: 8 }}><Check c={p.officialCheck} />{p.verified_on && <span className="tiny faint">details verified {p.verified_on}</span>}</div>
             </div>
