@@ -202,9 +202,10 @@ export function Disclaimer() {
  * editing it shows grouped digits (60,00,000). Drop-in for <input type="number">: onChange gets
  * an event-like object whose target.value is the plain number text ("" when empty).
  */
-export function NumInput({ value, onChange, className = "input", min, max, step, placeholder, style, title, disabled, autoFocus, id, name }: {
+export function NumInput({ value, onChange, className = "input", min, max, step, placeholder, style, title, disabled, autoFocus, id, name, plain }: {
   value: number | string | null | undefined; onChange?: (e: any) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
   className?: string; min?: number | string; max?: number | string; step?: number | string; placeholder?: string; style?: CSSProperties; title?: string; disabled?: boolean; autoFocus?: boolean; id?: string; name?: string;
+  plain?: boolean; // no thousands separators (years, days, instalment numbers)
 }) {
   const asText = (v: unknown) => (v === null || v === undefined || v === "" || (typeof v === "number" && !Number.isFinite(v)) ? "" : String(v));
   const [text, setText] = useState(asText(value));
@@ -225,7 +226,7 @@ export function NumInput({ value, onChange, className = "input", min, max, step,
   };
   const emit = (t: string) => onChange?.({ target: { value: t, valueAsNumber: t === "" ? NaN : Number(t) }, currentTarget: { value: t } });
   const n = Number(text);
-  const shown = focused || text === "" || text === "-" || !Number.isFinite(n) ? text
+  const shown = plain || focused || text === "" || text === "-" || !Number.isFinite(n) ? text
     : n.toLocaleString(numberLocale(), { maximumFractionDigits: (text.split(".")[1] ?? "").length });
   return (
     <input

@@ -81,13 +81,13 @@ export default function Loan() {
             <label className="cl-bool"><input type="checkbox" checked={f.capGrace} onChange={(e) => set("capGrace", e.target.checked)} /> Pay nothing in the grace period (interest added to the loan)</label>
           </Sec>
           <Sec title="4. Prepayments" closed>
-            <div className="ln-two"><F label="Extra with every instalment Rs."><NumInput className="input" value={f.extraEach} onChange={(e) => set("extraEach", e.target.value === "" ? "" : Number(e.target.value))} /></F><F label="Starting at instalment #"><NumInput className="input" value={f.extraFrom} placeholder="1" onChange={(e) => set("extraFrom", e.target.value === "" ? "" : Number(e.target.value))} /></F></div>
-            {f.lumps.map((l, i) => <div key={i} className="ln-two"><F label="Lump sum after instalment #"><NumInput className="input" value={l.at} onChange={(e) => set("lumps", f.lumps.map((x, j) => (j === i ? { ...x, at: e.target.value === "" ? "" : Number(e.target.value) } : x)))} /></F><F label="Amount Rs."><div className="row" style={{ gap: 4, flexWrap: "nowrap" }}><NumInput className="input" value={l.amount} onChange={(e) => set("lumps", f.lumps.map((x, j) => (j === i ? { ...x, amount: e.target.value === "" ? "" : Number(e.target.value) } : x)))} /><button className="btn sm ghost" onClick={() => set("lumps", f.lumps.filter((_, j) => j !== i))}>✕</button></div></F></div>)}
+            <div className="ln-two"><F label="Extra with every instalment Rs."><NumInput className="input" value={f.extraEach} onChange={(e) => set("extraEach", e.target.value === "" ? "" : Number(e.target.value))} /></F><F label="Starting at instalment #"><NumInput plain className="input" value={f.extraFrom} placeholder="1" onChange={(e) => set("extraFrom", e.target.value === "" ? "" : Number(e.target.value))} /></F></div>
+            {f.lumps.map((l, i) => <div key={i} className="ln-two"><F label="Lump sum after instalment #"><NumInput plain className="input" value={l.at} onChange={(e) => set("lumps", f.lumps.map((x, j) => (j === i ? { ...x, at: e.target.value === "" ? "" : Number(e.target.value) } : x)))} /></F><F label="Amount Rs."><div className="row" style={{ gap: 4, flexWrap: "nowrap" }}><NumInput className="input" value={l.amount} onChange={(e) => set("lumps", f.lumps.map((x, j) => (j === i ? { ...x, amount: e.target.value === "" ? "" : Number(e.target.value) } : x)))} /><button className="btn sm ghost" onClick={() => set("lumps", f.lumps.filter((_, j) => j !== i))}>✕</button></div></F></div>)}
             <button className="btn sm ghost" onClick={() => set("lumps", [...f.lumps, { at: "", amount: "" }])}>+ Lump-sum prepayment</button>
             <F label="After a prepayment"><select className="input" value={f.prepayMode} onChange={(e) => set("prepayMode", e.target.value as Form["prepayMode"])}><option value="shorten">Keep the instalment, finish sooner</option><option value="reduce">Keep the end date, lower the instalment</option></select></F>
           </Sec>
           <Sec title="5. Floating rate changes" closed>
-            {f.rateChanges.map((c, i) => <div key={i} className="ln-two"><F label="From instalment #"><NumInput className="input" value={c.at} onChange={(e) => set("rateChanges", f.rateChanges.map((x, j) => (j === i ? { ...x, at: e.target.value === "" ? "" : Number(e.target.value) } : x)))} /></F><F label="New rate %"><div className="row" style={{ gap: 4, flexWrap: "nowrap" }}><NumInput className="input" value={c.rate} step={0.05} onChange={(e) => set("rateChanges", f.rateChanges.map((x, j) => (j === i ? { ...x, rate: e.target.value === "" ? "" : Number(e.target.value) } : x)))} /><button className="btn sm ghost" onClick={() => set("rateChanges", f.rateChanges.filter((_, j) => j !== i))}>✕</button></div></F></div>)}
+            {f.rateChanges.map((c, i) => <div key={i} className="ln-two"><F label="From instalment #"><NumInput plain className="input" value={c.at} onChange={(e) => set("rateChanges", f.rateChanges.map((x, j) => (j === i ? { ...x, at: e.target.value === "" ? "" : Number(e.target.value) } : x)))} /></F><F label="New rate %"><div className="row" style={{ gap: 4, flexWrap: "nowrap" }}><NumInput className="input" value={c.rate} step={0.05} onChange={(e) => set("rateChanges", f.rateChanges.map((x, j) => (j === i ? { ...x, rate: e.target.value === "" ? "" : Number(e.target.value) } : x)))} /><button className="btn sm ghost" onClick={() => set("rateChanges", f.rateChanges.filter((_, j) => j !== i))}>✕</button></div></F></div>)}
             <button className="btn sm ghost" onClick={() => set("rateChanges", [...f.rateChanges, { at: "", rate: "" }])}>+ Rate change</button>
             <p className="tiny faint" style={{ margin: 0 }}>Nepali bank loans usually float with the bank's base rate plus a premium; the instalment is recalculated when the rate changes.</p>
           </Sec>
@@ -119,9 +119,9 @@ function BsDateInput({ iso, onChange }: { iso: string; onChange: (iso: string) =
   return (
     <div className="field">Same date in Nepali (BS)
       <div className="ln-bs">
-        <NumInput className="input" value={b.y} onChange={(e) => upd(Number(e.target.value) || b.y, b.m, b.d)} />
+        <NumInput plain className="input" value={b.y} onChange={(e) => upd(Number(e.target.value) || b.y, b.m, b.d)} />
         <select className="input" value={b.m} onChange={(e) => upd(b.y, Number(e.target.value), b.d)}>{BS_MONTHS.map((n, i) => <option key={n} value={i + 1}>{n}</option>)}</select>
-        <NumInput className="input" value={b.d} onChange={(e) => upd(b.y, b.m, Number(e.target.value) || 1)} />
+        <NumInput plain className="input" value={b.d} onChange={(e) => upd(b.y, b.m, Number(e.target.value) || 1)} />
       </div>
       {err ? <span className="tiny warn">{err}</span> : <span className="tiny faint">{bsLabel(b)} · fiscal year {fiscalYearOf(b)}</span>}
     </div>
@@ -142,16 +142,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
     for (const r of res.rows) { const b = toBS(r.date); const k = b ? fiscalYearOf(b) : `AD ${r.date.slice(0, 4)}`; if (b?.projected) proj.add(k); const a = m.get(k); if (a) a.push(r); else m.set(k, [r]); }
     return [...m.entries()].map(([k, rows]) => ({ k, rows, projected: proj.has(k), interest: rows.reduce((a, x) => a + x.interest, 0), principal: rows.reduce((a, x) => a + x.principal + x.extra, 0), paid: rows.reduce((a, x) => a + x.payment + x.extra, 0), closing: rows[rows.length - 1].closing }));
   }, [res]);
-  const [open, setOpen] = useState<Record<string, number>>({});
-  const [jump, setJump] = useState<N>("");
   const maxPaid = Math.max(...groups.map((g) => g.paid), 1);
-  const csv = () => {
-    const head = ["No", "Date (AD)", ...(bsAvailable ? ["Date (BS)", "Fiscal year"] : []), "Opening balance", "Rate %", "Instalment", "Interest", "Principal", "Extra", "Closing balance"];
-    const lines = res.rows.map((r) => { const b = toBS(r.date); return [r.n, r.date, ...(bsAvailable ? (b ? [bsLabel(b), fiscalYearOf(b)] : ["", ""]) : []), r.opening, r.rate, r.payment, r.interest, r.principal, r.extra, r.closing].join(","); });
-    const url = URL.createObjectURL(new Blob([[head.join(","), ...lines].join("\n")], { type: "text/csv" }));
-    const a = document.createElement("a"); a.href = url; a.download = `loan-schedule-${res.principal}-${res.ratePct}pct.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
-  };
-  const goTo = () => { const n = v(jump); if (!n) return; const g = groups.find((x) => x.rows.some((r) => r.n === n)); if (!g) return; const idx = g.rows.findIndex((r) => r.n === n); setOpen((o) => ({ ...o, [g.k]: Math.max(o[g.k] ?? 0, idx + 20) })); setTimeout(() => document.getElementById(`ln-r${n}`)?.scrollIntoView({ block: "center" }), 100); };
   return (
     <div className="col">
       <div className="grid g4 ln-stats">
@@ -189,23 +180,7 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
         </table></div>
       </Card>
 
-      <Card title="Full schedule" sub={`${res.rows.length.toLocaleString()} instalments · tap a year to open it`} actions={<button className="btn sm" onClick={csv}>Download CSV</button>}>
-        <div className="row" style={{ gap: 6, marginBottom: 8 }}><NumInput className="input" value={jump} placeholder="Instalment #" style={{ width: 130 }} onChange={(e) => setJump(e.target.value === "" ? "" : Number(e.target.value))} /><button className="btn sm ghost" onClick={goTo}>Go</button>
-          <button className="btn sm ghost" onClick={() => setOpen(Object.fromEntries(groups.map((g) => [g.k, PAGE])))}>Open all years</button><button className="btn sm ghost" onClick={() => setOpen({})}>Close all</button></div>
-        <div className="ln-sched">{groups.map((g) => { const shown = open[g.k] ?? 0; return (
-          <div key={g.k} className="ln-group">
-            <button className="ln-gh" onClick={() => setOpen((o) => ({ ...o, [g.k]: shown ? 0 : PAGE }))}><b>{g.k.startsWith("AD") ? g.k : `FY ${g.k}`}{g.projected ? "*" : ""}</b><span>{g.rows.length} instalment{g.rows.length === 1 ? "" : "s"} · interest {compact(g.interest)} · balance {compact(g.closing)}</span><span>{shown ? "−" : "+"}</span></button>
-            {shown > 0 && <div className="table-scroll"><table className="t small ln-t">
-              <thead><tr><th>#</th><th>Date</th>{bsAvailable && <th>Nepali date</th>}<th className="num">Opening</th><th className="num">Instalment</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
-              <tbody>{g.rows.slice(0, shown).map((r) => { const b = bsAvailable ? toBS(r.date) : null; return (
-                <tr key={r.n} id={`ln-r${r.n}`}><td>{r.n}</td><td className="nowrap">{nptDate(r.date)}</td>{bsAvailable && <td className="nowrap">{b ? bsLabel(b) : "—"}</td>}<td className="num">{num(r.opening, 2)}</td><td className="num">{num(r.payment, 2)}</td><td className="num down">{num(r.interest, 2)}</td><td className="num">{num(r.principal, 2)}</td><td className="num">{r.extra ? num(r.extra, 2) : ""}</td><td className="num"><b>{num(r.closing, 2)}</b></td></tr>
-              ); })}</tbody>
-            </table>{g.rows.length > shown && <button className="btn sm ghost" style={{ margin: 6 }} onClick={() => setOpen((o) => ({ ...o, [g.k]: shown + PAGE }))}>Show {Math.min(PAGE, g.rows.length - shown)} more of {g.rows.length - shown}</button>}</div>}
-          </div>
-        ); })}</div>
-        <div className="tiny faint" style={{ marginTop: 6 }}>Totals: instalments {rs(res.totalPaid - res.totalExtra, 2)} · interest {rs(res.totalInterest, 2)} · prepayments {rs(res.totalExtra, 2)}. Nepali dates and fiscal years run 1 Shrawan – end of Ashadh. * After BS 2090 the official calendar isn't published yet, so those dates are projected from the sun's cycle (exact for about 94% of months in testing, otherwise one day off); your bank will use the official calendar once it is published.</div>
-      </Card>
-
+      <Schedule res={res} />
       <Card title="Using a loan wisely">
         <ul className="small" style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
           <li><b>Borrow for things that earn or grow</b> (a home you live in or rent out, a business, education). Avoid loans for things that lose value.</li>
@@ -216,5 +191,86 @@ function Results({ res, decide, dti, monthlyEq, cash, price }: { res: Extract<Re
         </ul>
       </Card>
     </div>
+  );
+}
+
+// ---------- Schedule: every instalment, or totals by day / Nepali month / quarter / half-year / fiscal year ----------
+type View = "inst" | "day" | "month" | "quarter" | "half" | "fy";
+const VIEW_LABEL: Record<View, string> = { inst: "Each instalment", day: "By day", month: "By Nepali month", quarter: "By quarter", half: "By half-year", fy: "By fiscal year" };
+const npr = (x: number) => x.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+interface Agg { key: string; label: string; sub: string; count: number; opening: number; paid: number; interest: number; principal: number; extra: number; closing: number; firstN: number; projected: boolean }
+function periodOf(view: View, date: string): { key: string; label: string; sub: string; projected: boolean } {
+  const b = toBS(date);
+  if (view === "day") return { key: date, label: b ? bsLabel(b) : date, sub: nptDate(date), projected: !!b?.projected };
+  if (!b) return { key: date.slice(0, 4), label: `AD ${date.slice(0, 4)}`, sub: "", projected: false };
+  const fy = fiscalYearOf(b), star = b.projected ? "*" : "";
+  const fm = (b.m + 8) % 12; // months into the fiscal year: Shrawan = 0 … Ashadh = 11
+  if (view === "month") return { key: `${b.y}-${String(b.m).padStart(2, "0")}`, label: `${BS_MONTHS[b.m - 1]} ${b.y}${star}`, sub: `FY ${fy}`, projected: !!b.projected };
+  if (view === "quarter") { const q = Math.floor(fm / 3); const names = ["Shrawan–Ashwin", "Kartik–Poush", "Magh–Chaitra", "Baisakh–Ashadh"]; return { key: `${fy}-Q${q + 1}`, label: `FY ${fy} Q${q + 1}${star}`, sub: names[q], projected: !!b.projected }; }
+  if (view === "half") { const h = fm < 6 ? 1 : 2; return { key: `${fy}-H${h}`, label: `FY ${fy} H${h}${star}`, sub: h === 1 ? "Shrawan–Poush" : "Magh–Ashadh", projected: !!b.projected }; }
+  return { key: fy, label: `FY ${fy}${star}`, sub: "Shrawan–Ashadh", projected: !!b.projected };
+}
+function aggregate(rows: Row[], view: View): Agg[] {
+  const out: Agg[] = []; let cur: Agg | null = null;
+  for (const r of rows) {
+    const p = periodOf(view, r.date);
+    if (!cur || cur.key !== p.key) { cur = { key: p.key, label: p.label, sub: p.sub, count: 0, opening: r.opening, paid: 0, interest: 0, principal: 0, extra: 0, closing: r.closing, firstN: r.n, projected: p.projected }; out.push(cur); }
+    cur.count++; cur.paid += r.payment + r.extra; cur.interest += r.interest; cur.principal += r.principal; cur.extra += r.extra; cur.closing = r.closing;
+  }
+  return out;
+}
+function download(name: string, head: string[], lines: (string | number)[][]) {
+  const q = (x: string | number) => (typeof x === "number" ? `"${npr(x)}"` : /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x);
+  const url = URL.createObjectURL(new Blob(["﻿" + [head.join(","), ...lines.map((l) => l.map(q).join(","))].join("\n")], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a"); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function Schedule({ res }: { res: Extract<ReturnType<typeof amortise>, { ok: true }> }) {
+  const views: View[] = res.freq === "daily" ? ["inst", "month", "quarter", "half", "fy"] : ["inst", "month", "quarter", "half", "fy"];
+  const [view, setView] = useState<View>("inst");
+  const [size, setSize] = useState(100);
+  const [page, setPage] = useState(0);
+  const [jump, setJump] = useState<N>("");
+  useEffect(() => { setPage(0); }, [view, size, res]);
+  const agg = useMemo(() => (view === "inst" ? null : aggregate(res.rows, view)), [res, view]);
+  const total = agg ? agg.length : res.rows.length;
+  const pages = Math.max(1, Math.ceil(total / size)), pg = Math.min(page, pages - 1);
+  const from = pg * size, to = Math.min(total, from + size);
+  const goTo = () => { const n = v(jump); if (!n || n < 1 || n > res.rows.length) return; setView("inst"); setPage(Math.floor((n - 1) / size)); setTimeout(() => document.getElementById(`ln-r${n}`)?.scrollIntoView({ block: "center" }), 120); };
+  const csv = () => {
+    if (!agg) download(`loan-schedule-each-instalment.csv`, ["No", "Date (AD)", "Nepali date", "Fiscal year", "Opening balance", "Rate %", "Instalment", "Interest", "Principal", "Extra payment", "Closing balance"],
+      res.rows.map((r) => { const b = toBS(r.date); return [String(r.n), r.date, b ? bsLabel(b) : "", b ? fiscalYearOf(b) : "", r.opening, String(r.rate), r.payment, r.interest, r.principal, r.extra, r.closing]; }));
+    else download(`loan-schedule-${view}.csv`, ["Period", "Months", "Instalments", "Opening balance", "Paid", "Interest", "Principal", "Extra payment", "Closing balance"], agg.map((a) => [a.label, a.sub, String(a.count), a.opening, a.paid, a.interest, a.principal, a.extra, a.closing]));
+  };
+  return (
+    <Card title="Repayment schedule" sub={`${res.rows.length.toLocaleString("en-IN")} ${FREQ_LABEL[res.freq].toLowerCase()} instalments`} actions={<button className="btn sm" onClick={csv}>Download CSV</button>}>
+      <div className="ln-ctl">
+        <label className="field">Show<select className="input" value={view} onChange={(e) => setView(e.target.value as View)}>{views.map((x) => <option key={x} value={x}>{VIEW_LABEL[x]}</option>)}</select></label>
+        <label className="field">Rows per page<select className="input" value={size} onChange={(e) => setSize(Number(e.target.value))}>{[25, 50, 100, 250, 500].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+        <label className="field">Go to instalment #<div className="row" style={{ gap: 4, flexWrap: "nowrap" }}><NumInput plain className="input" value={jump} onChange={(e) => setJump(e.target.value === "" ? "" : Number(e.target.value))} /><button className="btn sm" onClick={goTo}>Go</button></div></label>
+      </div>
+      <div className="table-scroll ln-scroll"><table className="t small ln-t">
+        {!agg ? <>
+          <thead><tr><th>#</th><th>Date</th><th>Nepali date</th><th className="num">Opening</th><th className="num">Rate</th><th className="num">Instalment</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
+          <tbody>{res.rows.slice(from, to).map((r) => { const b = toBS(r.date); return (
+            <tr key={r.n} id={`ln-r${r.n}`}><td>{r.n}</td><td>{nptDate(r.date)}</td><td>{b ? bsLabel(b) : "—"}</td><td className="num">{npr(r.opening)}</td><td className="num">{r.rate}%</td><td className="num">{npr(r.payment)}</td><td className="num down">{npr(r.interest)}</td><td className="num">{npr(r.principal)}</td><td className="num">{r.extra ? npr(r.extra) : "—"}</td><td className="num"><b>{npr(r.closing)}</b></td></tr>
+          ); })}</tbody>
+        </> : <>
+          <thead><tr><th>Period</th><th className="num">Instalments</th><th className="num">Opening</th><th className="num">Paid</th><th className="num">Interest</th><th className="num">Principal</th><th className="num">Extra</th><th className="num">Closing</th></tr></thead>
+          <tbody>{agg.slice(from, to).map((a) => (
+            <tr key={a.key}><td><b>{a.label}</b><div className="tiny faint">{a.sub}</div></td><td className="num">{a.count}</td><td className="num">{npr(a.opening)}</td><td className="num">{npr(a.paid)}</td><td className="num down">{npr(a.interest)}</td><td className="num">{npr(a.principal)}</td><td className="num">{a.extra ? npr(a.extra) : "—"}</td><td className="num"><b>{npr(a.closing)}</b></td></tr>
+          ))}</tbody>
+        </>}
+        <tfoot><tr><td colSpan={agg ? 3 : 5}><b>Total (whole loan)</b></td><td className="num"><b>{npr(res.totalPaid - (agg ? 0 : res.totalExtra))}</b></td><td className="num down"><b>{npr(res.totalInterest)}</b></td><td className="num"><b>{npr(res.principal - res.totalExtra)}</b></td><td className="num"><b>{res.totalExtra ? npr(res.totalExtra) : "—"}</b></td><td className="num"><b>0.00</b></td></tr></tfoot>
+      </table></div>
+      <div className="ln-pager">
+        <button className="btn sm ghost" disabled={pg === 0} onClick={() => setPage(0)}>« First</button>
+        <button className="btn sm ghost" disabled={pg === 0} onClick={() => setPage(pg - 1)}>‹ Prev</button>
+        <span className="small">Rows {(from + 1).toLocaleString("en-IN")}–{to.toLocaleString("en-IN")} of {total.toLocaleString("en-IN")} · page {pg + 1} of {pages}</span>
+        <button className="btn sm ghost" disabled={pg >= pages - 1} onClick={() => setPage(pg + 1)}>Next ›</button>
+        <button className="btn sm ghost" disabled={pg >= pages - 1} onClick={() => setPage(pages - 1)}>Last »</button>
+      </div>
+      <div className="tiny faint">Amounts in Nepali format (lakh, crore). Quarters and half-years follow the fiscal year: Q1 Shrawan–Ashwin, Q2 Kartik–Poush, Q3 Magh–Chaitra, Q4 Baisakh–Ashadh. * Projected Nepali date (after BS 2090). The CSV downloads the view you are looking at, every row.</div>
+    </Card>
   );
 }

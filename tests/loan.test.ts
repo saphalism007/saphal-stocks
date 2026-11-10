@@ -11,6 +11,15 @@ describe("loan amortisation", () => {
     expect(r.rows[11].closing).toBe(0);
     expect(r.rows[0].date).toBe("2026-02-15");
   });
+  it("every row adds up to the paisa and totals reconcile", () => {
+    for (const inp of [{ principal: 1_000_000, ratePct: 11, years: 5 }, { principal: 777_777, ratePct: 13.37, years: 7, basis: "actual365" as const, extraEach: 1234 }, { principal: 500_000, ratePct: 9, installments: 36, method: "equal-principal" as const }]) {
+      const r = ok(amortise(inp));
+      for (const x of r.rows) { expect(Math.round((x.interest + x.principal) * 100)).toBe(Math.round(x.payment * 100)); expect(Math.round((x.opening - x.principal - x.extra) * 100)).toBe(Math.round(x.closing * 100)); }
+      const sumP = r.rows.reduce((a, x) => a + x.principal + x.extra, 0);
+      expect(Math.round(sumP * 100)).toBe(Math.round(r.principal * 100));
+      expect(Math.round((r.totalPaid - r.totalInterest) * 100)).toBe(Math.round(r.principal * 100));
+    }
+  });
   it("solves the missing input", () => {
     expect(Math.round(solve({ principal: 1_000_000, ratePct: 12, installment: 88848.79 }).n as number)).toBe(12);
     expect((solve({ principal: 1_000_000, installments: 12, installment: 88848.79 }) as { rate: number }).rate).toBeCloseTo(12, 2);

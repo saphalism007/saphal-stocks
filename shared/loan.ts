@@ -83,7 +83,8 @@ export function amortise(inp: LoanInput, opts: { maxRows?: number } = {}): LoanO
   const grace = Math.max(0, Math.min(s.n - 1, inp.graceInstallments ?? 0));
   const rateAt = (k: number) => { let r = s.rate; for (const c of [...(inp.rateChanges ?? [])].sort((a, b) => a.at - b.at)) if (k >= c.at) r = c.ratePct; return r; };
   const lumps = new Map<number, number>(); for (const l of inp.lumps ?? []) if (l.amount > 0) lumps.set(l.at, (lumps.get(l.at) ?? 0) + l.amount);
-  const roundUp = (x: number) => (inp.roundTo && inp.roundTo > 0 ? Math.ceil(x / inp.roundTo) * inp.roundTo : x);
+  // Bank style: everything to the paisa; principal = instalment − interest, so every row adds up exactly.
+  const roundUp = (x: number) => (inp.roundTo && inp.roundTo > 0 ? Math.ceil(x / inp.roundTo) * inp.roundTo : r2(x));
   const balloon = method === "balloon" ? (s.P * (inp.balloonPct ?? 0)) / 100 : 0;
   const rows: Row[] = [];
   let bal = s.P, prevDate = start, payment = 0, k = 1, extraTotal = 0;
@@ -103,7 +104,7 @@ export function amortise(inp: LoanInput, opts: { maxRows?: number } = {}): LoanO
     if (date <= prevDate) date = addPeriod(prevDate, freq, 1); // never step backwards (e.g. where a custom calendar ends)
     const r = rateAt(k);
     const opening = bal;
-    const interest = basis === "actual365" ? (bal * (r / 100) * days(prevDate, date)) / 365 : (bal * (r / 100)) / f;
+    const interest = r2(basis === "actual365" ? (bal * (r / 100) * days(prevDate, date)) / 365 : (bal * (r / 100)) / f);
     let pay: number, princ: number;
     if (graceLeft > 0) {
       if (inp.capitaliseGrace) { bal += interest; pay = 0; princ = -interest; } else { pay = interest; princ = 0; }
@@ -111,12 +112,12 @@ export function amortise(inp: LoanInput, opts: { maxRows?: number } = {}): LoanO
       if (graceLeft === 0) { remaining = s.n - grace; recompute(r); curRate = r; }
     } else {
       if (r !== curRate) { curRate = r; recompute(r); }
-      if (method === "emi" || method === "balloon") { pay = payment; princ = pay - interest; }
-      else if (method === "equal-principal") { princ = fixedPrincipal(); pay = princ + interest; }
+      if (method === "emi" || method === "balloon") { pay = payment; princ = r2(pay - interest); }
+      else if (method === "equal-principal") { princ = r2(fixedPrincipal()); pay = r2(princ + interest); }
       else { princ = remaining <= 1 ? bal : 0; pay = interest + princ; } // interest-only, principal at the end
       if (princ < 0 && method !== "interest-only") return { ok: false, error: `At instalment ${k} the payment (${r2(pay)}) is less than the interest (${r2(interest)}), so the loan would never be repaid. Raise the instalment or lower the rate.` };
       const isLast = remaining <= 1 || princ >= bal - 0.005;
-      if (isLast) { princ = bal; pay = princ + interest; }
+      if (isLast) { princ = r2(bal); pay = r2(princ + interest); }
       remaining--;
     }
     let extra = 0;
@@ -125,7 +126,7 @@ export function amortise(inp: LoanInput, opts: { maxRows?: number } = {}): LoanO
       extra += lumps.get(k) ?? 0;
       extra = Math.min(extra, bal - Math.max(0, princ));
     }
-    bal = bal - Math.max(0, princ) - extra;
+    bal = r2(bal - Math.max(0, princ) - extra);
     if (Math.abs(bal) < 0.005) bal = 0;
     extraTotal += extra;
     rows.push({ n: k, date, opening: r2(opening), rate: r, payment: r2(pay), interest: r2(interest), principal: r2(Math.max(0, princ)), extra: r2(extra), closing: r2(Math.max(0, bal)) });

@@ -864,3 +864,10 @@ a.gr-item:hover { text-decoration: none; background: var(--panel-2); }
 .ln-in, .ln-sec, .ln-sec-b, .ln-sec-b .field, .ln-sec-b .input { min-width: 0; max-width: 100%; }
 .ln-sec-b .input { width: 100%; }
 .ln-bs { display: grid; grid-template-columns: 80px minmax(0, 1fr) 60px; gap: 6px; }
+.ln-sec-b input[type=date] { width: 100%; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; display: block; }
+.ln-ctl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; } .ln-ctl .field { min-width: 0; }
+.ln-scroll { max-height: 70vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.ln-scroll thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+.ln-scroll tfoot td { position: sticky; bottom: 0; background: var(--panel-2); border-top: 1px solid var(--border); }
+.ln-pager { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; margin: 8px 0 4px; }
+@media (max-width: 760px) { .ln-ctl { grid-template-columns: 1fr 1fr; } .ln-ctl .field:last-child { grid-column: 1 / -1; } }
