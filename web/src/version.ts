@@ -5,11 +5,11 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.21.1";
+export const VERSION = "0.21.2";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Smooth zoom: the mouse wheel and trackpad now zoom in a smooth glide (60 frames a second), keeping the candle under your pointer in place. Swipe sideways or hold Shift to scroll through time. Candles can be zoomed much larger to read them clearly, and zooming out stops at your full history with the newest candle at the right.",
-  "Zoom speed: choose Slow, Normal, Fast or Very fast at the bottom of each chart; it applies to the wheel, trackpad and buttons and is remembered. Also there: + and - buttons and All (whole history). Keys: + and - zoom, 0 shows all, left and right arrows scroll.",
+  "Zoom stays exactly where you point: the candle under your mouse or trackpad pointer stays under it while you zoom in or out, even when you scroll quickly.",
+  "iPhone and iPad: moving a drawing with your finger no longer stops after a few pixels (the browser was taking the touch over for scrolling). Drawing, moving and stretching lines now follow your finger smoothly on Mac, iPhone and iPad.",
 ];
 
 declare const __BUILD__: string;

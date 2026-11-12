@@ -237,14 +237,25 @@ export default function ChartPane(p: PaneProps) {
   }
   useEffect(() => { keepRange.current = null; applyRange(); }, [p.range, p.from, p.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // iPhone / iPad: when a finger lands on a drawing (or one of its handles), stop the browser from
+  // turning the gesture into a page scroll, which would cancel the move after a few pixels.
+  useEffect(() => {
+    const root = host.current?.parentElement; if (!root) return;
+    const onStart = (e: TouchEvent) => { if ((e.target as Element | null)?.closest?.("[data-drag]")) e.preventDefault(); };
+    root.addEventListener("touchstart", onStart, { passive: false });
+    return () => root.removeEventListener("touchstart", onStart);
+  }, []);
+
   // ---------- smooth zoom ----------
   // The view glides to its target range (a few frames), so zooming feels fluid at any speed; the candle
   // under the pointer stays under the pointer. Wheel or trackpad up/down zooms, sideways (or Shift) scrolls.
   const target = useRef<{ from: number; to: number } | null>(null);
   const glide = useRef(0);
   const barsN = useRef(0); barsN.current = data.length;
-  const animateTo = (r: { from: number; to: number }) => {
-    target.current = r;
+  // The candle that must stay under the pointer while zooming, and the pixel it must stay at.
+  const zoomPin = useRef<{ l: number; x: number } | null>(null);
+  const animateTo = (r: { from: number; to: number }, pinAt: { l: number; x: number } | null = null) => {
+    target.current = r; zoomPin.current = pinAt;
     if (glide.current) return;
     const step = () => {
       const ch = chartRef.current, t = target.current; if (!ch || !t) { glide.current = 0; return; }
@@ -252,12 +263,29 @@ export default function ChartPane(p: PaneProps) {
       const k = 0.35, nf = cur.from + (t.from - cur.from) * k, nt = cur.to + (t.to - cur.to) * k;
       const done = Math.abs(t.from - nf) < 0.01 && Math.abs(t.to - nt) < 0.01;
       ch.timeScale().setVisibleLogicalRange(done ? t : { from: nf, to: nt });
-      if (done) { target.current = null; glide.current = 0; } else glide.current = requestAnimationFrame(step);
+      // Measure where the pinned candle really landed and correct the target, so it stays under the pointer.
+      const pn = zoomPin.current;
+      if (pn) {
+        const c = ch.timeScale().logicalToCoordinate(pn.l as Logical), W = ch.timeScale().width() || 1;
+        if (c != null && Math.abs(c - pn.x) > 0.5) {
+          const shift = (c - pn.x) * ((t.to - t.from) / W), nx = clampRange(t.from + shift, t.to - t.from, barsN.current);
+          if (Math.abs(nx.from - t.from) > 1e-3) { target.current = nx; glide.current = requestAnimationFrame(step); return; }
+        }
+      }
+      if (done) { target.current = null; zoomPin.current = null; glide.current = 0; } else glide.current = requestAnimationFrame(step);
     };
     glide.current = requestAnimationFrame(step);
   };
   const baseRange = () => target.current ?? chartRef.current?.timeScale().getVisibleLogicalRange() ?? null;
   const zoomBy = (factor: number, frac: number) => { const b = baseRange(); if (b) animateTo(zoomRange({ from: b.from, to: b.to }, factor, frac, barsN.current)); };
+  /** Zoom keeping the candle that is under the pointer on screen right now exactly under the pointer. */
+  const zoomAt = (factor: number, x: number) => {
+    const ch = chartRef.current, b = baseRange(); if (!ch || !b) return;
+    const ts = ch.timeScale(), W = ts.width() || 1, frac = Math.min(1, Math.max(0, x / W));
+    const anchor = ts.coordinateToLogical(x) ?? b.from + frac * (b.to - b.from); // what you see under the pointer
+    const nW = Math.min(Math.max((b.to - b.from) * factor, 6), Math.max(30, barsN.current * 1.3));
+    animateTo(clampRange(anchor - frac * nW, nW, barsN.current), { l: anchor, x });
+  };
   const panBy = (fraction: number) => { const b = baseRange(); if (!b) return; const w = b.to - b.from; animateTo(clampRange(b.from + w * fraction, w, barsN.current)); };
   useEffect(() => {
     const el = host.current; if (!el) return;
@@ -269,11 +297,11 @@ export default function ChartPane(p: PaneProps) {
       if (e.shiftKey && !dx) { dx = dy; dy = 0; }
       const r = el.getBoundingClientRect(), w = chartRef.current.timeScale().width() || r.width;
       if (Math.abs(dx) > Math.abs(dy)) { panBy((dx / w) * 1.2); return; }
-      const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / w));
+      void w;
       // ctrlKey = trackpad pinch on a Mac: its deltas are small, so give them more weight
-      zoomBy(Math.exp(dy * 0.0024 * zoomFactor() * (e.ctrlKey ? 3 : 1)), frac);
+      zoomAt(Math.exp(dy * 0.0024 * zoomFactor() * (e.ctrlKey ? 3 : 1)), e.clientX - r.left);
     };
-    const stop = () => { target.current = null; }; // grabbing the chart stops a zoom that is still gliding
+    const stop = () => { target.current = null; zoomPin.current = null; }; // grabbing the chart stops a zoom that is still gliding
     el.addEventListener("wheel", onWheel, { passive: false }); el.addEventListener("pointerdown", stop);
     return () => { el.removeEventListener("wheel", onWheel); el.removeEventListener("pointerdown", stop); if (glide.current) cancelAnimationFrame(glide.current); glide.current = 0; target.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -436,8 +464,8 @@ export default function ChartPane(p: PaneProps) {
             <text x={l.x + (l.bg && l.anchor !== "middle" && l.anchor !== "end" ? 2 : 0)} y={l.y} fontSize={l.size ?? 11} textAnchor={l.anchor ?? "start"} fill={l.bg && l.bg !== "panel" ? "#fff" : l.color ?? d.color} fontWeight={l.bg ? 600 : 500} style={{ paintOrder: "stroke", stroke: l.bg ? "none" : "var(--bg)", strokeWidth: 3 }}>{l.text}</text>
           </g>
         ))}
-        {!isDraft && <path d={hitD} fill="none" stroke="transparent" strokeWidth={coarse ? 26 : 14} style={{ pointerEvents: p.tool === "cursor" ? "all" : "none", cursor: d.locked ? "pointer" : "move", touchAction: "none" }} onPointerDown={(e) => startDrag(e, d, null)} />}
-        {sel && !d.locked && g.handles.map((hd) => <circle key={`h${hd.i}`} cx={hd.x} cy={hd.y} r={coarse ? 10 : 6} fill="var(--panel)" stroke={d.color} strokeWidth={2} style={{ pointerEvents: "all", cursor: "grab", touchAction: "none" }} onPointerDown={(e) => startDrag(e, d, hd.i)} />)}
+        {!isDraft && <path d={hitD} fill="none" data-drag="1" stroke="transparent" strokeWidth={coarse ? 26 : 14} style={{ pointerEvents: p.tool === "cursor" ? "all" : "none", cursor: d.locked ? "pointer" : "move", touchAction: "none" }} onPointerDown={(e) => startDrag(e, d, null)} />}
+        {sel && !d.locked && g.handles.map((hd) => <circle data-drag="1" key={`h${hd.i}`} cx={hd.x} cy={hd.y} r={coarse ? 10 : 6} fill="var(--panel)" stroke={d.color} strokeWidth={2} style={{ pointerEvents: "all", cursor: "grab", touchAction: "none" }} onPointerDown={(e) => startDrag(e, d, hd.i)} />)}
       </g>
     );
   };
@@ -470,7 +498,8 @@ export default function ChartPane(p: PaneProps) {
         <svg className="draw-layer" width={w} height={h} style={{ position: "absolute", left: 0, top: 0, zIndex: 5, pointerEvents: p.tool === "cursor" ? "none" : "all", touchAction: p.tool === "cursor" ? "auto" : "none", cursor: p.tool === "cursor" ? "default" : "crosshair", overflow: "hidden" }}
           onPointerDown={svgDown} onPointerMove={svgMove} onPointerUp={svgUp} onClick={(e) => { if (p.tool === "cursor" && e.target === e.currentTarget) p.onSelect(null); }}>
           {aiLayer()}
-          {!p.hideDrawings && p.drawings.filter((d) => !d.hidden).map((d) => (slide && slide.id === d.id ? <g key={d.id} transform={`translate(${slide.dx},${slide.dy})`}>{renderOne(d)}</g> : renderOne(dragging && dragging.id === d.id ? dragging : d)))}
+          {/* Every drawing keeps the same elements while it is moved (only the transform changes): replacing the element under a finger cancels the touch on iPhone and iPad. */}
+          {!p.hideDrawings && p.drawings.filter((d) => !d.hidden).map((d) => <g key={d.id} transform={slide && slide.id === d.id ? `translate(${slide.dx},${slide.dy})` : undefined}>{renderOne(dragging && dragging.id === d.id ? dragging : d)}</g>)}
           {draft && renderOne(draft, true)}
         </svg>
       )}
