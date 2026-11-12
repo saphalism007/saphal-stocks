@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { Modal, NumInput } from "../components/ui.tsx";
 import { INDICATORS, INDICATOR_MAP, type Group } from "../../../shared/ta.ts";
 import type { IndInst } from "./ChartPane.tsx";
+import IndicatorInfo, { SortSelect, loadSort, saveSort, sortIndicators, type IndSort } from "../components/IndicatorInfo.tsx";
 
 const TKEY = "ss-ind-templates";
 export const BUILTIN_TEMPLATES: { name: string; list: { id: string; params?: Record<string, number> }[] }[] = [
@@ -25,7 +26,10 @@ export default function IndicatorPicker({ list, onChange, onClose, editUid }: { 
   const [tname, setTname] = useState("");
   const [saved, setSaved] = useState<{ name: string; list: IndInst[] }[]>(() => { try { return JSON.parse(localStorage.getItem(TKEY) || "[]"); } catch { return []; } });
   const persist = (x: typeof saved) => { setSaved(x); try { localStorage.setItem(TKEY, JSON.stringify(x)); } catch { /* ignore */ } };
-  const found = useMemo(() => { const s = q.trim().toLowerCase(); return INDICATORS.filter((d) => (group === "All" || d.group === group) && (!s || `${d.name} ${d.short} ${d.desc}`.toLowerCase().includes(s))); }, [q, group]);
+  const [sort, setSortS] = useState<IndSort>(() => loadSort("ss-ind-sort"));
+  const setSort = (v: IndSort) => { setSortS(v); saveSort("ss-ind-sort", v); };
+  const [info, setInfo] = useState<string | null>(null);
+  const found = useMemo(() => { const s = q.trim().toLowerCase(); return sortIndicators(INDICATORS.filter((d) => (group === "All" || d.group === group) && (!s || `${d.name} ${d.short} ${d.desc}`.toLowerCase().includes(s))), sort); }, [q, group, sort]);
   const inst = list.find((x) => x.uid === edit);
   const def = inst ? INDICATOR_MAP.get(inst.id) : null;
   const upd = (u: IndInst) => onChange(list.map((x) => (x.uid === u.uid ? u : x)));
@@ -35,6 +39,7 @@ export default function IndicatorPicker({ list, onChange, onClose, editUid }: { 
     <Modal title="Indicators" onClose={onClose}>
       <div className="ind-picker">
         <input className="input" autoFocus placeholder={`Search ${INDICATORS.length} indicators (e.g. RSI, Ichimoku, money flow)`} value={q} onChange={(e) => { setQ(e.target.value); if (group === "Added" || group === "Templates") setGroup("All"); }} />
+        {group !== "Added" && group !== "Templates" && <SortSelect value={sort} onChange={setSort} />}
         <div className="chips">{groups.map((g) => <button key={g} className={`chip ${group === g ? "on" : ""}`} onClick={() => setGroup(g)}>{g}{g === "Added" ? ` (${list.length})` : ""}</button>)}</div>
         {group === "Added" ? (
           <div className="ind-list">
@@ -66,10 +71,21 @@ export default function IndicatorPicker({ list, onChange, onClose, editUid }: { 
           </div>
         ) : (
           <div className="ind-list">
-            {found.map((d) => { const n = list.filter((x) => x.id === d.id).length; return (
-              <div key={d.id} role="button" tabIndex={0} className="ind-item add" onClick={() => onChange([...list, newInst(d.id)])} onKeyDown={(e) => { if (e.key === "Enter") onChange([...list, newInst(d.id)]); }}>
-                <span><strong>{d.name}</strong> <span className="tiny faint">{d.short}, {d.group}, {d.overlay ? "on price" : "own panel"}</span><span className="tiny muted" style={{ display: "block" }}>{d.desc}</span></span>
-                <span className="row" style={{ gap: 4 }}><Link className="btn sm ghost" to={`/indicators?id=${d.id}`} onClick={(e) => e.stopPropagation()}>Guide</Link><span className="btn sm">{n ? `Add again (${n})` : "Add"}</span></span>
+            {found.map((d) => { const mine = list.filter((x) => x.id === d.id); const n = mine.length; const open = info === d.id; return (
+              <div key={d.id} className={`ind-item lib ${n ? "added" : ""} ${open ? "on" : ""}`}>
+                <button className="ind-name" onClick={() => setInfo(open ? null : d.id)} aria-expanded={open} title="Show how to use it">
+                  <span><strong>{d.name}</strong> <span className="tiny faint">{d.short}, {d.group}, {d.overlay ? "on price" : "own panel"}</span></span>
+                  <span className="tiny muted">{d.desc}</span>
+                  <span className="tiny ind-more">{open ? "Hide guide ▴" : "How to use it ▾"}</span>
+                </button>
+                <span className="ind-acts">
+                  {n === 0 ? <button className="btn sm primary" onClick={() => onChange([...list, newInst(d.id)])}>Add</button> : <>
+                    <span className="tiny up">On chart{n > 1 ? ` (${n})` : ""} ✓</span>
+                    <button className="btn sm" onClick={() => onChange(list.filter((x) => x.id !== d.id))}>Remove</button>
+                    <button className="btn sm ghost" title="Add another copy, for example with a different length" onClick={() => onChange([...list, newInst(d.id)])}>+ Another</button>
+                  </>}
+                </span>
+                {open && <div className="ind-guide"><IndicatorInfo def={d} /><Link className="btn sm ghost" to={`/indicators?id=${d.id}`}>Open with live reading</Link></div>}
               </div>
             ); })}
             {found.length === 0 && <p className="small muted">No indicator matches '{q}'.</p>}

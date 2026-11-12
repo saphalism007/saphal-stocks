@@ -923,3 +923,14 @@ button, a, .chip, .btn, [role="button"], input, select, label { touch-action: ma
 @media (max-width: 700px) { .market-toast { right: 16px; left: 16px; width: auto; bottom: 76px; } }
 .linkish { all: unset; cursor: pointer; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 @media (max-width: 700px) { .ig-item { scroll-margin-top: 175px; } }
+/* Indicator list: tap the name for the guide; Add / Remove on the right (below on phones) */
+.ind-item.lib { align-items: flex-start; }
+.ind-item.lib.added { border-color: color-mix(in srgb, var(--up) 45%, var(--border)); }
+.ind-item.lib .ind-name { gap: 2px; min-width: 0; flex: 1 1 260px; }
+.ind-more { color: var(--accent); margin-top: 2px; }
+.ind-acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: none; }
+.ind-guide { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 8px; animation: igIn .15s ease; }
+.ind-sort { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+.ind-sort .input { width: auto; padding: 5px 8px; font-size: 13px; }
+@media (max-width: 600px) { .ind-item.lib .ind-acts { flex-basis: 100%; } }
+@media (max-width: 700px) { .ind-list { max-height: calc(100dvh - 300px); } }

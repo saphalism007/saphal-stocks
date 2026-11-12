@@ -8,6 +8,7 @@ import { Badge, Card, Notice } from "../components/ui.tsx";
 import { INDICATORS, INDICATOR_MAP, type Group, type IndicatorDef } from "../../../shared/ta.ts";
 import { GUIDE, interpret, type Reading } from "../../../shared/indicatorGuide.ts";
 import type { Bar } from "../../../shared/types.ts";
+import IndicatorInfo, { SortSelect, loadSort, saveSort, sortIndicators, type IndSort } from "../components/IndicatorInfo.tsx";
 
 const START = ["sma", "ema", "rsi", "macd", "bb", "volume", "atr", "adx", "supertrend", "obv"];
 const GROUPS: (Group | "All" | "Start here")[] = ["Start here", "All", "Moving averages", "Trend", "Momentum", "Volatility", "Volume"];
@@ -44,6 +45,8 @@ export default function Indicators() {
   const [symIn, setSymIn] = useState(sym);
   const [bars, setBars] = useState<Bar[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [sort, setSortS] = useState<IndSort>(() => loadSort("ss-guide-sort"));
+  const setSort = (v: IndSort) => { setSortS(v); saveSort("ss-guide-sort", v); };
 
   useEffect(() => { let live = true; setErr(null); api<{ bars: Bar[] }>(`/stocks/${sym}/bars`).then((r) => live && setBars(r.bars)).catch((e) => live && (setBars([]), setErr(String(e?.message ?? e)))); return () => { live = false; }; }, [sym]);
   const [jump, setJump] = useState<string | null>(params.get("id"));
@@ -65,11 +68,12 @@ export default function Indicators() {
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return INDICATORS.filter((d) => {
+    const f = INDICATORS.filter((d) => {
       if (s) { const g = GUIDE[d.id]; return `${d.name} ${d.short} ${d.desc} ${g?.origin} ${g?.what} ${g?.best}`.toLowerCase().includes(s); }
       return group === "All" ? true : group === "Start here" ? START.includes(d.id) : d.group === group;
-    }).sort((a, b) => (group === "Start here" && !s ? START.indexOf(a.id) - START.indexOf(b.id) : 0));
-  }, [q, group]);
+    });
+    return group === "Start here" && !s && sort === "default" ? f.sort((a, b) => START.indexOf(a.id) - START.indexOf(b.id)) : sortIndicators(f, sort);
+  }, [q, group, sort]);
 
   // Scroll to a linked indicator once the live data has rendered (it changes the page height).
   useEffect(() => { if (!jump || bars === null) return; const t = setTimeout(() => { document.getElementById(`ig-${jump}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); setJump(null); }, 120); return () => clearTimeout(t); }, [jump, bars]);
@@ -104,6 +108,7 @@ export default function Indicators() {
 
       <div className="ig-filter">
         <input className="input" placeholder={`Search ${INDICATORS.length} indicators, e.g. RSI, Japan, volume, stop loss`} value={q} onChange={(e) => setQ(e.target.value)} />
+        <SortSelect value={sort} onChange={setSort} />
         <div className="chips">{GROUPS.map((g) => <button key={g} className={`chip ${!q && group === g ? "on" : ""}`} onClick={() => { setQ(""); setGroup(g); }}>{g}{g === "Start here" ? " (10)" : ""}</button>)}</div>
       </div>
       {group === "Start here" && !q && <p className="small muted" style={{ margin: "0 0 8px" }}>New to indicators? Learn these 10 first, in this order. Together they cover trend, momentum, volatility and volume.</p>}
@@ -114,31 +119,20 @@ export default function Indicators() {
           return (
             <div key={d.id} id={`ig-${d.id}`} className={`ig-item ${on ? "on" : ""}`}>
               <button className="ig-head" onClick={() => toggle(d.id)} aria-expanded={on}>
-                <span className="ig-title">{group === "Start here" && !q && <span className="ig-num">{i + 1}</span>}<strong>{d.name}</strong> <span className="tiny faint">{d.short}</span></span>
+                <span className="ig-title">{group === "Start here" && !q && sort === "default" && <span className="ig-num">{i + 1}</span>}<strong>{d.name}</strong> <span className="tiny faint">{d.short}</span></span>
                 <span className="row" style={{ gap: 6 }}>{res && !res.r.text.startsWith("Not enough") && <span className={`tiny ${toneCls(res.r.tone)}`}>{toneWord(res.r.tone)}</span>}<Badge>{d.group}</Badge><span className="ig-chev">{on ? "▴" : "▾"}</span></span>
               </button>
               {!on && <p className="tiny muted ig-what">{g?.what}</p>}
               {on && g && (
                 <div className="ig-body">
-                  <p className="ig-what-big">{g.what}</p>
-                  {res && bars && (
+                                    {res && bars && (
                     <div className={`ig-live ${toneCls(res.r.tone)}`}>
                       <div className="tiny faint">{sym} now ({bars[bars.length - 1].date})</div>
                       <div>{res.r.text}</div>
                       <Mini def={d} bars={bars} vals={res.vals} />
                     </div>
                   )}
-                  <dl className="ig-dl">
-                    <dt>How to read</dt><dd>{g.read}</dd>
-                    <dt className="up">Buy signal</dt><dd>{g.buy}</dd>
-                    <dt className="down">Sell signal</dt><dd>{g.sell}</dd>
-                    <dt>Works best for</dt><dd>{g.best}</dd>
-                    <dt className="warn-t">Common trap</dt><dd>{g.trap}</dd>
-                    <dt>Tip</dt><dd>{g.tip}</dd>
-                    {d.params.length > 0 && <><dt>Default settings</dt><dd>{d.params.map((p) => `${p.label} ${p.def}`).join(", ")}</dd></>}
-                    <dt>Shown</dt><dd>{d.overlay ? "On the price chart" : "In its own panel under the chart"}</dd>
-                    <dt>Origin</dt><dd>{g.origin}</dd>
-                  </dl>
+                  <IndicatorInfo def={d} />
                   <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                     <Link className="btn primary" to={`/terminal/${sym}?add=${d.id}`}>Add to {sym} chart</Link>
                     <button className="btn ghost" onClick={() => { const n = list[i + 1]; if (n) toggle(n.id); }} disabled={!list[i + 1]}>Next indicator</button>
