@@ -16,7 +16,7 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "preview": "vite preview --port 5180",
     "bump": "node scripts/bump.mjs",
-    "deploy": "node scripts/bump.mjs && npm test && npm run typecheck && BASE_PATH=/saphal-stocks/ npm run build && node scripts/deploy.mjs",
+    "deploy": "node scripts/bump.mjs && npm test && npm run typecheck && BASE_PATH=/saphal-stocks/ npm run build && npm run -s build:server >/dev/null && touch dist/.mac-server-build && node scripts/deploy.mjs",
     "serve:pages": "BASE_PATH=/saphal-stocks/ npm run build && node scripts/serve-pages.mjs 5186 /saphal-stocks/",
     "ingest": "tsx server/ingest/cli.ts",
     "test": "vitest run",
