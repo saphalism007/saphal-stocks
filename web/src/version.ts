@@ -5,12 +5,11 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.20.1";
+export const VERSION = "0.20.2";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Accurate market status: the app now knows NEPSE holidays. It shows Closed today with the reason (for example the Tihar holiday, 8 to 12 November) and when the next session opens. Holidays not yet in the calendar are caught from the official closure notice in the news, or when no trades are reported by 11:20.",
-  "Buy and sell instructions now name the real next trading session, skipping holidays.",
-  "The Mac version (Start Saphal Stocks) opens correctly again after an update.",
+  "Fixed: the online app (phone and browser) still showed Market open on holidays. It now shows Closed today with the reason and the next session, exactly like the Mac version, because both use the same check.",
+  "Before the bell now counts only items published since the last trading day, not older notices that were collected later.",
 ];
 
 declare const __BUILD__: string;

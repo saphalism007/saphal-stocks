@@ -252,7 +252,7 @@ export function dailyBriefing(userId: number) {
   // on the data date, 09:15 UTC), newest first, with your holdings and watchlist marked.
   const closeAt = `${date || today}T09:15:00`;
   const bell = all<{ symbol: string | null; title: string; url: string; published_date: string | null; category: string | null; source: string | null; fetched_at: string | null }>(
-    "SELECT symbol, title, url, published_date, category, source, fetched_at FROM announcements WHERE (fetched_at >= ? OR published_date > ?) ORDER BY COALESCE(fetched_at, published_date) DESC LIMIT 40", closeAt, date || today);
+    "SELECT symbol, title, url, published_date, category, source, fetched_at FROM announcements WHERE (published_date >= ? OR (published_date IS NULL AND fetched_at >= ?)) ORDER BY COALESCE(fetched_at, published_date) DESC LIMIT 40", date || today, closeAt);
   const beforeBell = { since: closeAt + "Z", total: bell.length, items: bell.map((x) => ({ ...x, mine: !!x.symbol && interest.includes(x.symbol), held: !!x.symbol && held.has(x.symbol) })).sort((a, b) => Number(b.mine) - Number(a.mine)).slice(0, 15) };
   return {
     date,

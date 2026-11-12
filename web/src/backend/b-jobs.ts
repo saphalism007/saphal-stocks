@@ -1,6 +1,7 @@
 // Browser replacement for server/ingest/jobs.ts. Data collection runs in the GitHub Actions
 // pipeline (or the desktop server); the web app downloads the published snapshot.
 import { all, get } from "./b-db.ts";
+import { computeMarketStatus } from "../../../shared/holidays.ts";
 
 const notHere = () => { throw Object.assign(new Error("Data refresh runs automatically in the cloud pipeline; the app downloads new data when it is published. Use Settings > Data > Check for new data."), { status: 400 }); };
 export const syncListing = notHere, syncHistory = notHere, syncIndices = notHere, syncCompanyDetail = notHere, syncAllDetails = notHere,
@@ -27,14 +28,5 @@ export function tradingWeekdays(): number[] {
   return days.length ? days : [1, 2, 3, 4, 5];
 }
 export function marketStatus() {
-  const n = nptNow();
-  const tradingDay = tradingWeekdays().includes(n.weekday);
-  const session = !tradingDay ? "closed" : n.minutes < 660 ? "pre-open" : n.minutes <= 900 ? "open" : "closed";
-  const f = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM data_freshness WHERE dataset = 'prices_latest'");
-  return {
-    nptDate: n.date, nptTime: `${String(Math.floor(n.minutes / 60)).padStart(2, "0")}:${String(n.minutes % 60).padStart(2, "0")}`,
-    tradingDay, holiday: false, session, hours: "11:00-15:00 NPT",
-    lastUpdate: f?.last_success_at ?? null, dataDate: f?.as_of ?? null, live: session === "open" && f?.as_of === n.date,
-    note: "During market hours prices update about every 15 minutes from the cloud pipeline (delayed). Official closing data is published after 15:45.",
-  };
+  return computeMarketStatus(nptNow(), tradingWeekdays(), (sql, ...a) => all(sql, ...a), false, "During market hours prices update about every 15 minutes from the cloud pipeline (delayed). Official closing data is published after 15:45.");
 }
