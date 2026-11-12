@@ -25,7 +25,7 @@ const SKEY = "ss-term-v2";
 // A new chart is clean: candles and volume only. Indicators, AI levels and markers appear when you turn them on.
 const defPane = (symbol: string): PaneState => ({ symbol, tf: "D", type: "candles", scale: 0, indicators: [] });
 const loadState = (sym: string): TermState => {
-  const d: TermState = { layout: "1", panes: [defPane(sym)], active: 0, range: "1Y", from: null, to: null, panel: typeof window !== "undefined" && window.innerWidth >= 900, panelTab: "ai", ai: false, patterns: false, volume: true, grid: true, magnet: false, keep: false, hide: false, clean: false, v: 3 };
+  const d: TermState = { layout: "1", panes: [defPane(sym)], active: 0, range: "1Y", from: null, to: null, panel: typeof window !== "undefined" && window.innerWidth >= 1200, panelTab: "ai", ai: false, patterns: false, volume: true, grid: true, magnet: false, keep: false, hide: false, clean: false, v: 3 };
   try {
     const s = JSON.parse(localStorage.getItem(SKEY) || "null");
     if (s?.panes?.length) {

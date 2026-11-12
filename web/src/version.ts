@@ -5,12 +5,12 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.21.3";
+export const VERSION = "0.21.4";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Zoom from exactly where you point, anywhere: on old prices, on today's candle, or in the empty space to the right for future projections. The spot under your pointer now stays there (within a pixel) however fast you scroll or pinch, and zooming near today no longer slides back in time.",
-  "Room for the future: you can zoom and scroll past today into the future area to draw projections; the latest candle always stays on screen.",
-  "Trackpad: a zoom swipe no longer turns into scrolling back in time when your fingers drift sideways; a clearly sideways swipe still scrolls.",
+  "iPad (finger and Apple Pencil): drag the price column on the right up or down to squeeze or stretch prices, and drag the chart up and down as well as sideways, just like a Mac trackpad. Double-tap the price column (or tap auto) to reset. iPhone keeps its simpler touch behaviour.",
+  "Apple Pencil drawing: lines follow the Pencil tip exactly and keep following it even if it moves past the chart's edge.",
+  "On screens narrower than 1200 pixels (an iPad held upright, for example) the chart opens without the AI panel so it gets the full width; tap Show panel at the top right to bring it back.",
 ];
 
 declare const __BUILD__: string;

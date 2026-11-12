@@ -64,6 +64,10 @@ export default function ChartPane(p: PaneProps) {
   const frame = useRef(0), pending = useRef<(() => void) | null>(null);
   const perFrame = (fn: () => void) => { pending.current = fn; if (!frame.current) frame.current = requestAnimationFrame(() => { frame.current = 0; const f = pending.current; pending.current = null; f?.(); }); };
   const coarse = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  // iPad-size touch screens (finger or Apple Pencil) get the full chart gestures of a Mac trackpad: drag the chart up
+  // and down, and drag the price column to squeeze or stretch prices. Phones keep these off (a stray drag on the
+  // narrow price column squashed the candles); mouse and trackpad are not affected.
+  const bigTouch = coarse && typeof screen !== "undefined" && Math.min(screen.width, screen.height) >= 700;
 
   const data = useMemo(() => {
     let b = p.bars ?? [];
@@ -111,9 +115,9 @@ export default function ChartPane(p: PaneProps) {
       rightPriceScale: { borderColor: grid, mode: p.scaleMode === 1 ? PriceScaleMode.Logarithmic : p.scaleMode === 2 ? PriceScaleMode.Percentage : PriceScaleMode.Normal },
       timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5, maxBarSpacing: MAX_SPACING }, crosshair: { mode: CrosshairMode.Normal },
       // The mouse wheel and trackpad are handled below (smooth zoom around the pointer, with a speed setting).
-      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: bigTouch },
       // On touch screens a stray drag on the price axis squashed the candles; keep the price scale automatic there.
-      handleScale: coarse ? { axisPressedMouseMove: { time: true, price: false }, axisDoubleClickReset: { time: true, price: true }, pinch: true, mouseWheel: false } : { axisPressedMouseMove: true, axisDoubleClickReset: true, pinch: true, mouseWheel: false },
+      handleScale: coarse && !bigTouch ? { axisPressedMouseMove: { time: true, price: false }, axisDoubleClickReset: { time: true, price: true }, pinch: true, mouseWheel: false } : { axisPressedMouseMove: true, axisDoubleClickReset: true, pinch: true, mouseWheel: false },
     });
     chartRef.current = chart;
     try { if (localStorage.getItem("ss-debug") === "1") (window as unknown as { __ssChart: IChartApi }).__ssChart = chart; } catch { /* ignore */ }
@@ -402,6 +406,8 @@ export default function ChartPane(p: PaneProps) {
   const svgDown = (e: RPE<SVGSVGElement>) => {
     if (p.tool === "cursor") return;
     e.preventDefault();
+    // Keep receiving this pen / mouse / finger even if it leaves the chart while stretching a line.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not supported */ }
     const { x, y } = rel(e); downAt.current = { x, y };
     const pt = toPt(x, y); if (!pt) return;
     const def = TOOLS.get(p.tool)!;
