@@ -1,6 +1,7 @@
 // Indicator library: search and add any of the indicators, edit an indicator's parameters and
 // colours, reorder or remove them, and save / load indicator templates (kept on this device).
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Modal, NumInput } from "../components/ui.tsx";
 import { INDICATORS, INDICATOR_MAP, type Group } from "../../../shared/ta.ts";
 import type { IndInst } from "./ChartPane.tsx";
@@ -49,7 +50,7 @@ export default function IndicatorPicker({ list, onChange, onClose, editUid }: { 
                       {def.params.map((p) => <label key={p.key} className="field">{p.label}<NumInput value={inst.params[p.key] ?? p.def} min={p.min} max={p.max} step={p.step} onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v > 0) upd({ ...inst, params: { ...inst.params, [p.key]: Math.min(p.max ?? 1e6, v) } }); }} /></label>)}
                       {def.outputs.map((o) => <label key={o.key} className="field">{o.label} colour<input type="color" className="input" value={inst.colors[o.key] || o.color} onChange={(e) => upd({ ...inst, colors: { ...inst.colors, [o.key]: e.target.value } })} /></label>)}
                     </div>
-                    <button className="btn sm ghost" onClick={() => upd({ ...inst, params: {}, colors: {} })}>Reset to defaults</button>
+                    <span className="row" style={{ gap: 6 }}><button className="btn sm ghost" onClick={() => upd({ ...inst, params: {}, colors: {} })}>Reset to defaults</button><Link className="btn sm ghost" to={`/indicators?id=${def.id}`}>How to use {def.short}</Link></span>
                   </div>
                 )}
               </div>
@@ -66,10 +67,10 @@ export default function IndicatorPicker({ list, onChange, onClose, editUid }: { 
         ) : (
           <div className="ind-list">
             {found.map((d) => { const n = list.filter((x) => x.id === d.id).length; return (
-              <button key={d.id} className="ind-item add" onClick={() => onChange([...list, newInst(d.id)])}>
+              <div key={d.id} role="button" tabIndex={0} className="ind-item add" onClick={() => onChange([...list, newInst(d.id)])} onKeyDown={(e) => { if (e.key === "Enter") onChange([...list, newInst(d.id)]); }}>
                 <span><strong>{d.name}</strong> <span className="tiny faint">{d.short}, {d.group}, {d.overlay ? "on price" : "own panel"}</span><span className="tiny muted" style={{ display: "block" }}>{d.desc}</span></span>
-                <span className="btn sm">{n ? `Add again (${n})` : "Add"}</span>
-              </button>
+                <span className="row" style={{ gap: 4 }}><Link className="btn sm ghost" to={`/indicators?id=${d.id}`} onClick={(e) => e.stopPropagation()}>Guide</Link><span className="btn sm">{n ? `Add again (${n})` : "Add"}</span></span>
+              </div>
             ); })}
             {found.length === 0 && <p className="small muted">No indicator matches '{q}'.</p>}
           </div>

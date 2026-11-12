@@ -21,18 +21,26 @@ export async function api<T = unknown>(path: string, opts: { method?: string; bo
   return data as T;
 }
 
-/** Fetch-on-mount hook with reload. */
+// Recently viewed responses, so a page you come back to opens instantly with what you saw last,
+// then refreshes quietly in the background (stale while revalidate). Memory only, small.
+const recent = new Map<string, unknown>();
+const remember = (k: string, v: unknown) => { recent.delete(k); recent.set(k, v); if (recent.size > 80) recent.delete(recent.keys().next().value as string); };
+
+/** Fetch-on-mount hook with reload. Shows the last copy at once and refreshes in the background. */
 export function useApi<T>(path: string | null, deps: unknown[] = []) {
-  const [data, setData] = useState<T | null>(null);
+  const [data, setData] = useState<T | null>(() => (path && recent.has(path) ? (recent.get(path) as T) : null));
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!!path);
+  const [loading, setLoading] = useState(!!path && !recent.has(path));
   const seq = useRef(0);
   const load = useCallback(async () => {
     if (!path) return;
     const id = ++seq.current;
-    setLoading(true);
+    const cached = recent.has(path);
+    if (cached) setData(recent.get(path) as T);
+    setLoading(!cached);
     try {
       const d = await api<T>(path);
+      remember(path, d);
       if (id === seq.current) { setData(d); setError(null); }
     } catch (e) {
       if (id === seq.current) setError(e instanceof Error ? e.message : String(e));

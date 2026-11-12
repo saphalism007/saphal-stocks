@@ -47,6 +47,7 @@ const Floorsheet = lazy(() => import("./pages/Floorsheet.tsx"));
 const Ipo = lazy(() => import("./pages/Ipo.tsx"));
 const Start = lazy(() => import("./pages/Start.tsx"));
 const Terminal = lazy(() => import("./pages/Terminal.tsx"));
+const Indicators = lazy(() => import("./pages/Indicators.tsx"));
 
 interface User { id: number; username: string }
 const ThemeCtx = createContext<{ theme: string; toggle: () => void }>({ theme: "dark", toggle: () => {} });
@@ -63,6 +64,7 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/stocks", label: "Stock Analysis", icon: "stocks" },
   { to: "/signals", label: "Technical Signals", icon: "market" },
   { to: "/terminal", label: "Chart Terminal", icon: "technical" },
+  { to: "/indicators", label: "Indicator Guide", icon: "learn" },
   { to: "/discover", label: "Market Mood & Baskets", icon: "market" },
   { to: "/fundamental", label: "Fundamentals", icon: "fundamental" },
   { to: "/results", label: "Quarterly Results", icon: "reports" },
@@ -196,6 +198,18 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
     });
     return () => off();
   }, []);
+  // Smooth navigation: once the app is idle, quietly load the other pages one by one so every tap
+  // after that opens without a loading flash. Skipped on data saver.
+  useEffect(() => {
+    const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    if (conn?.saveData) return;
+    const loaders = Object.values(import.meta.glob("./pages/*.tsx"));
+    let i = 0, stop = false;
+    const idle = (f: () => void) => ((window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 200)))(f);
+    const next = () => { if (stop || i >= loaders.length) return; loaders[i++]().catch(() => undefined).finally(() => idle(next)); };
+    const t = setTimeout(() => idle(next), 2500);
+    return () => { stop = true; clearTimeout(t); };
+  }, []);
   const nav = NAV.filter((n) => n.to === "/" || n.to === "/settings" || !prefs.hiddenNav.includes(n.to));
   return (
     <div className="app">
@@ -229,6 +243,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         </header>
         {open && <div className="scrim" onClick={() => setOpen(false)} />}
         <AskAiButton />
+        <MarketBell />
         <AppUpdateBanner />
         <DataUpdateBanner />
         <main className="content">
@@ -248,6 +263,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
               <Route path="/start" element={<Start />} />
               <Route path="/terminal" element={<Terminal />} />
               <Route path="/terminal/:symbol" element={<Terminal />} />
+              <Route path="/indicators" element={<Indicators />} />
               <Route path="/stocks" element={<Stocks />} />
               <Route path="/stocks/:symbol" element={<StockDetail />} />
               <Route path="/compare" element={<Compare />} />
@@ -380,6 +396,49 @@ function MarketBadge() {
       <span className="dot" style={{ background: d.session === "open" ? "var(--up)" : d.session === "pre-open" ? "var(--warn)" : "var(--text-3)" }} />
       <span className="hide-phone">{label}{d.session === "open" && mins != null ? (mins <= 90 ? `, ${mins} min ago` : d.dataDate ? `, prices from ${nptDate(d.dataDate)}` : "") : ""}</span><span className="show-phone">{d.session === "open" ? "Open" : d.session === "pre-open" ? "11:00" : "Closed"}</span>
     </span>
+  );
+}
+
+/** Market moments: a short notice at pre-open (10:30), at the open (11:00) and at the close (15:00),
+ *  once per day each, with the news count before the open and a day summary after the close.
+ *  Shown inside the app; also as a device notification if you allow it (only while the app is open). */
+type BellKind = "pre" | "open" | "close";
+function MarketBell() {
+  const st = useApi<{ session: string; nptDate: string; nptTime: string; tradingDay: boolean; holiday: boolean }>("/market/status");
+  const [toast, setToast] = useState<{ kind: BellKind; title: string; body: string; link: string; linkLabel: string } | null>(null);
+  useEffect(() => { const id = setInterval(() => st.reload(), 60_000); return () => clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const off = (() => { try { return localStorage.getItem("ss-bell-off") === "1"; } catch { return false; } })();
+  useEffect(() => {
+    const s = st.data; if (!s || off || !s.tradingDay || s.holiday) return;
+    const m = Number(s.nptTime.slice(0, 2)) * 60 + Number(s.nptTime.slice(3, 5));
+    const kind: BellKind | null = m >= 630 && m < 660 ? "pre" : m >= 660 && m < 720 && s.session === "open" ? "open" : m >= 900 && m < 1080 && s.session === "closed" ? "close" : null;
+    if (!kind) return;
+    const key = `ss-bell-${s.nptDate}-${kind}`;
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, "1"); } catch { return; }
+    (async () => {
+      type B = { market: { nepse: { close: number; changePct: number } | null; breadth: { advancers: number; decliners: number } }; portfolios: { dayChange: number }[]; beforeBell?: { total: number; items: { mine: boolean }[] } };
+      let b: B | null = null; try { b = await api<B>("/briefing"); } catch { /* data unavailable */ }
+      const t = kind === "pre"
+        ? { title: `Pre-open: market opens at 11:00 (in ${660 - m} min)`, body: b?.beforeBell ? `${b.beforeBell.total} new item${b.beforeBell.total === 1 ? "" : "s"} since the last close${b.beforeBell.items.some((x) => x.mine) ? `, ${b.beforeBell.items.filter((x) => x.mine).length} about your stocks` : ""}. Read them before you trade.` : "Check the news before you trade.", link: "/", linkLabel: "Before the bell" }
+        : kind === "open"
+        ? { title: "Market is open (11:00 to 15:00)", body: "Prices in the app refresh about every 15 minutes. Stick to your plan: entry, stop-loss, target.", link: "/terminal", linkLabel: "Open chart" }
+        : { title: "Market closed at 15:00", body: b ? [b.market.nepse ? `NEPSE ${num(b.market.nepse.close)} (${b.market.nepse.changePct >= 0 ? "+" : ""}${b.market.nepse.changePct.toFixed(2)}%)` : null, `${b.market.breadth.advancers} up, ${b.market.breadth.decliners} down`, b.portfolios.length ? `your portfolio ${b.portfolios.reduce((a, p) => a + p.dayChange, 0) >= 0 ? "+" : "-"}Rs. ${Math.abs(b.portfolios.reduce((a, p) => a + p.dayChange, 0)).toLocaleString("en-IN")} today` : null].filter(Boolean).join(", ") + ". Latest intraday prices; the official close loads after 16:00." : "The official close loads after 16:00.", link: "/growth", linkLabel: "My day" };
+      setToast({ kind, ...t });
+      try { if ("Notification" in window && Notification.permission === "granted" && document.visibilityState !== "visible") new Notification(t.title, { body: t.body, icon: "icons/icon-192.png", tag: key }); } catch { /* not supported */ }
+    })();
+  }, [st.data, off]);
+  if (!toast) return null;
+  const canAsk = typeof Notification !== "undefined" && Notification.permission === "default";
+  return (
+    <div className={`market-toast ${toast.kind}`} role="status">
+      <div className="row between" style={{ alignItems: "flex-start", flexWrap: "nowrap", gap: 8 }}><strong style={{ flex: 1, minWidth: 0 }}>{toast.title}</strong><button className="btn ghost sm" style={{ flex: "none" }} onClick={() => setToast(null)} aria-label="Close">✕</button></div>
+      <div className="small">{toast.body}</div>
+      <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+        <NavLink className="btn sm primary" to={toast.link} onClick={() => setToast(null)}>{toast.linkLabel}</NavLink>
+        {canAsk && <button className="btn sm ghost" onClick={() => { void Notification.requestPermission().then(() => setToast({ ...toast })); }}>Notify on this device</button>}
+        <button className="btn sm ghost" onClick={() => { try { localStorage.setItem("ss-bell-off", "1"); } catch { /* ignore */ } setToast(null); }}>Turn off</button>
+      </div>
+    </div>
   );
 }
 

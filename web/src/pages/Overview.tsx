@@ -22,19 +22,59 @@ interface Briefing {
   openIssues?: { company: string; symbol: string | null; issue_type: string; final_date: string | null; closing_date: string | null }[];
   money?: { saved: boolean; netWorth: number; cashFlow: number; savingsRatePct: number | null; emergencyGap: number; advice: { priority: number; title: string; detail: string; yearlyImpact?: number }[] };
   action?: { title: string; detail: string; link: string };
+  beforeBell?: Bell;
 }
 interface Mover { symbol: string; name: string; changePct: number; close: number }
 interface SetupRow { symbol: string; name?: string; type: string; side: string; price: number; entryLow: number; entryHigh: number; stopLoss: number; targets: number[]; riskReward: number; quality: number }
 
-const SECTION_LABELS: Record<string, string> = { pillars: "NEPSE Intelligence and My Financial Life shortcuts", today: "8, Smartest action today", stats: "Key numbers (index, breadth, turnover, trend)", market: "What happened in NEPSE + my portfolio", attention: "Stocks that deserve attention + setups", reports: "Reports, news on my stocks, opportunities", money: "Bank rates, opportunities and my money" };
+const SECTION_LABELS: Record<string, string> = { bell: "Before the bell: news since the last close", pillars: "NEPSE Intelligence and My Financial Life shortcuts", today: "8, Smartest action today", stats: "Key numbers (index, breadth, turnover, trend)", market: "What happened in NEPSE + my portfolio", attention: "Stocks that deserve attention + setups", reports: "Reports, news on my stocks, opportunities", money: "Bank rates, opportunities and my money" };
 const DEFAULT_LAYOUT = Object.keys(SECTION_LABELS).map((key) => ({ key, on: true }));
 
 function loadLayout() {
   try {
     const l = JSON.parse(localStorage.getItem("ss-overview-layout") || "null") as { key: string; on: boolean }[] | null;
-    if (l && l.length === DEFAULT_LAYOUT.length && l.every((x) => SECTION_LABELS[x.key])) return l;
+    if (l && l.length) {
+      // Keep your order; new sections are slotted in at their default place.
+      const out = l.filter((x) => SECTION_LABELS[x.key]);
+      DEFAULT_LAYOUT.forEach((d, i) => { if (!out.some((x) => x.key === d.key)) out.splice(Math.min(i, out.length), 0, { ...d }); });
+      return out;
+    }
   } catch { /* ignore */ }
   return DEFAULT_LAYOUT;
+}
+
+type Bell = { since: string; total: number; items: { symbol: string | null; title: string; url: string; published_date: string | null; category: string | null; source: string | null; fetched_at: string | null; mine: boolean; held: boolean }[] };
+function BeforeBell({ bell }: { bell?: Bell }) {
+  const st = useApi<{ session: string; nptTime: string; tradingDay: boolean; holiday: boolean; dataDate: string | null; lastUpdate: string | null }>("/market/status");
+  const [all, setAll] = useState(false);
+  const [bellOff, setBellOff] = useState(() => { try { return localStorage.getItem("ss-bell-off") === "1"; } catch { return false; } });
+  const s = st.data;
+  const mins = s ? Number(s.nptTime.slice(0, 2)) * 60 + Number(s.nptTime.slice(3, 5)) : null;
+  const head = !s ? "Market status" : s.session === "pre-open" ? (mins != null && mins >= 630 ? `Pre-open session. Market opens at 11:00 (in ${660 - mins} min)` : `Market opens at 11:00${mins != null ? ` (in ${Math.floor((660 - mins) / 60)} h ${(660 - mins) % 60} min)` : ""}`)
+    : s.session === "open" ? "Market is open until 15:00" : s.holiday || !s.tradingDay ? "No trading today" : "Market closed for today";
+  const items = bell?.items ?? [];
+  const mine = items.filter((x) => x.mine);
+  const shown = all ? items : items.slice(0, 6);
+  return (
+    <Card title="Before the bell" sub={head} actions={<Link className="small" to="/news">All news</Link>}>
+      {!bell ? <p className="small muted">Data unavailable. Update the app to get the morning briefing.</p> : items.length === 0 ? <p className="small muted">No new announcements or news since the last close. Quiet morning.</p> : (
+        <>
+          <p className="small" style={{ margin: "0 0 6px" }}><strong>{bell.total}</strong> new item{bell.total === 1 ? "" : "s"} since the last close{mine.length ? <>, <strong className="warn-t">{mine.length} about your stocks</strong></> : ""}.</p>
+          <ul className="bell-list">
+            {shown.map((x) => (
+              <li key={x.url} className={x.mine ? "mine" : ""}>
+                {x.symbol && <Link to={`/stocks/${x.symbol}`} className="badge">{x.symbol}</Link>}{x.held && <span className="badge warn">You hold</span>}
+                <a href={x.url} target="_blank" rel="noreferrer">{x.title}</a>
+                <span className="tiny faint">{x.category ?? x.source ?? ""}{x.published_date ? `, ${nptDate(x.published_date)}` : ""}</span>
+              </li>
+            ))}
+          </ul>
+          {items.length > 6 && <button className="btn sm ghost" onClick={() => setAll(!all)}>{all ? "Show less" : `Show all ${items.length}`}</button>}
+        </>
+      )}
+      <p className="tiny faint" style={{ margin: "6px 0 0" }}>News is fetched before the open (about 10:45), around 13:00 and after the close, plus the full update at 16:00. {s?.lastUpdate ? `Last updated: ${ago(s.lastUpdate)}.` : ""} <button className="linkish" onClick={() => { const v = !bellOff; setBellOff(v); try { localStorage.setItem("ss-bell-off", v ? "1" : "0"); } catch { /* ignore */ } }}>{bellOff ? "Turn on open and close alerts" : "Turn off open and close alerts"}</button></p>
+    </Card>
+  );
 }
 
 export default function Overview() {
@@ -52,6 +92,7 @@ export default function Overview() {
   const latest = status.data?.freshness.find((f) => f.dataset === "prices_latest");
   const m = b.market;
   const sections: Record<string, React.ReactNode> = {
+    bell: <BeforeBell bell={b.beforeBell} />,
     pillars: (
       <div className="pillars">
         <div className="pillar">

@@ -200,9 +200,9 @@ async function boot() {
   try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); }
   await persist();
   post({ type: "ready", market });
-  // While the app is open, look for new data: every minute during NEPSE hours (about 10:55 AM to 3:30 PM
+  // While the app is open, look for new data: every minute from pre-open to after the close (about 10:25 AM to 3:30 PM
   // Nepal time), otherwise every 5 minutes (next day's snapshot).
-  const marketHours = () => { const npt = new Date(Date.now() + 345 * 60_000), m = npt.getUTCHours() * 60 + npt.getUTCMinutes(); return m >= 10 * 60 + 55 && m <= 15 * 60 + 30; };
+  const marketHours = () => { const npt = new Date(Date.now() + 345 * 60_000), m = npt.getUTCHours() * 60 + npt.getUTCMinutes(); return m >= 10 * 60 + 25 && m <= 15 * 60 + 30; };
   const poll = async () => {
     try { const r = await hooks.checkForUpdate(false); if (r.updated || /intraday/.test(r.message)) post({ type: "data-updated", message: r.message, market, at: new Date().toISOString() }); } catch { /* offline: try later */ }
     setTimeout(poll, marketHours() ? 60_000 : 5 * 60_000);

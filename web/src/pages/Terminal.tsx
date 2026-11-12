@@ -4,7 +4,7 @@
 // (verdict, entry/stop/targets with evidence, levels drawn on the chart, chart Q&A, trade planner
 // and a pattern scanner). Everything is saved on this device.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { onBackendEvent } from "../lib/backend.ts";
 import { num, pct, tone } from "../lib/format.ts";
@@ -121,6 +121,9 @@ export default function Terminal() {
   useEffect(() => { try { localStorage.setItem(SKEY, JSON.stringify({ ...st, panes })); localStorage.setItem("ss-terminal-symbol", sym); } catch { /* ignore */ } }, [st, panes, sym]);
   // URL symbol opens in the active pane
   useEffect(() => { if (urlSym && urlSym.toUpperCase() !== sym) setPane(active, { symbol: urlSym.toUpperCase() }); }, [urlSym]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ?add=<indicator id> (from the Indicator Guide) adds that indicator to the active chart once
+  const [sp, setSp] = useSearchParams();
+  useEffect(() => { const id = sp.get("add"); if (!id) return; if (!ap.indicators.some((x) => x.id === id)) setPane(active, { indicators: [...ap.indicators, instFrom(id)] }); const n = new URLSearchParams(sp); n.delete("add"); setSp(n, { replace: true }); }, [sp]); // eslint-disable-line react-hooks/exhaustive-deps
   const setPane = (i: number, patch: Partial<PaneState>) => setSt((s) => { const p = [...panes]; p[i] = { ...p[i], ...patch }; return { ...s, panes: p }; });
   const setSymbol = (s: string) => { setPane(active, { symbol: s.toUpperCase() }); setSelected(null); if (active === 0) nav(`/terminal/${s.toUpperCase()}`, { replace: true }); };
 

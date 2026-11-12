@@ -95,6 +95,8 @@ export const FEATURES: { label: string; to: string; words: string }[] = [
   { label: "Discipline coach & pre-buy checklist", to: "/growth?tab=coach", words: "coach discipline checklist habits mistakes position size risk psychology" },
   { label: "Dividends & events calendar", to: "/growth?tab=calendar", words: "calendar dividend book close agm bonus events dates income" },
   { label: "Chart terminal", to: "/terminal", words: "chart terminal candlestick trendline drawing indicators tradingview" },
+  { label: "Indicator Guide (100 indicators)", to: "/indicators", words: "indicator guide learn indicators rsi macd bollinger bands ema sma moving average ichimoku supertrend adx stochastic obv vwap atr fibonacci parabolic sar keltner donchian alligator fractals money flow mfi cmf williams cci aroon vortex hull kama t3 mcginley schaff connors laguerre how to read buy signal sell signal" },
+  { label: "Before the bell (morning news)", to: "/", words: "before the bell morning news pre-open preopen announcements today market open close summary 11 am briefing" },
   { label: "Trading opportunities (buy setups)", to: "/trading", words: "buy setups trading opportunities swing breakout signals what to buy" },
   { label: "Technical signals", to: "/signals", words: "technical signals rsi macd golden cross oversold overbought" },
   { label: "Quarterly results", to: "/results", words: "quarterly result earnings profit eps q1 q2 q3 q4" },

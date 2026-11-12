@@ -2,7 +2,7 @@
 // the daily snapshot. Kept in memory only; the next daily snapshot contains the official close.
 import { run, get, tx } from "./b-db.ts";
 
-interface LiveFile { generatedAt: string; asOf: string; quotes: (string | number | null)[][]; columns: string[] }
+interface LiveFile { generatedAt: string; asOf: string; quotes: (string | number | null)[][]; columns: string[]; news?: (string | number | null)[][]; newsColumns?: string[] }
 let appliedAt = "";
 
 export async function applyLive(base: string): Promise<boolean> {
@@ -12,9 +12,19 @@ export async function applyLive(base: string): Promise<boolean> {
     if (!r.ok) return false;
     live = await r.json();
   } catch { return false; }
+  // News first: it can arrive before the open, when prices have not changed yet.
+  let newNews = 0;
+  if (live.news?.length && live.newsColumns) {
+    const nc = live.newsColumns, ni = (c: string) => nc.indexOf(c);
+    const before = get<{ n: number }>("SELECT COUNT(*) n FROM m.announcements")?.n ?? 0;
+    try {
+      tx(() => { for (const r of live.news!) { const v = (c: string) => (ni(c) >= 0 ? r[ni(c)] : null); if (!v("url") || !v("title")) continue; run("INSERT INTO m.announcements (symbol, title, url, published_date, category, source, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(url) DO NOTHING", v("symbol"), v("title"), v("url"), v("published_date"), v("category"), v("source"), v("fetched_at")); } });
+      newNews = (get<{ n: number }>("SELECT COUNT(*) n FROM m.announcements")?.n ?? 0) - before;
+    } catch (e) { console.warn("[live news]", e); }
+  }
   const snap = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM m.data_freshness WHERE dataset = 'prices_latest'");
-  if (!live.asOf || live.generatedAt === appliedAt) return false;
-  if (snap && (live.asOf < snap.as_of || (live.asOf === snap.as_of && live.generatedAt <= snap.last_success_at))) return false;
+  if (!live.asOf || live.generatedAt === appliedAt) return newNews > 0;
+  if (snap && (live.asOf < snap.as_of || (live.asOf === snap.as_of && live.generatedAt <= snap.last_success_at))) return newNews > 0;
   const ix = (c: string) => live.columns.indexOf(c);
   tx(() => {
     for (const q of live.quotes) {

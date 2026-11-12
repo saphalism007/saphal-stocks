@@ -5,6 +5,8 @@ import React, { useEffect, useMemo, useRef, useState, useCallback, type PointerE
 import { createChart, createSeriesMarkers, CandlestickSeries, BarSeries, LineSeries, AreaSeries, BaselineSeries, HistogramSeries, LineStyle, LineType, PriceScaleMode, CrosshairMode, type IChartApi, type ISeriesApi, type SeriesType, type Time, type Logical } from "lightweight-charts";
 import { resample, type Timeframe } from "../../../shared/timeframe.ts";
 import { INDICATOR_MAP, type IndicatorDef } from "../../../shared/ta.ts";
+import { GUIDE, interpret } from "../../../shared/indicatorGuide.ts";
+import { Link } from "react-router-dom";
 import { allCandles } from "../../../shared/candles.ts";
 import type { ChartAnalysis } from "../../../shared/analyst.ts";
 import type { Bar } from "../../../shared/types.ts";
@@ -364,6 +366,7 @@ export default function ChartPane(p: PaneProps) {
 
   // AI zones, divergences and chart patterns as evidence on the chart
   const [legOpen, setLegOpen] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
   const aiLayer = () => {
     if (!p.showAi || !p.analysis || !mapper) return null;
     const a = p.analysis, out: React.ReactElement[] = [], wide = w >= 640;
@@ -404,14 +407,22 @@ export default function ChartPane(p: PaneProps) {
           {(w >= 640 || legOpen) && comp.filter((c) => c.def.overlay).map(({ inst, def, vals }) => (
             <div key={inst.uid} className="leg-row"><span style={{ opacity: inst.hidden ? 0.4 : 1 }}>{def.short}{def.params.length ? ` (${def.params.map((x) => inst.params[x.key] ?? x.def).join(", ")})` : ""}</span>
               {!inst.hidden && def.outputs.map((o) => <span key={o.key} style={{ color: inst.colors[o.key] || o.color }}>{val(vals[o.key] ?? [])}</span>)}
-              <LegBtns inst={inst} p={p} /></div>
+              <LegBtns inst={inst} p={p} onInfo={() => setInfo(info === inst.uid ? null : inst.uid)} /></div>
           ))}
         </div>
       )}
       {comp.filter((c) => !c.def.overlay && !c.inst.hidden).map(({ inst, def, vals }) => { sub++; const pn = panes[sub]; if (!pn) return null; return (
-        <div key={inst.uid} className="term-legend sub" style={{ top: pn.top + 2 }}><div className="leg-row"><span>{def.short}{def.params.length ? ` (${def.params.map((x) => inst.params[x.key] ?? x.def).join(", ")})` : ""}</span>{def.outputs.map((o) => <span key={o.key} style={{ color: inst.colors[o.key] || o.color }}>{val(vals[o.key] ?? [])}</span>)}<LegBtns inst={inst} p={p} /></div></div>
+        <div key={inst.uid} className="term-legend sub" style={{ top: pn.top + 2 }}><div className="leg-row"><span>{def.short}{def.params.length ? ` (${def.params.map((x) => inst.params[x.key] ?? x.def).join(", ")})` : ""}</span>{def.outputs.map((o) => <span key={o.key} style={{ color: inst.colors[o.key] || o.color }}>{val(vals[o.key] ?? [])}</span>)}<LegBtns inst={inst} p={p} onInfo={() => setInfo(info === inst.uid ? null : inst.uid)} /></div></div>
       ); })}
-      {comp.filter((c) => !c.def.overlay && c.inst.hidden).length > 0 && <div className="term-legend sub" style={{ bottom: 30, top: "auto" }}>{comp.filter((c) => !c.def.overlay && c.inst.hidden).map(({ inst, def }) => <div key={inst.uid} className="leg-row"><span style={{ opacity: 0.5 }}>{def.short} (hidden)</span><LegBtns inst={inst} p={p} /></div>)}</div>}
+      {comp.filter((c) => !c.def.overlay && c.inst.hidden).length > 0 && <div className="term-legend sub" style={{ bottom: 30, top: "auto" }}>{comp.filter((c) => !c.def.overlay && c.inst.hidden).map(({ inst, def }) => <div key={inst.uid} className="leg-row"><span style={{ opacity: 0.5 }}>{def.short} (hidden)</span><LegBtns inst={inst} p={p} onInfo={() => setInfo(info === inst.uid ? null : inst.uid)} /></div>)}</div>}
+      {(() => { const c = info ? comp.find((x) => x.inst.uid === info) : null; if (!c) return null; const g = GUIDE[c.def.id]; const r = interpret(c.def, c.vals, data[data.length - 1]?.close ?? null); return (
+        <div className={`term-explain ${r.tone === "bull" ? "bull" : r.tone === "bear" ? "bear" : ""}`} onPointerDown={(e) => e.stopPropagation()}>
+          <div className="row between" style={{ flexWrap: "nowrap", gap: 8 }}><strong style={{ flex: 1, minWidth: 0 }}>{c.def.name}</strong><button className="btn ghost sm" style={{ flex: "none" }} onClick={() => setInfo(null)} aria-label="Close">✕</button></div>
+          <div className="term-explain-now">{r.text}</div>
+          {g && <div className="tiny"><span className="up">Buy:</span> {g.buy}<br /><span className="down">Sell:</span> {g.sell}<br /><span className="faint">Trap:</span> {g.trap}</div>}
+          <Link className="btn sm" to={`/indicators?id=${c.def.id}`}>Full guide</Link>
+        </div>
+      ); })()}
       {p.onFull && <button className="term-full-btn" onClick={(e) => { e.stopPropagation(); p.onFull!(); }} title={p.full ? "Exit full screen" : "Full screen"} aria-label={p.full ? "Exit full screen" : "Full screen"}>{p.full ? "✕" : "⛶"}</button>}
       <div className="term-scale">
         <button className={p.scaleMode === 2 ? "on" : ""} onClick={() => p.onScaleMode(p.scaleMode === 2 ? 0 : 2)} title="Percentage scale">%</button>
@@ -422,9 +433,10 @@ export default function ChartPane(p: PaneProps) {
   );
 }
 
-function LegBtns({ inst, p }: { inst: IndInst; p: PaneProps }) {
+function LegBtns({ inst, p, onInfo }: { inst: IndInst; p: PaneProps; onInfo: () => void }) {
   return (
     <span className="leg-btns">
+      <button title="What does it say now?" onClick={(e) => { e.stopPropagation(); onInfo(); }}>?</button>
       <button title={inst.hidden ? "Show" : "Hide"} onClick={(e) => { e.stopPropagation(); p.onToggleIndicator(inst.uid); }}>{inst.hidden ? "◌" : "◉"}</button>
       <button title="Settings" onClick={(e) => { e.stopPropagation(); p.onEditIndicator(inst.uid); }}>⚙</button>
       <button title="Remove" onClick={(e) => { e.stopPropagation(); p.onRemoveIndicator(inst.uid); }}>✕</button>

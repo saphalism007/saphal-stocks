@@ -14,6 +14,13 @@ const progress = () => ({ name: "cli", status: "running" as const, progress: 0, 
 async function main() {
   if (what === "detail") { for (const s of symbols) log(JSON.stringify(await syncCompanyDetail(s.toUpperCase()))); return; }
   if (what === "listing" || what === "all") log(`listing: ${await syncListing()} quotes`);
+  // The intraday run also fetches news and announcements before the open (first run, about 10:45 Nepal
+  // time), around midday and after the close, so the morning briefing is fresh before 11:00. Limited to
+  // a few runs a day to stay gentle on the source.
+  if (what === "listing") {
+    const npt = new Date(Date.now() + 345 * 60_000), m = npt.getUTCHours() * 60 + npt.getUTCMinutes();
+    if (m < 11 * 60 + 20 || (m >= 13 * 60 && m < 13 * 60 + 15) || m >= 15 * 60) { try { log(`news: ${await syncNews()} items`); } catch (e) { log(`news failed: ${e instanceof Error ? e.message : e}`); } }
+  }
   if (what === "history" || what === "all") log(`history: ${await syncHistory(progress() as never, symbols.length ? { symbols, force: true } : {})} rows`);
   if (what === "indices" || what === "all") log(`indices: ${await syncIndices(progress() as never)} rows`);
   if (what === "news" || what === "all") log(`news: ${await syncNews()} items`);
