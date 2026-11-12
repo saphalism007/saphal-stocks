@@ -19,7 +19,7 @@ import type { Bar } from "../../../shared/types.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 interface PaneState { symbol: string; tf: Timeframe; type: ChartType; scale: 0 | 1 | 2; indicators: IndInst[] }
-interface TermState { layout: "1" | "2h" | "2v" | "4"; panes: PaneState[]; active: number; range: string; from: string | null; to: string | null; panel: boolean; panelTab: PanelTab; ai: boolean; patterns: boolean; volume: boolean; grid: boolean; magnet: boolean; keep: boolean; hide: boolean; clean: boolean; v?: number }
+interface TermState { layout: "1" | "2h" | "2v" | "4"; panes: PaneState[]; active: number; range: string; from: string | null; to: string | null; panel: boolean; panelTab: PanelTab; ai: boolean; patterns: boolean; volume: boolean; grid: boolean; magnet: boolean; keep: boolean; hide: boolean; clean: boolean; v?: number; bars?: boolean }
 const RANGES: [string, number][] = [["1M", 22], ["3M", 66], ["6M", 130], ["YTD", 0], ["1Y", 250], ["3Y", 750], ["5Y", 1250], ["All", 100000]];
 const SKEY = "ss-term-v2";
 // A new chart is clean: candles and volume only. Indicators, AI levels and markers appear when you turn them on.
@@ -137,6 +137,9 @@ export default function Terminal() {
   const range = RANGES.find((r) => r[0] === st.range) ?? RANGES[4];
   const ytd = useMemo(() => `${new Date().getFullYear()}-01-01`, []);
 
+  // Right panel (AI analysis, trade plan, watchlist): hide it to give the chart the whole width.
+  const toggleBars = () => { setSt((s0) => ({ ...s0, bars: s0.bars === false })); setTimeout(() => window.dispatchEvent(new Event("resize")), 60); };
+  const togglePanel = () => { setSt((s0) => ({ ...s0, panel: !s0.panel })); setTimeout(() => window.dispatchEvent(new Event("resize")), 60); };
   // Keyboard shortcuts
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -149,6 +152,8 @@ export default function Terminal() {
       if ((e.key === "Delete" || e.key === "Backspace") && selected) { e.preventDefault(); draw.set(sym, drawings.filter((d) => d.id !== selected), true); setSelected(null); return; }
       if (e.altKey && !mod) { const k = e.code.replace("Key", "").toLowerCase(); const tl = [...TOOLS.values()].find((x) => x.key === k); if (tl) { e.preventDefault(); setTool(tl.id); } return; }
       if (!mod && e.key === "i") { e.preventDefault(); setPicker({ edit: null }); }
+      if (!mod && e.key === "p") { e.preventDefault(); togglePanel(); }
+      if (!mod && e.key === "t") { e.preventDefault(); toggleBars(); }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
@@ -191,7 +196,16 @@ export default function Terminal() {
 
   return (
     <div ref={root} className={`terminal2 ${full ? "full" : ""} ${st.panel ? "with-panel" : ""}`}>
-      {/* top bar */}
+      {/* top bar (T hides it down to one slim line) */}
+      {st.bars === false ? (
+      <div className="t-top mini">
+        <SymbolSearch value={sym} onPick={setSymbol} />
+        {lastBar && <span className="t-quote"><strong className="mono">{num(lastBar.close)}</strong> <span className={tone(chg)}>{pct(chg)}</span></span>}
+        <button className="t-btn strong" onClick={() => setPicker({ edit: null })} title="Indicators (I)">ƒx Indicators</button>
+        <button className="t-btn" onClick={toggleFull} title="Full screen">{full ? "⤡" : "⛶"}</button>
+        <button className="t-btn t-bars-toggle" onClick={toggleBars} title="Show the toolbar (T)">Show toolbar ▾</button>
+      </div>
+      ) : (
       <div className="t-top">
         <SymbolSearch value={sym} onPick={setSymbol} />
         {lastBar && <span className="t-quote"><strong className="mono">{num(lastBar.close)}</strong> <span className={tone(chg)}>{pct(chg)}</span></span>}
@@ -227,8 +241,10 @@ export default function Terminal() {
           <button className="t-btn" onClick={toggleFull} title="Full screen">{full ? "⤡" : "⛶"}</button>
         </div>
         <button className="t-btn strong sig-top" onClick={() => { setSt((s) => ({ ...s, ai: true, clean: false })); setSheet(true); }} disabled={!a}>Buy/Sell signal</button>
-        <button className={`t-btn strong ai ${st.panel ? "on" : ""}`} onClick={() => setSt({ ...st, panel: !st.panel })}>AI Analyst</button>
+        <button className={`t-btn strong ai ${st.panel ? "on" : ""}`} onClick={togglePanel} title={`${st.panel ? "Hide" : "Show"} the right panel (P)`}>AI Analyst</button>
+        <button className="t-btn t-bars-toggle" onClick={toggleBars} title="Hide the toolbar to give the chart more room (T)">Hide toolbar ▴</button>
       </div>
+      )}
 
       {sheet && a && a.symbol === sym && <SignalSheet a={a} onClose={() => setSheet(false)} onRemove={() => { setSheet(false); setSt((s) => ({ ...s, ai: false })); }} />}
       {full && <button className="t-exit-full" onClick={toggleFull} aria-label="Exit full screen">✕ Exit full screen</button>}
@@ -276,12 +292,14 @@ export default function Terminal() {
               <button className="t-btn" onClick={() => { draw.set(sym, drawings.filter((d) => d.id !== selD.id), true); setSelected(null); }}>Delete</button>
             </div>
           )}
+          {!st.panel && <button className="t-panel-tab" onClick={togglePanel} title="Show the right panel (P)" aria-label="Show the right panel">‹ Panel</button>}
           {hint && <div className="t-hint">{TOOLS.get(tool)?.label}: {hint} <button className="t-btn" onClick={() => setTool("cursor")}>Done</button></div>}
         </div>
 
         {/* AI panel + watchlist */}
         {st.panel && (
           <div className="t-side">
+            <button className="t-side-hide" onClick={togglePanel} title="Hide this panel to give the chart the full width (P)">Hide panel ›</button>
             <AiPanel symbol={sym} analysis={a ?? null} loading={analysis.loading} error={analysis.error} bars={bars.bars} tab={st.panelTab} setTab={(t) => setSt({ ...st, panelTab: t })} onSymbol={setSymbol} priceInfo={a?.priceInfo} />
             <div className="t-watch">
               <div className="row between"><span className="tiny faint" style={{ textTransform: "uppercase", letterSpacing: ".05em" }}>Watchlist</span>{firstList && !watch.includes(sym) && <button className="t-btn" onClick={addToWatch}>+ Add {sym}</button>}</div>

@@ -5,10 +5,10 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.20.5";
+export const VERSION = "0.20.6";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Mac version: Safari had saved an old offline copy of the web version at 127.0.0.1, which asked to create an account. The Mac version now never keeps an offline copy and clears that old one on the next visit, so it opens straight into the app.",
+  "Chart room: hide the right panel with Hide panel (or press P) and bring it back with the Panel tab on the chart's right edge. Hide the top toolbar with Hide toolbar (or press T); a slim line keeps the stock search, price, Indicators and full screen. Both stay as you left them.",
 ];
 
 declare const __BUILD__: string;
