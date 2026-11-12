@@ -385,14 +385,15 @@ function GlobalSearch() {
 }
 
 function MarketBadge() {
-  const m = useApi<{ session: string; live: boolean; lastUpdate: string | null; dataDate: string | null; holiday: boolean; note: string; hours: string }>("/market/status");
+  const m = useApi<{ session: string; live: boolean; lastUpdate: string | null; dataDate: string | null; holiday: boolean; tradingDay: boolean; reason: string | null; nextOpen: string | null; note: string; hours: string }>("/market/status");
   useEffect(() => { const id = setInterval(() => m.reload(), 60_000); return () => clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!m.data) return null;
   const d = m.data;
-  const label = d.session === "open" ? (d.live ? "Market open, live" : "Market open") : d.session === "pre-open" ? "Opens 11:00" : d.holiday ? "No trading today" : "Market closed";
+  const next = d.nextOpen ? `opens ${nptDate(d.nextOpen)}, 11:00` : "";
+  const label = d.session === "open" ? (d.live ? "Market open, live" : "Market open") : d.session === "pre-open" ? "Opens 11:00" : d.holiday ? `Closed today${d.reason ? `: ${d.reason}` : ""}${next ? `, ${next}` : ""}` : !d.tradingDay ? `Closed today${next ? `, ${next}` : ""}` : `Market closed${next ? `, ${next}` : ""}`;
   const mins = d.lastUpdate ? Math.round((Date.now() - Date.parse(d.lastUpdate)) / 60000) : null;
   return (
-    <span className="badge" title={`${d.note} Hours ${d.hours}. Data date ${d.dataDate ?? "-"}.`} style={{ gap: 6 }}>
+    <span className="badge" title={`${label}. ${d.note} Hours ${d.hours}. Data date ${d.dataDate ?? "-"}.`} style={{ gap: 6 }}>
       <span className="dot" style={{ background: d.session === "open" ? "var(--up)" : d.session === "pre-open" ? "var(--warn)" : "var(--text-3)" }} />
       <span className="hide-phone">{label}{d.session === "open" && mins != null ? (mins <= 90 ? `, ${mins} min ago` : d.dataDate ? `, prices from ${nptDate(d.dataDate)}` : "") : ""}</span><span className="show-phone">{d.session === "open" ? "Open" : d.session === "pre-open" ? "11:00" : "Closed"}</span>
     </span>

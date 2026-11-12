@@ -6,8 +6,10 @@ PORT="${API_PORT:-5181}"
 if ! command -v node >/dev/null 2>&1; then echo "Node.js is not installed. Get it from https://nodejs.org (version 22.13 or newer)."; read -r -p "Press Enter to close"; exit 1; fi
 if lsof -ti:"$PORT" >/dev/null 2>&1; then echo "Saphal Stocks is already running."; open "http://127.0.0.1:$PORT"; exit 0; fi
 [ -d node_modules ] || { echo "Installing (first run)..."; npm install --no-audit --no-fund || exit 1; }
-if [ ! -f dist/index.html ] || [ -n "$(find web/src shared -newer dist/index.html -type f 2>/dev/null | head -1)" ]; then
-  echo "Building the app..."; npm run build >/dev/null || { echo "Build failed. Run 'npm run build' to see why."; read -r -p "Press Enter to close"; exit 1; }
+# Rebuild when missing, outdated, or last built for the online (GitHub Pages) version by a deploy.
+# The marker file only exists after a build for this Mac server (any other build empties dist).
+if [ ! -f dist/index.html ] || [ ! -f dist/.mac-server-build ] || [ -n "$(find web/src shared -newer dist/index.html -type f 2>/dev/null | head -1)" ]; then
+  echo "Building the app..."; { npm run build:server >/dev/null && touch dist/.mac-server-build; } || { echo "Build failed. Run 'npm run build' to see why."; read -r -p "Press Enter to close"; exit 1; }
 fi
 echo "Starting Saphal Stocks on http://127.0.0.1:$PORT  (close this window or press Ctrl+C to stop)"
 ( sleep 3; open "http://127.0.0.1:$PORT" ) &

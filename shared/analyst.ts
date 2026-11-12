@@ -5,6 +5,7 @@
 // patterns.ts) so both pages always agree. No randomness, no invented values: every number shown is
 // computed from the bars or the stored statements. Pure; tested in tests/analyst.test.ts.
 import type { Bar } from "./types.ts";
+import { closureOn } from "./holidays.ts";
 import type { Opportunity } from "./opportunities.ts";
 import { netRR, RULES } from "./opportunities.ts";
 import { generateSetups, type Setup, type TechnicalSnapshot } from "./signals.ts";
@@ -367,10 +368,10 @@ export function tradingWeekdays(dates: string[]) {
   const days = [...n.entries()].filter(([, k]) => k >= 3).map(([w]) => w).sort();
   return days.length >= 4 ? days : [0, 1, 2, 3, 4];
 }
-/** Next trading session after a date (11:00 to 15:00 Nepal time; public holidays aside). */
+/** Next trading session after a date (11:00 to 15:00 Nepal time), skipping known NEPSE closures. */
 export function nextSession(asOf: string, days: number[] = [0, 1, 2, 3, 4]) {
   let d = addDays(asOf, 1);
-  for (let i = 0; i < 7 && !days.includes(wd(d)); i++) d = addDays(d, 1);
+  for (let i = 0; i < 30 && (!days.includes(wd(d)) || closureOn(d)); i++) d = addDays(d, 1);
   return d;
 }
 const closedDays = (days: number[]) => DOW.filter((_, i) => !days.includes(i)).map((x) => `${x}s`).join(" and ");

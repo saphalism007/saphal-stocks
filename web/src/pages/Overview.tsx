@@ -45,13 +45,13 @@ function loadLayout() {
 
 type Bell = { since: string; total: number; items: { symbol: string | null; title: string; url: string; published_date: string | null; category: string | null; source: string | null; fetched_at: string | null; mine: boolean; held: boolean }[] };
 function BeforeBell({ bell }: { bell?: Bell }) {
-  const st = useApi<{ session: string; nptTime: string; tradingDay: boolean; holiday: boolean; dataDate: string | null; lastUpdate: string | null }>("/market/status");
+  const st = useApi<{ session: string; nptTime: string; tradingDay: boolean; holiday: boolean; reason: string | null; nextOpen: string | null; notice: { title: string; url: string } | null; dataDate: string | null; lastUpdate: string | null }>("/market/status");
   const [all, setAll] = useState(false);
   const [bellOff, setBellOff] = useState(() => { try { return localStorage.getItem("ss-bell-off") === "1"; } catch { return false; } });
   const s = st.data;
   const mins = s ? Number(s.nptTime.slice(0, 2)) * 60 + Number(s.nptTime.slice(3, 5)) : null;
   const head = !s ? "Market status" : s.session === "pre-open" ? (mins != null && mins >= 630 ? `Pre-open session. Market opens at 11:00 (in ${660 - mins} min)` : `Market opens at 11:00${mins != null ? ` (in ${Math.floor((660 - mins) / 60)} h ${(660 - mins) % 60} min)` : ""}`)
-    : s.session === "open" ? "Market is open until 15:00" : s.holiday || !s.tradingDay ? "No trading today" : "Market closed for today";
+    : s.session === "open" ? "Market is open until 15:00" : `${s.holiday || !s.tradingDay ? `Market closed today${s.reason ? ` (${s.reason})` : ""}` : "Market closed for today"}${s.nextOpen ? `. Next session ${nptDate(s.nextOpen)}, 11:00` : ""}`;
   const items = bell?.items ?? [];
   const mine = items.filter((x) => x.mine);
   const shown = all ? items : items.slice(0, 6);

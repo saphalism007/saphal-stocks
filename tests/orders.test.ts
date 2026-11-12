@@ -10,15 +10,17 @@ const base = (over: Partial<ChartAnalysis>): ChartAnalysis => ({
 
 describe("exact trade orders", () => {
   it("next NEPSE session skips Friday and Saturday", () => {
-    expect(nextSession("2026-11-05")).toBe("2026-11-08"); // Thursday -> Sunday
-    expect(nextSession("2026-11-08")).toBe("2026-11-09");
+    expect(nextSession("2026-10-29")).toBe("2026-11-01"); // Thursday -> Sunday
+    expect(nextSession("2026-11-01")).toBe("2026-11-02");
+    expect(nextSession("2026-11-05")).toBe("2026-11-15"); // Tihar closure 8 to 12 Nov is skipped
     expect(sessionLabel("2026-11-08")).toMatch(/^Sunday 2026-11-08, 11:00 AM/);
   });
   it("follows a Monday-to-Friday week when the data shows one", () => {
     const dates: string[] = []; for (let d = Date.parse("2026-09-01"); d < Date.parse("2026-11-07"); d += 86_400_000) { const x = new Date(d); if (x.getUTCDay() >= 1 && x.getUTCDay() <= 5) dates.push(x.toISOString().slice(0, 10)); }
     const days = tradingWeekdays(dates);
     expect(days).toEqual([1, 2, 3, 4, 5]);
-    expect(nextSession("2026-11-06", days)).toBe("2026-11-09"); // Friday -> Monday
+    expect(nextSession("2026-10-30", days)).toBe("2026-11-02");
+    expect(nextSession("2026-11-06", days)).toBe("2026-11-13"); // reopens Friday after Tihar // Friday -> Monday
   });
   it("WAIT gives don't-buy-now plus dip and breakout conditions with prices", () => {
     const o = tradeOrders(base({}), 497, 515)!;
@@ -30,7 +32,7 @@ describe("exact trade orders", () => {
   });
   it("BUY gives a buy range, sells at targets and a stop-loss", () => {
     const o = tradeOrders(base({ verdict: "BUY", plan: { ...base({}).plan, entryLow: 500, entryHigh: 506, targets: [{ price: 530, basis: "R1", pct: 5 }, { price: 560, basis: "R2", pct: 10 }] } }), 497, 530)!;
-    expect(o.summary).toMatch(/buy ABC between Rs. 500 and Rs. 506 on Sunday 2026-11-08/);
+    expect(o.summary).toMatch(/buy ABC between Rs. 500 and Rs. 506 on Sunday 2026-11-15/);
     expect(o.forBuyers.map((x) => x.kind)).toEqual(["buy", "sell", "sell", "stop", "wait"]);
   });
   it("SELL tells holders where to sell and buyers not to buy", () => {

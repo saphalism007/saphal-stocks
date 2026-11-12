@@ -1,6 +1,7 @@
 // Ingestion jobs: fetch from providers, validate, upsert, and record freshness.
 // Jobs run through a single in-process queue so we never hammer a provider.
 import { db, all, get, run, tx, nowIso, getSetting, setSetting } from "../db.ts";
+import { closureOn, CLOSE_NOTICE } from "../../shared/holidays.ts";
 import * as P from "./providers.ts";
 import { parsePeriod } from "../../shared/fundamentals.ts";
 import { fetchJson } from "../lib/fetcher.ts";
@@ -526,15 +527,35 @@ export function tradingWeekdays(): number[] {
 
 export function marketStatus() {
   const n = nptNow();
-  const tradingDay = tradingWeekdays().includes(n.weekday) && holidayDate !== n.date;
-  const session = !tradingDay ? "closed" : n.minutes < OPEN ? "pre-open" : n.minutes <= CLOSE ? "open" : "closed";
   const f = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM data_freshness WHERE dataset = 'prices_latest'");
+  const days = tradingWeekdays();
+  const weekday = days.includes(n.weekday);
+  const known = closureOn(n.date);
+  // A closure notice in the news from the last 6 days (shown as a note; it decides only once no trades appear).
+  let notice: { title: string; url: string; date: string | null } | null = null;
+  try {
+    const since = new Date(Date.parse(n.date + "T00:00:00Z") - 6 * 86_400_000).toISOString().slice(0, 10);
+    const rows = all<{ title: string; url: string; published_date: string | null }>("SELECT title, url, published_date FROM announcements WHERE COALESCE(published_date, substr(fetched_at, 1, 10)) >= ? ORDER BY COALESCE(published_date, fetched_at) DESC LIMIT 300", since);
+    const hit = rows.find((r) => CLOSE_NOTICE.test(r.title));
+    if (hit) notice = { title: hit.title, url: hit.url, date: hit.published_date };
+  } catch { /* older snapshot */ }
+  const noTodayData = !f || f.as_of < n.date;
+  // No trades by 11:20 although prices were checked after 11:05 today: the market is not trading today.
+  const checkedToday = !!f && Date.parse(f.last_success_at) >= Date.parse(`${n.date}T05:20:00Z`);
+  const noTrades = weekday && !known && n.minutes >= OPEN + 20 && noTodayData && (checkedToday || !!notice);
+  const holiday = !!known || holidayDate === n.date || noTrades;
+  const tradingDay = weekday && !holiday;
+  const session = !tradingDay ? "closed" : n.minutes < OPEN ? "pre-open" : n.minutes <= CLOSE ? "open" : "closed";
+  const reason = known ? known.reason : holiday ? (notice ? `Closed (notice: ${notice.title})` : "No trades reported today") : !weekday ? "Weekly day off" : null;
+  // Next session: today if it is still ahead, else the next trading weekday that is not a known closure.
+  let nextOpen = tradingDay && n.minutes < OPEN ? n.date : "";
+  for (let t = Date.parse(n.date + "T00:00:00Z") + 86_400_000, k = 0; !nextOpen && k < 30; t += 86_400_000, k++) { const d = new Date(t).toISOString().slice(0, 10); if (days.includes(new Date(t).getUTCDay()) && !closureOn(d)) nextOpen = d; }
   return {
     nptDate: n.date, nptTime: `${String(Math.floor(n.minutes / 60)).padStart(2, "0")}:${String(n.minutes % 60).padStart(2, "0")}`,
-    tradingDay, holiday: holidayDate === n.date, session, hours: "11:00-15:00 NPT",
+    tradingDay, holiday, reason, nextOpen, notice, session, hours: "11:00-15:00 NPT",
     lastUpdate: f?.last_success_at ?? null, dataDate: f?.as_of ?? null,
     live: session === "open" && !!f && f.as_of === n.date,
-    note: "During market hours prices refresh about every 5 minutes from ShareSansar (delayed, not tick-by-tick). Official closing data is loaded after 15:45.",
+    note: "During market hours prices refresh about every 15 minutes (delayed, not tick-by-tick). Official closing data is loaded after 15:45.",
   };
 }
 
@@ -542,7 +563,7 @@ export function startIntradayPoller(intervalMin = Number(process.env.INTRADAY_RE
   if (intervalMin <= 0) return;
   setInterval(() => {
     const n = nptNow();
-    if (!tradingWeekdays().includes(n.weekday) || holidayDate === n.date) return;
+    if (!tradingWeekdays().includes(n.weekday) || holidayDate === n.date || closureOn(n.date)) return;
     if (n.minutes < OPEN || n.minutes > CLOSE + 10) return;
     const f = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM data_freshness WHERE dataset = 'prices_latest'");
     if (f && Date.now() - Date.parse(f.last_success_at) < intervalMin * 60_000) return;
