@@ -22,13 +22,15 @@ export function zoomRange(r: { from: number; to: number }, factor: number, frac:
   return clampRange(anchor - frac * nW, nW, bars);
 }
 
-/** Keeps the view on the data: no blank space past the newest candle (beyond a small margin) or before the first. */
+/** Keeps the view sensible while allowing room for the future (projections): the latest candle always stays on
+ *  screen, there is no blank space before the first candle, and a view wider than all history shows it all with
+ *  the newest candle at the right. */
 export function clampRange(from: number, width: number, bars: number, margin = 4) {
   if (bars <= 0) return { from, to: from + width };
-  const maxTo = bars - 1 + margin, minFrom = -margin;
-  if (width >= maxTo - minFrom) return { from: maxTo - width, to: maxTo }; // wider than all history: newest at the right
+  const last = bars - 1;
+  if (width >= bars + 2 * margin) { const to = Math.max(last + margin, Math.min(from + width, last + width * 0.5)); return { from: to - width, to }; }
   let f = from;
-  if (f + width > maxTo) f = maxTo - width;
-  if (f < minFrom) f = minFrom;
+  if (f > last - 1) f = last - 1;             // keep at least the latest candle in view (future space allowed)
+  if (f < -margin) f = -margin;               // no blank space before the first candle
   return { from: f, to: f + width };
 }

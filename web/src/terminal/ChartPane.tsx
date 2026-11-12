@@ -13,6 +13,7 @@ import type { Bar } from "../../../shared/types.ts";
 import { ZOOM_SPEEDS, zoomFactor, zoomRange, clampRange, zoomSpeed, setZoomSpeed, onZoomSpeed, type ZoomSpeed } from "./zoom.ts";
 import { geometry, TOOLS, type Drawing, type Pt, type ToolId, type Mapper } from "./draw.ts";
 
+const MAX_SPACING = 90; // widest candle, in pixels
 const LIVE = "~live"; // marks the point that follows the pointer while drawing
 export type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area" | "baseline" | "step";
 export interface IndInst { uid: string; id: string; params: Record<string, number>; colors: Record<string, string>; hidden?: boolean }
@@ -108,13 +109,14 @@ export default function ChartPane(p: PaneProps) {
       autoSize: true, layout: { attributionLogo: false, background: { color: "transparent" }, textColor: text, fontSize: 11, panes: { separatorColor: grid, enableResize: true } },
       grid: { vertLines: { color: p.grid ? grid + "44" : "transparent" }, horzLines: { color: p.grid ? grid + "44" : "transparent" } },
       rightPriceScale: { borderColor: grid, mode: p.scaleMode === 1 ? PriceScaleMode.Logarithmic : p.scaleMode === 2 ? PriceScaleMode.Percentage : PriceScaleMode.Normal },
-      timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5, maxBarSpacing: 80 }, crosshair: { mode: CrosshairMode.Normal },
+      timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5, maxBarSpacing: MAX_SPACING }, crosshair: { mode: CrosshairMode.Normal },
       // The mouse wheel and trackpad are handled below (smooth zoom around the pointer, with a speed setting).
       handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       // On touch screens a stray drag on the price axis squashed the candles; keep the price scale automatic there.
       handleScale: coarse ? { axisPressedMouseMove: { time: true, price: false }, axisDoubleClickReset: { time: true, price: true }, pinch: true, mouseWheel: false } : { axisPressedMouseMove: true, axisDoubleClickReset: true, pinch: true, mouseWheel: false },
     });
     chartRef.current = chart;
+    try { if (localStorage.getItem("ss-debug") === "1") (window as unknown as { __ssChart: IChartApi }).__ssChart = chart; } catch { /* ignore */ }
     const T = (d: string) => d as Time;
     const ohlc = shown.map((b) => ({ time: T(b.date), open: b.open, high: b.high, low: b.low, close: b.close }));
     const line = shown.map((b) => ({ time: T(b.date), value: b.close }));
@@ -254,6 +256,7 @@ export default function ChartPane(p: PaneProps) {
   const barsN = useRef(0); barsN.current = data.length;
   // The candle that must stay under the pointer while zooming, and the pixel it must stay at.
   const zoomPin = useRef<{ l: number; x: number } | null>(null);
+  const gesture = useRef<{ at: number; mode: "zoom" | "pan" }>({ at: 0, mode: "zoom" });
   const animateTo = (r: { from: number; to: number }, pinAt: { l: number; x: number } | null = null) => {
     target.current = r; zoomPin.current = pinAt;
     if (glide.current) return;
@@ -264,11 +267,14 @@ export default function ChartPane(p: PaneProps) {
       const done = Math.abs(t.from - nf) < 0.01 && Math.abs(t.to - nt) < 0.01;
       ch.timeScale().setVisibleLogicalRange(done ? t : { from: nf, to: nt });
       // Measure where the pinned candle really landed and correct the target, so it stays under the pointer.
+      // Once the glide has arrived, measure where the pinned candle really landed (the library places candles
+      // with a small offset) and nudge the view so it sits exactly under the pointer. Measuring mid-glide
+      // would mistake "not there yet" for an error.
       const pn = zoomPin.current;
-      if (pn) {
-        const c = ch.timeScale().logicalToCoordinate(pn.l as Logical), W = ch.timeScale().width() || 1;
+      if (pn && done) {
+        const c = xOfLogical(pn.l), W = ch.timeScale().width() || 1;
         if (c != null && Math.abs(c - pn.x) > 0.5) {
-          const shift = (c - pn.x) * ((t.to - t.from) / W), nx = clampRange(t.from + shift, t.to - t.from, barsN.current);
+          const shift = (c - pn.x) * ((t.to - t.from + 1) / W), nx = clampRange(t.from + shift, t.to - t.from, barsN.current);
           if (Math.abs(nx.from - t.from) > 1e-3) { target.current = nx; glide.current = requestAnimationFrame(step); return; }
         }
       }
@@ -276,15 +282,29 @@ export default function ChartPane(p: PaneProps) {
     };
     glide.current = requestAnimationFrame(step);
   };
+  // Screen x of a fractional position. The library only maps whole candles (a fraction gives 0), so
+  // interpolate between the two neighbouring candles.
+  const xOfLogical = (l: number): number | null => {
+    const ts = chartRef.current?.timeScale(); if (!ts) return null;
+    const i = Math.floor(l), c0 = ts.logicalToCoordinate(i as Logical), c1 = ts.logicalToCoordinate((i + 1) as Logical);
+    return c0 == null || c1 == null ? null : c0 + (l - i) * (c1 - c0);
+  };
   const baseRange = () => target.current ?? chartRef.current?.timeScale().getVisibleLogicalRange() ?? null;
-  const zoomBy = (factor: number, frac: number) => { const b = baseRange(); if (b) animateTo(zoomRange({ from: b.from, to: b.to }, factor, frac, barsN.current)); };
+  // Narrowest view the chart allows: candles at most MAX_SPACING pixels wide (asking for more makes the chart shift by itself).
+  const minBars = () => Math.max(6, (chartRef.current?.timeScale().width() ?? 600) / MAX_SPACING);
+  const zoomBy = (factor: number, frac: number) => { const b = baseRange(); if (b) animateTo(zoomRange({ from: b.from, to: b.to }, factor, frac, barsN.current, minBars())); };
   /** Zoom keeping the candle that is under the pointer on screen right now exactly under the pointer. */
   const zoomAt = (factor: number, x: number) => {
     const ch = chartRef.current, b = baseRange(); if (!ch || !b) return;
     const ts = ch.timeScale(), W = ts.width() || 1, frac = Math.min(1, Math.max(0, x / W));
-    const anchor = ts.coordinateToLogical(x) ?? b.from + frac * (b.to - b.from); // what you see under the pointer
-    const nW = Math.min(Math.max((b.to - b.from) * factor, 6), Math.max(30, barsN.current * 1.3));
-    animateTo(clampRange(anchor - frac * nW, nW, barsN.current), { l: anchor, x });
+    // Exact (fractional) position under the pointer: the library rounds to whole candles, so refine it
+    // from the nearest candle's pixel position and the candle spacing.
+    // Same gesture, pointer not moved: keep the same pinned spot (re-measuring every event adds up small errors).
+    const keep = zoomPin.current && Math.abs(zoomPin.current.x - x) < 1.5 ? zoomPin.current.l : null;
+    const i = ts.coordinateToLogical(x), ci = i == null ? null : ts.logicalToCoordinate(i), cn = i == null ? null : ts.logicalToCoordinate((i + 1) as Logical);
+    const anchor = keep ?? (i != null && ci != null && cn != null && cn !== ci ? i + (x - ci) / (cn - ci) : b.from + frac * (b.to - b.from));
+    const nW = Math.min(Math.max((b.to - b.from) * factor, minBars()), Math.max(30, barsN.current * 1.3));
+    animateTo(clampRange(anchor - (x * (nW + 1)) / W, nW, barsN.current), { l: anchor, x }); // the chart spaces candles W / (width + 1)
   };
   const panBy = (fraction: number) => { const b = baseRange(); if (!b) return; const w = b.to - b.from; animateTo(clampRange(b.from + w * fraction, w, barsN.current)); };
   useEffect(() => {
@@ -296,7 +316,14 @@ export default function ChartPane(p: PaneProps) {
       let dy = e.deltaY * mul, dx = e.deltaX * mul;
       if (e.shiftKey && !dx) { dx = dy; dy = 0; }
       const r = el.getBoundingClientRect(), w = chartRef.current.timeScale().width() || r.width;
-      if (Math.abs(dx) > Math.abs(dy)) { panBy((dx / w) * 1.2); return; }
+      // One gesture = one action. A trackpad swipe to zoom also sends small sideways movements (more so as it
+      // slows down), which must not scroll the chart back in time. The action is decided when the gesture starts
+      // (after a short pause) and kept until it ends; scrolling needs a clearly sideways swipe.
+      const now = performance.now();
+      if (now - gesture.current.at > 220) gesture.current.mode = e.ctrlKey ? "zoom" : Math.abs(dx) > 2 * Math.abs(dy) && Math.abs(dx) > 1 ? "pan" : Math.abs(dy) > 0 ? "zoom" : "pan";
+      gesture.current.at = now;
+      if (gesture.current.mode === "pan") { if (dx) panBy((dx / w) * 1.2); return; }
+      if (!dy) return;
       void w;
       // ctrlKey = trackpad pinch on a Mac: its deltas are small, so give them more weight
       zoomAt(Math.exp(dy * 0.0024 * zoomFactor() * (e.ctrlKey ? 3 : 1)), e.clientX - r.left);

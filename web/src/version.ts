@@ -5,11 +5,12 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.21.2";
+export const VERSION = "0.21.3";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Zoom stays exactly where you point: the candle under your mouse or trackpad pointer stays under it while you zoom in or out, even when you scroll quickly.",
-  "iPhone and iPad: moving a drawing with your finger no longer stops after a few pixels (the browser was taking the touch over for scrolling). Drawing, moving and stretching lines now follow your finger smoothly on Mac, iPhone and iPad.",
+  "Zoom from exactly where you point, anywhere: on old prices, on today's candle, or in the empty space to the right for future projections. The spot under your pointer now stays there (within a pixel) however fast you scroll or pinch, and zooming near today no longer slides back in time.",
+  "Room for the future: you can zoom and scroll past today into the future area to draw projections; the latest candle always stays on screen.",
+  "Trackpad: a zoom swipe no longer turns into scrolling back in time when your fingers drift sideways; a clearly sideways swipe still scrolls.",
 ];
 
 declare const __BUILD__: string;
