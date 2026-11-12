@@ -140,6 +140,12 @@ export default function Terminal() {
   // Right panel (AI analysis, trade plan, watchlist): hide it to give the chart the whole width.
   const toggleBars = () => { setSt((s0) => ({ ...s0, bars: s0.bars === false })); setTimeout(() => window.dispatchEvent(new Event("resize")), 60); };
   const togglePanel = () => { setSt((s0) => ({ ...s0, panel: !s0.panel })); setTimeout(() => window.dispatchEvent(new Event("resize")), 60); };
+  // Close an open tool menu when tapping anywhere else
+  useEffect(() => {
+    if (!flyout && !layers) return;
+    const h = (e: PointerEvent) => { if (!(e.target as HTMLElement)?.closest?.(".tb-wrap, .tb-fly, .t-tools")) { setFlyout(null); setLayers(false); } };
+    window.addEventListener("pointerdown", h); return () => window.removeEventListener("pointerdown", h);
+  }, [flyout, layers]);
   // Keyboard shortcuts
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -256,8 +262,7 @@ export default function Terminal() {
           <button className={`tb ${tool === "cursor" ? "on" : ""}`} onClick={() => { setTool("cursor"); setFlyout(null); }} title="Cursor (Esc)"><Ico n="cursor" /></button>
           {TOOL_GROUPS.map((g) => { const cur = lastInGroup[g.key] ?? g.tools[0].id; const inG = g.tools.some((x) => x.id === tool); return (
             <div key={g.key} className="tb-wrap">
-              <button className={`tb ${inG ? "on" : ""}`} onClick={() => pickTool(g.key, inG ? tool : cur)} title={TOOLS.get(inG ? tool : cur)?.label}><Ico n={inG ? tool : cur} /></button>
-              <button className="tb-more" onClick={() => setFlyout(flyout === g.key ? null : g.key)} aria-label={`${g.label} tools`}></button>
+              <button className={`tb ${inG ? "on" : ""} ${flyout === g.key ? "open" : ""}`} onClick={() => setFlyout(flyout === g.key ? null : g.key)} title={`${g.label}: ${g.tools.length} tools`} aria-haspopup="menu" aria-expanded={flyout === g.key}><Ico n={inG ? tool : cur} /><span className="tb-chev" aria-hidden="true">›</span></button>
               {flyout === g.key && <div className="tb-fly"><div className="tiny faint" style={{ padding: "4px 10px", textTransform: "uppercase" }}>{g.label}</div>{g.tools.map((x) => <button key={x.id} className={tool === x.id ? "on" : ""} onClick={() => pickTool(g.key, x.id)}><Ico n={x.id} /> {x.label}{x.key ? <span className="kbd">⌥{x.key.toUpperCase()}</span> : null}</button>)}</div>}
             </div>
           ); })}
@@ -356,7 +361,12 @@ function Ico({ n }: { n: string }) {
     hline: "M3 12h18", hray: "M8 12h13M8 12a1.5 1.5 0 100 .1", vline: "M12 3v18", crossline: "M3 12h18M12 3v18", channel: "M3 16L17 6M7 20L21 10", regression: "M3 16L21 8M3 12L21 4M3 20L21 12", pitchfork: "M4 12l16-6M4 12l16 0M4 12l16 6",
     fib: "M3 5h18M3 9h18M3 12h18M3 15h18M3 19h18", fibext: "M3 19L10 6l4 6M14 8h7M14 12h7M14 16h7", rect: "M4 6h16v12H4z", ellipse: "M3 12a9 6 0 1018 0 9 6 0 10-18 0", triangle: "M12 4l9 16H3z", arrow: "M4 20L19 5M19 5h-7M19 5v7",
     brush: "M4 18c3 0 3-4 6-4s3 4 6 4 2-6 4-8", highlighter: "M4 18c3-2 6-6 9-6s4 4 7 2", text: "M5 6h14M12 6v13", callout: "M4 5h16v10H10l-4 4v-4H4z", arrowup: "M12 4l7 10h-4v6H9v-6H5z", arrowdown: "M12 20l7-10h-4V4H9v6H5z",
-    measure: "M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2", pricerange: "M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4", daterange: "M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4", long: "M4 4h16v8H4zM4 12h16v8H4z", short: "M4 4h16v8H4zM4 12h16v8H4z",
+    measure: "M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2",
+    flattop: "M3 18L21 8M3 6h18", disjoint: "M3 8L21 16M3 14L21 6", schiff: "M4 14l16-8M4 14l16 0M4 14l16 6M4 18v-4", modschiff: "M6 12l14-6M6 12l14 0M6 12l14 6M3 16l3-4",
+    fibchannel: "M3 18L21 8M3 14L21 4M3 21L21 11", fibtime: "M4 3v18M8 3v18M12 3v18M18 3v18", fibfan: "M3 20L21 4M3 20L21 9M3 20L21 14M3 20L21 18", gannfan: "M3 20L21 3M3 20L21 11M3 20L12 3M3 20L21 17",
+    gannbox: "M4 4h16v16H4zM4 12h16M12 4v16M4 20L20 4", circle: "M12 3a9 9 0 100 18 9 9 0 100-18", curve: "M3 18Q12 2 21 18",
+    xabcd: "M3 16L8 6l4 8 4-6 5 10", abcd: "M3 18L9 6l6 8 6-8", hs: "M2 16l4-6 3 4 3-9 3 9 3-4 4 6", trianglepat: "M3 6l18 6M3 18l18-6", elliott: "M2 18l4-8 3 4 5-10 3 5 5-6", elliottabc: "M3 6l6 12 5-7 7 9",
+    pricelabel: "M4 8h12l4 4-4 4H4z", flag: "M6 21V4M6 4l12 4-12 4", pricerange: "M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4", daterange: "M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4", long: "M4 4h16v8H4zM4 12h16v8H4z", short: "M4 4h16v8H4zM4 12h16v8H4z",
     magnet: "M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4z", pencil: "M4 20l4-1 11-11-3-3L5 16zM14 6l3 3", eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6", layers: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5", trash: "M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13",
   };
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={P[n] ?? P.trend} />{n === "long" && <path d="M4 4h16v8H4z" fill="#22c55e" opacity=".35" stroke="none" />}{n === "short" && <path d="M4 12h16v8H4z" fill="#ef4444" opacity=".35" stroke="none" />}</svg>;

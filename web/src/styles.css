@@ -940,3 +940,9 @@ button, a, .chip, .btn, [role="button"], input, select, label { touch-action: ma
 .t-top.mini { flex-wrap: nowrap; overflow-x: auto; }
 .t-bars-toggle { margin-left: auto; white-space: nowrap; }
 .t-panel-toggle { white-space: nowrap; }
+/* Tool groups: tap the icon to open its menu (small chevron shows there is one) */
+.tb { position: relative; }
+.tb-chev { position: absolute; right: 1px; bottom: 1px; font-size: 9px; line-height: 1; color: var(--text-3); }
+.tb.open { background: var(--panel-2); color: var(--text); }
+.tb-fly { max-height: min(72vh, 560px); overflow: auto; animation: igIn .12s ease; }
+.tb-fly button .tiny { margin-left: auto; }

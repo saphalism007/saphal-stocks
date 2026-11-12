@@ -13,6 +13,7 @@ import { aiRouter } from "./routes/ai.ts";
 import { wealthRouter } from "./routes/wealth.ts";
 import { systemRouter } from "./routes/system.ts";
 import { startScheduler, onJobDone, startIntradayPoller } from "./ingest/jobs.ts";
+import { startCloudNudge } from "./lib/cloudNudge.ts";
 import { evaluateAlerts } from "./lib/alerts.ts";
 import { dailyBackup } from "./lib/backup.ts";
 
@@ -74,6 +75,7 @@ app.listen(config.port, config.host, () => {
   if (process.env.NO_SCHEDULER !== "1") {
     startScheduler();
     startIntradayPoller();
+    startCloudNudge();
     const backupTick = () => { try { const f = dailyBackup(); if (f) console.log(`[backup] ${f}`); } catch (e) { console.error("[backup]", e); } };
     backupTick();
     setInterval(backupTick, 3_600_000);

@@ -5,10 +5,13 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.20.7";
+export const VERSION = "0.21.0";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Show panel and Hide panel now sit at the top right of the chart, next to Show toolbar, so nothing covers the price scale any more. The P and T keys still switch the panel and the toolbar.",
+  "Smooth drawing: lines now follow your finger or mouse exactly while you stretch them (a steady 60 frames a second), instead of jumping from candle to candle. The magnet only grabs an open, high, low or close when you are right next to it. Moving a whole drawing slides it smoothly.",
+  "Drawing tool menus: tap any tool icon on the left to open its full menu, like other charting sites. 48 tools in 7 groups, with keyboard shortcuts shown.",
+  "18 new drawing tools: Flat top/bottom, Disjoint channel, Schiff and Modified Schiff pitchforks, Fib channel, Fib time zones, Fib speed fan, Gann fan, Gann box, XABCD and ABCD patterns (with leg ratios), Head and shoulders (with neckline), Triangle pattern, Elliott impulse (12345) and correction (ABC) waves, Circle, Curve, Price label and Flag.",
+  "More reliable updates: GitHub was skipping its own 15-minute market updates. While your Mac is on, it now asks GitHub for an update at 10:35 (news and prices before the open), every 15 minutes from 11:00 to 15:15, and at 15:50 (full daily update). The Mac app itself also fetches news before the open.",
 ];
 
 declare const __BUILD__: string;

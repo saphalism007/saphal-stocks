@@ -12,6 +12,7 @@ import type { ChartAnalysis } from "../../../shared/analyst.ts";
 import type { Bar } from "../../../shared/types.ts";
 import { geometry, TOOLS, type Drawing, type Pt, type ToolId, type Mapper } from "./draw.ts";
 
+const LIVE = "~live"; // marks the point that follows the pointer while drawing
 export type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area" | "baseline" | "step";
 export interface IndInst { uid: string; id: string; params: Record<string, number>; colors: Record<string, string>; hidden?: boolean }
 export interface PaneApi { screenshot: () => Promise<HTMLCanvasElement | null>; fit: () => void }
@@ -56,6 +57,7 @@ export default function ChartPane(p: PaneProps) {
   const downAt = useRef<{ x: number; y: number } | null>(null);
   // While a drawing is dragged it lives here (only this chart re-renders); it is saved once, on release.
   const [dragging, setDragging] = useState<Drawing | null>(null);
+  const [slide, setSlide] = useState<{ id: string; dx: number; dy: number } | null>(null);
   // One update per screen frame, however fast the pointer events arrive.
   const frame = useRef(0), pending = useRef<(() => void) | null>(null);
   const perFrame = (fn: () => void) => { pending.current = fn; if (!frame.current) frame.current = requestAnimationFrame(() => { frame.current = 0; const f = pending.current; pending.current = null; f?.(); }); };
@@ -76,7 +78,11 @@ export default function ChartPane(p: PaneProps) {
 
   // date <-> logical index (fractional; extrapolated beyond the data for projections)
   const perBar = useMemo(() => { const n = dates.length; if (n < 2) return 1; const k = Math.min(60, n - 1); return (Date.parse(dates[n - 1]) - Date.parse(dates[n - 1 - k])) / DAY / k || 1; }, [dates]);
+  // While drawing or dragging, the moving point is "live": it sits exactly under the pointer (between
+  // candles too) so the line glides smoothly; it is pinned to a date only when you let go.
+  const live = useRef(0);
   const toL = useCallback((t: string) => {
+    if (t === LIVE) return live.current;
     const n = dates.length; if (!n) return 0;
     const ms = Date.parse(t);
     if (t >= dates[n - 1]) return n - 1 + (ms - Date.parse(dates[n - 1])) / DAY / perBar;
@@ -253,19 +259,38 @@ export default function ChartPane(p: PaneProps) {
   const w = chart ? chart.timeScale().width() : 0, h = panes[0]?.h ?? 0;
   const mapper: Mapper | null = chart && main ? {
     x: (t) => chart.timeScale().logicalToCoordinate(toL(t) as Logical), y: (pr) => main.priceToCoordinate(pr), w, h, idx: toL, fmt: fmtP,
-    closesBetween: (a, b) => { const i0 = Math.round(toL(a < b ? a : b)), i1 = Math.round(toL(a < b ? b : a)); const out: { i: number; c: number }[] = []; for (let i = Math.max(0, i0); i <= Math.min(data.length - 1, i1); i++) out.push({ i, c: data[i].close }); return out; },
+    closesBetween: (a, b) => { const la = toL(a), lb = toL(b), i0 = Math.round(Math.min(la, lb)), i1 = Math.round(Math.max(la, lb)); const out: { i: number; c: number }[] = []; for (let i = Math.max(0, i0); i <= Math.min(data.length - 1, i1); i++) out.push({ i, c: data[i].close }); return out; },
   } : null;
   void tick;
 
+  // Magnet: pulls a point to the nearest open/high/low/close only when the pointer is close to it,
+  // so the line does not jump around while you stretch it.
+  const snapPrice = (l: number, y: number, pr: number) => {
+    const b = data[Math.round(l)]; if (!b || !main) return pr;
+    const best = [b.open, b.high, b.low, b.close].reduce((m, v) => (Math.abs(v - pr) < Math.abs(m - pr) ? v : m), b.open);
+    const yb = main.priceToCoordinate(best);
+    return yb != null && Math.abs(yb - y) < (coarse ? 18 : 10) ? best : pr;
+  };
   const toPt = (x: number, y: number, snap = p.magnet): Pt | null => {
     if (!chart || !main) return null;
     const l = chart.timeScale().coordinateToLogical(x); let pr: number | null = main.coordinateToPrice(y);
     if (l == null || pr == null) return null;
-    if (snap) { const i = Math.round(l); const b = data[i]; if (b) { const c = [b.open, b.high, b.low, b.close]; const best = c.reduce((m, v) => (Math.abs(v - (pr as number)) < Math.abs(m - (pr as number)) ? v : m), c[0]); const yb = main.priceToCoordinate(best); if (yb != null && Math.abs(yb - y) < 40) pr = best; } }
+    if (snap) pr = snapPrice(l, y, pr);
     return { t: fromL(l), p: r2(pr as number) };
   };
+  /** The point under the pointer, unrounded, for smooth previews. */
+  const toLive = (x: number, y: number, snap = p.magnet): Pt | null => {
+    if (!chart || !main) return null;
+    const l = chart.timeScale().coordinateToLogical(x); let pr: number | null = main.coordinateToPrice(y);
+    if (l == null || pr == null) return null;
+    if (snap) pr = snapPrice(l, y, pr);
+    live.current = l;
+    return { t: LIVE, p: pr };
+  };
+  const pin = (d: Drawing): Drawing => ({ ...d, pts: d.pts.map((q) => (q.t === LIVE ? { t: fromL(live.current), p: r2(q.p) } : q)) });
   const rel = (e: { clientX: number; clientY: number }) => { const r = host.current!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  const finish = (d: Drawing) => {
+  const finish = (d0: Drawing) => {
+    const d = pin(d0);
     let fin = { ...d, pts: d.pts.slice(0, Math.max(1, TOOLS.get(d.tool)?.points || d.pts.length)) };
     if (d.tool === "text" || d.tool === "callout") { const t = window.prompt("Text for the note", d.text ?? ""); if (t == null) { setDraft(null); return; } fin = { ...fin, text: t }; }
     p.onDrawings([...p.drawings, fin], true); p.onSelect(fin.id); setDraft(null); fixed.current = 0;
@@ -304,14 +329,14 @@ export default function ChartPane(p: PaneProps) {
       window.addEventListener("pointerup", upH);
     } else {
       fixed.current++;
-      const pts = [...cur.pts]; pts[fixed.current - 1] = pt;
+      const pts = [...pin(cur).pts]; pts[fixed.current - 1] = pt;
       if (fixed.current >= def.points) finish({ ...cur, pts }); else setDraft({ ...cur, pts: [...pts, pt] });
     }
   };
   const svgMove = (e: RPE<SVGSVGElement>) => {
     const cur = draftRef.current; if (!cur || TOOLS.get(cur.tool)?.points === 0) return;
     const { x, y } = rel(e);
-    perFrame(() => { const c2 = draftRef.current; if (!c2) return; const pt = toPt(x, y); if (!pt) return; const pts = [...c2.pts]; pts[pts.length - 1] = pt; setDraft({ ...c2, pts }); });
+    perFrame(() => { const c2 = draftRef.current; if (!c2) return; const pt = toLive(x, y); if (!pt) return; const pts = [...c2.pts]; pts[pts.length - 1] = pt; setDraft({ ...c2, pts }); });
   };
   const svgUp = () => { /* handled by the window listener */ };
   useEffect(() => { if (p.tool === "cursor") { setDraft(null); fixed.current = 0; } }, [p.tool]);
@@ -328,17 +353,22 @@ export default function ChartPane(p: PaneProps) {
       const q = rel(ev); const l = chart.timeScale().coordinateToLogical(q.x), pr = main.coordinateToPrice(q.y);
       if (l == null || pr == null) return;
       let next: Drawing;
-      if (handle == null) { const dl = l - l0, dp = pr - p0; next = { ...orig, pts: orig.pts.map((pt) => ({ t: fromL(toL(pt.t) + dl), p: r2(pt.p + dp) })), target: orig.target != null ? r2(orig.target + dp) : undefined }; }
-      else { const pt = toPt(q.x, q.y)!; const pts = [...orig.pts];
+      if (handle == null) {
+        const dl = l - l0, dp = pr - p0; next = { ...orig, pts: orig.pts.map((pt) => ({ t: fromL(toL(pt.t) + dl), p: r2(pt.p + dp) })), target: orig.target != null ? r2(orig.target + dp) : undefined };
+        last = next; const off = { id: d.id, dx: q.x - s.x, dy: q.y - s.y };
+        perFrame(() => setSlide(off)); // the shape slides with the pointer; dates are fixed on release
+        return;
+      }
+      else { const pt = toLive(q.x, q.y); if (!pt) return; const pts = [...orig.pts];
         if (handle < pts.length) pts[handle] = pt; else if (handle === 10) { pts[0] = { ...pts[0], t: pt.t }; pts[1] = { ...pts[1], p: pt.p }; } else if (handle === 11) { pts[1] = { ...pts[1], t: pt.t }; pts[0] = { ...pts[0], p: pt.p }; }
         next = { ...orig, pts, target: handle === 20 ? pt.p : orig.target }; }
-      last = next;
+      last = pin(next);
       perFrame(() => setDragging(next));
     };
     const upH = () => {
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", upH); window.removeEventListener("pointercancel", upH);
       if (frame.current) { cancelAnimationFrame(frame.current); frame.current = 0; }
-      setDragging(null);
+      setDragging(null); setSlide(null);
       if (last !== orig) p.onDrawings(p.drawings.map((x) => (x.id === d.id ? last : x)), true);
     };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", upH); window.addEventListener("pointercancel", upH);
@@ -392,7 +422,7 @@ export default function ChartPane(p: PaneProps) {
         <svg className="draw-layer" width={w} height={h} style={{ position: "absolute", left: 0, top: 0, zIndex: 5, pointerEvents: p.tool === "cursor" ? "none" : "all", touchAction: p.tool === "cursor" ? "auto" : "none", cursor: p.tool === "cursor" ? "default" : "crosshair", overflow: "hidden" }}
           onPointerDown={svgDown} onPointerMove={svgMove} onPointerUp={svgUp} onClick={(e) => { if (p.tool === "cursor" && e.target === e.currentTarget) p.onSelect(null); }}>
           {aiLayer()}
-          {!p.hideDrawings && p.drawings.filter((d) => !d.hidden).map((d) => renderOne(dragging && dragging.id === d.id ? dragging : d))}
+          {!p.hideDrawings && p.drawings.filter((d) => !d.hidden).map((d) => (slide && slide.id === d.id ? <g key={d.id} transform={`translate(${slide.dx},${slide.dy})`}>{renderOne(d)}</g> : renderOne(dragging && dragging.id === d.id ? dragging : d)))}
           {draft && renderOne(draft, true)}
         </svg>
       )}

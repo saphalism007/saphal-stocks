@@ -534,6 +534,8 @@ export function startIntradayPoller(intervalMin = Number(process.env.INTRADAY_RE
   setInterval(() => {
     const n = nptNow();
     if (!tradingWeekdays().includes(n.weekday) || holidayDate === n.date || closureOn(n.date)) return;
+    // Pre-open (10:30 to 11:00): fetch the latest news and announcements once, before trading starts.
+    if (n.minutes >= OPEN - 30 && n.minutes < OPEN && getSetting<string>("lastPreopenNews", "") !== n.date) { setSetting("lastPreopenNews", n.date); enqueue("news", () => syncNews()); return; }
     if (n.minutes < OPEN || n.minutes > CLOSE + 10) return;
     const f = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM data_freshness WHERE dataset = 'prices_latest'");
     if (f && Date.now() - Date.parse(f.last_success_at) < intervalMin * 60_000) return;
