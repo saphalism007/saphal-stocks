@@ -40,6 +40,18 @@ app.use("/api", requireAuth, marketRouter, portfolioRouter, aiRouter, wealthRout
 app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
 const dist = join(ROOT, "dist");
+// The Mac server version never uses an offline copy. A browser that saved one earlier asks for sw.js
+// on every visit; this worker clears its stored copy, removes itself and reloads the page fresh.
+app.get("/sw.js", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.type("text/javascript").send(`self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (e) => e.waitUntil((async () => {
+  for (const k of await caches.keys()) await caches.delete(k);
+  await self.registration.unregister();
+  for (const c of await self.clients.matchAll({ type: "window" })) c.navigate(c.url);
+})()));
+self.addEventListener("fetch", () => {});`);
+});
 if (existsSync(dist)) {
   app.use(express.static(dist, { maxAge: "1h", index: false }));
   app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(join(dist, "index.html")));

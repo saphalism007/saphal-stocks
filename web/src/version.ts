@@ -5,10 +5,10 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.20.4";
+export const VERSION = "0.20.5";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Mac version: no account or password any more. Start Saphal Stocks opens straight into the app on this Mac. The Wi-Fi mode (for other devices on your network) still asks for a password.",
+  "Mac version: Safari had saved an old offline copy of the web version at 127.0.0.1, which asked to create an account. The Mac version now never keeps an offline copy and clears that old one on the next visit, so it opens straight into the app.",
 ];
 
 declare const __BUILD__: string;
