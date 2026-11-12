@@ -9,6 +9,26 @@ declare module "express-serve-static-core" { interface Request { userId?: number
 const COOKIE = "ss_session";
 const SESSION_DAYS = 30;
 
+// On this Mac only (server bound to 127.0.0.1 and the request comes from this computer), open the app
+// straight away without an account: you are the only person who can reach it. Wi-Fi mode (HOST=0.0.0.0)
+// keeps the password. Set REQUIRE_LOGIN=1 to always ask for one.
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+const localOnly = () => process.env.REQUIRE_LOGIN !== "1" && ["127.0.0.1", "localhost", "::1"].includes(config.host);
+function localUser(): { id: number; username: string } {
+  const u = get<{ id: number; username: string }>("SELECT id, username FROM users ORDER BY id LIMIT 1");
+  if (u) return u;
+  const id = createUser("Saphal", newToken()); // random password: never needed on this Mac
+  return { id, username: "Saphal" };
+}
+function createUser(username: string, password: string): number {
+  const id = Number(run("INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)", username, hashPassword(password), nowIso()).lastInsertRowid);
+  // Starter structures so the app is useful immediately.
+  run("INSERT INTO watchlists (user_id, name, created_at) VALUES (?, 'My watchlist', ?)", id, nowIso());
+  run("INSERT INTO portfolios (user_id, name, kind, strategy, created_at) VALUES (?, 'Long-term investments', 'real', 'Long-term', ?)", id, nowIso());
+  run("INSERT INTO portfolios (user_id, name, kind, strategy, paper_cash, created_at) VALUES (?, 'Paper trading', 'paper', 'Swing trading', 1000000, ?)", id, nowIso());
+  return id;
+}
+
 export function authMiddleware(req: Request, _res: Response, next: NextFunction) {
   const token = req.cookies?.[COOKIE];
   if (token) {
@@ -16,6 +36,9 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
       "SELECT s.user_id, s.expires_at, u.username FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?", tokenHash(token),
     );
     if (s && Date.parse(s.expires_at) > Date.now()) { req.userId = s.user_id; req.username = s.username; }
+  }
+  if (!req.userId && localOnly() && LOOPBACK.has(req.socket.remoteAddress ?? "") && !req.get("x-forwarded-for")) {
+    const u = localUser(); req.userId = u.id; req.username = u.username;
   }
   next();
 }
@@ -56,11 +79,7 @@ authRouter.get("/status", (req, res) => {
 authRouter.post("/setup", (req, res) => {
   if (get<{ n: number }>("SELECT COUNT(*) n FROM users")!.n > 0) return res.status(403).json({ error: "Account already exists." });
   const p = creds.parse(req.body);
-  const id = Number(run("INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)", p.username, hashPassword(p.password), nowIso()).lastInsertRowid);
-  // Starter structures so the app is useful immediately.
-  run("INSERT INTO watchlists (user_id, name, created_at) VALUES (?, 'My watchlist', ?)", id, nowIso());
-  run("INSERT INTO portfolios (user_id, name, kind, strategy, created_at) VALUES (?, 'Long-term investments', 'real', 'Long-term', ?)", id, nowIso());
-  run("INSERT INTO portfolios (user_id, name, kind, strategy, paper_cash, created_at) VALUES (?, 'Paper trading', 'paper', 'Swing trading', 1000000, ?)", id, nowIso());
+  const id = createUser(p.username, p.password);
   setSession(res, id, req.get("user-agent"), req.secure);
   res.json({ ok: true, user: { id, username: p.username } });
 });

@@ -5,11 +5,10 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.20.3";
+export const VERSION = "0.20.4";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Indicator list on the chart is organised: tapping an indicator no longer adds it again and again. Tap its name to open the full guide (what it shows, how to read it, buy and sell signals, best use, trap, tip, settings, origin). Use Add to put it on the chart and Remove to take it off; + Another adds a second copy only when you want one.",
-  "Sorting: sort indicators by recommended order, name A to Z, name Z to A, or by type, both in the chart's indicator list and on the Indicator Guide page. Your choice is remembered.",
+  "Mac version: no account or password any more. Start Saphal Stocks opens straight into the app on this Mac. The Wi-Fi mode (for other devices on your network) still asks for a password.",
 ];
 
 declare const __BUILD__: string;
