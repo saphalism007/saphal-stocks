@@ -937,8 +937,6 @@ button, a, .chip, .btn, [role="button"], input, select, label { touch-action: ma
 /* Right panel: hide handle on the panel, and a tab on the chart edge to bring it back */
 .t-side-hide { align-self: flex-end; border: 1px solid var(--border); background: var(--panel); color: var(--text-2); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
 .t-side-hide:hover { color: var(--text); border-color: var(--accent); }
-.t-panel-tab { position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 9; border: 1px solid var(--border); border-right: 0; background: var(--panel); color: var(--text-2); border-radius: 8px 0 0 8px; padding: 10px 6px; font-size: 12px; cursor: pointer; box-shadow: var(--shadow); writing-mode: vertical-rl; }
-.t-panel-tab:hover { color: var(--accent); }
-@media (max-width: 760px) { .t-panel-tab { writing-mode: horizontal-tb; top: auto; bottom: 44px; transform: none; padding: 6px 10px; } }
 .t-top.mini { flex-wrap: nowrap; overflow-x: auto; }
 .t-bars-toggle { margin-left: auto; white-space: nowrap; }
+.t-panel-toggle { white-space: nowrap; }

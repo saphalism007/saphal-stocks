@@ -204,6 +204,7 @@ export default function Terminal() {
         <button className="t-btn strong" onClick={() => setPicker({ edit: null })} title="Indicators (I)">ƒx Indicators</button>
         <button className="t-btn" onClick={toggleFull} title="Full screen">{full ? "⤡" : "⛶"}</button>
         <button className="t-btn t-bars-toggle" onClick={toggleBars} title="Show the toolbar (T)">Show toolbar ▾</button>
+        <button className="t-btn t-panel-toggle" onClick={togglePanel} title={`${st.panel ? "Hide" : "Show"} the right panel (P)`}>{st.panel ? "Hide panel ›" : "‹ Show panel"}</button>
       </div>
       ) : (
       <div className="t-top">
@@ -243,6 +244,7 @@ export default function Terminal() {
         <button className="t-btn strong sig-top" onClick={() => { setSt((s) => ({ ...s, ai: true, clean: false })); setSheet(true); }} disabled={!a}>Buy/Sell signal</button>
         <button className={`t-btn strong ai ${st.panel ? "on" : ""}`} onClick={togglePanel} title={`${st.panel ? "Hide" : "Show"} the right panel (P)`}>AI Analyst</button>
         <button className="t-btn t-bars-toggle" onClick={toggleBars} title="Hide the toolbar to give the chart more room (T)">Hide toolbar ▴</button>
+        <button className="t-btn t-panel-toggle" onClick={togglePanel} title={`${st.panel ? "Hide" : "Show"} the right panel (P)`}>{st.panel ? "Hide panel ›" : "‹ Show panel"}</button>
       </div>
       )}
 
@@ -292,7 +294,6 @@ export default function Terminal() {
               <button className="t-btn" onClick={() => { draw.set(sym, drawings.filter((d) => d.id !== selD.id), true); setSelected(null); }}>Delete</button>
             </div>
           )}
-          {!st.panel && <button className="t-panel-tab" onClick={togglePanel} title="Show the right panel (P)" aria-label="Show the right panel">‹ Panel</button>}
           {hint && <div className="t-hint">{TOOLS.get(tool)?.label}: {hint} <button className="t-btn" onClick={() => setTool("cursor")}>Done</button></div>}
         </div>
 

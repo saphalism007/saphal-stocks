@@ -5,10 +5,10 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.20.6";
+export const VERSION = "0.20.7";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Chart room: hide the right panel with Hide panel (or press P) and bring it back with the Panel tab on the chart's right edge. Hide the top toolbar with Hide toolbar (or press T); a slim line keeps the stock search, price, Indicators and full screen. Both stay as you left them.",
+  "Show panel and Hide panel now sit at the top right of the chart, next to Show toolbar, so nothing covers the price scale any more. The P and T keys still switch the panel and the toolbar.",
 ];
 
 declare const __BUILD__: string;
