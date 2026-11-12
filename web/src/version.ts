@@ -5,13 +5,11 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.21.0";
+export const VERSION = "0.21.1";
 export const RELEASED = "2026-11-12";
 export const NOTES = [
-  "Smooth drawing: lines now follow your finger or mouse exactly while you stretch them (a steady 60 frames a second), instead of jumping from candle to candle. The magnet only grabs an open, high, low or close when you are right next to it. Moving a whole drawing slides it smoothly.",
-  "Drawing tool menus: tap any tool icon on the left to open its full menu, like other charting sites. 48 tools in 7 groups, with keyboard shortcuts shown.",
-  "18 new drawing tools: Flat top/bottom, Disjoint channel, Schiff and Modified Schiff pitchforks, Fib channel, Fib time zones, Fib speed fan, Gann fan, Gann box, XABCD and ABCD patterns (with leg ratios), Head and shoulders (with neckline), Triangle pattern, Elliott impulse (12345) and correction (ABC) waves, Circle, Curve, Price label and Flag.",
-  "More reliable updates: GitHub was skipping its own 15-minute market updates. While your Mac is on, it now asks GitHub for an update at 10:35 (news and prices before the open), every 15 minutes from 11:00 to 15:15, and at 15:50 (full daily update). The Mac app itself also fetches news before the open.",
+  "Smooth zoom: the mouse wheel and trackpad now zoom in a smooth glide (60 frames a second), keeping the candle under your pointer in place. Swipe sideways or hold Shift to scroll through time. Candles can be zoomed much larger to read them clearly, and zooming out stops at your full history with the newest candle at the right.",
+  "Zoom speed: choose Slow, Normal, Fast or Very fast at the bottom of each chart; it applies to the wheel, trackpad and buttons and is remembered. Also there: + and - buttons and All (whole history). Keys: + and - zoom, 0 shows all, left and right arrows scroll.",
 ];
 
 declare const __BUILD__: string;

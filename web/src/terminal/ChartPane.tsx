@@ -10,12 +10,13 @@ import { Link } from "react-router-dom";
 import { allCandles } from "../../../shared/candles.ts";
 import type { ChartAnalysis } from "../../../shared/analyst.ts";
 import type { Bar } from "../../../shared/types.ts";
+import { ZOOM_SPEEDS, zoomFactor, zoomRange, clampRange, zoomSpeed, setZoomSpeed, onZoomSpeed, type ZoomSpeed } from "./zoom.ts";
 import { geometry, TOOLS, type Drawing, type Pt, type ToolId, type Mapper } from "./draw.ts";
 
 const LIVE = "~live"; // marks the point that follows the pointer while drawing
 export type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area" | "baseline" | "step";
 export interface IndInst { uid: string; id: string; params: Record<string, number>; colors: Record<string, string>; hidden?: boolean }
-export interface PaneApi { screenshot: () => Promise<HTMLCanvasElement | null>; fit: () => void }
+export interface PaneApi { screenshot: () => Promise<HTMLCanvasElement | null>; fit: () => void; zoom: (factor: number) => void; pan: (fraction: number) => void }
 export interface PaneProps {
   bars: Bar[] | null; symbol: string; tf: Timeframe; chartType: ChartType; scaleMode: 0 | 1 | 2; range: number; from: string | null; to: string | null;
   indicators: IndInst[]; onEditIndicator: (uid: string) => void; onRemoveIndicator: (uid: string) => void; onToggleIndicator: (uid: string) => void;
@@ -107,9 +108,11 @@ export default function ChartPane(p: PaneProps) {
       autoSize: true, layout: { attributionLogo: false, background: { color: "transparent" }, textColor: text, fontSize: 11, panes: { separatorColor: grid, enableResize: true } },
       grid: { vertLines: { color: p.grid ? grid + "44" : "transparent" }, horzLines: { color: p.grid ? grid + "44" : "transparent" } },
       rightPriceScale: { borderColor: grid, mode: p.scaleMode === 1 ? PriceScaleMode.Logarithmic : p.scaleMode === 2 ? PriceScaleMode.Percentage : PriceScaleMode.Normal },
-      timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5 }, crosshair: { mode: CrosshairMode.Normal },
+      timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5, maxBarSpacing: 80 }, crosshair: { mode: CrosshairMode.Normal },
+      // The mouse wheel and trackpad are handled below (smooth zoom around the pointer, with a speed setting).
+      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       // On touch screens a stray drag on the price axis squashed the candles; keep the price scale automatic there.
-      ...(coarse ? { handleScale: { axisPressedMouseMove: { time: true, price: false }, axisDoubleClickReset: { time: true, price: true }, pinch: true, mouseWheel: true } } : {}),
+      handleScale: coarse ? { axisPressedMouseMove: { time: true, price: false }, axisDoubleClickReset: { time: true, price: true }, pinch: true, mouseWheel: false } : { axisPressedMouseMove: true, axisDoubleClickReset: true, pinch: true, mouseWheel: false },
     });
     chartRef.current = chart;
     const T = (d: string) => d as Time;
@@ -234,9 +237,54 @@ export default function ChartPane(p: PaneProps) {
   }
   useEffect(() => { keepRange.current = null; applyRange(); }, [p.range, p.from, p.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---------- smooth zoom ----------
+  // The view glides to its target range (a few frames), so zooming feels fluid at any speed; the candle
+  // under the pointer stays under the pointer. Wheel or trackpad up/down zooms, sideways (or Shift) scrolls.
+  const target = useRef<{ from: number; to: number } | null>(null);
+  const glide = useRef(0);
+  const barsN = useRef(0); barsN.current = data.length;
+  const animateTo = (r: { from: number; to: number }) => {
+    target.current = r;
+    if (glide.current) return;
+    const step = () => {
+      const ch = chartRef.current, t = target.current; if (!ch || !t) { glide.current = 0; return; }
+      const cur = ch.timeScale().getVisibleLogicalRange(); if (!cur) { glide.current = 0; return; }
+      const k = 0.35, nf = cur.from + (t.from - cur.from) * k, nt = cur.to + (t.to - cur.to) * k;
+      const done = Math.abs(t.from - nf) < 0.01 && Math.abs(t.to - nt) < 0.01;
+      ch.timeScale().setVisibleLogicalRange(done ? t : { from: nf, to: nt });
+      if (done) { target.current = null; glide.current = 0; } else glide.current = requestAnimationFrame(step);
+    };
+    glide.current = requestAnimationFrame(step);
+  };
+  const baseRange = () => target.current ?? chartRef.current?.timeScale().getVisibleLogicalRange() ?? null;
+  const zoomBy = (factor: number, frac: number) => { const b = baseRange(); if (b) animateTo(zoomRange({ from: b.from, to: b.to }, factor, frac, barsN.current)); };
+  const panBy = (fraction: number) => { const b = baseRange(); if (!b) return; const w = b.to - b.from; animateTo(clampRange(b.from + w * fraction, w, barsN.current)); };
+  useEffect(() => {
+    const el = host.current; if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!chartRef.current) return;
+      e.preventDefault();
+      const mul = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      let dy = e.deltaY * mul, dx = e.deltaX * mul;
+      if (e.shiftKey && !dx) { dx = dy; dy = 0; }
+      const r = el.getBoundingClientRect(), w = chartRef.current.timeScale().width() || r.width;
+      if (Math.abs(dx) > Math.abs(dy)) { panBy((dx / w) * 1.2); return; }
+      const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / w));
+      // ctrlKey = trackpad pinch on a Mac: its deltas are small, so give them more weight
+      zoomBy(Math.exp(dy * 0.0024 * zoomFactor() * (e.ctrlKey ? 3 : 1)), frac);
+    };
+    const stop = () => { target.current = null; }; // grabbing the chart stops a zoom that is still gliding
+    el.addEventListener("wheel", onWheel, { passive: false }); el.addEventListener("pointerdown", stop);
+    return () => { el.removeEventListener("wheel", onWheel); el.removeEventListener("pointerdown", stop); if (glide.current) cancelAnimationFrame(glide.current); glide.current = 0; target.current = null; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [speed, setSpeedS] = useState<ZoomSpeed>(zoomSpeed());
+  useEffect(() => onZoomSpeed(setSpeedS), []);
+
   useEffect(() => {
     p.register({
-      fit: () => { keepRange.current = null; chartRef.current?.timeScale().fitContent(); chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); },
+      fit: () => { keepRange.current = null; target.current = null; chartRef.current?.timeScale().fitContent(); chartRef.current?.priceScale("right").applyOptions({ autoScale: true }); },
+      zoom: (factor) => zoomBy(factor, 0.92),
+      pan: (fraction) => panBy(fraction),
       screenshot: async () => {
         const chart = chartRef.current; if (!chart) return null;
         const cv = chart.takeScreenshot(true, false);
@@ -454,6 +502,14 @@ export default function ChartPane(p: PaneProps) {
         </div>
       ); })()}
       {p.onFull && <button className="term-full-btn" onClick={(e) => { e.stopPropagation(); p.onFull!(); }} title={p.full ? "Exit full screen" : "Full screen"} aria-label={p.full ? "Exit full screen" : "Full screen"}>{p.full ? "✕" : "⛶"}</button>}
+      <div className="term-zoom" onPointerDown={(e) => e.stopPropagation()}>
+        <button onClick={() => zoomBy(1 / (1 + 0.35 * zoomFactor()), 0.92)} title="Zoom in (+)" aria-label="Zoom in">+</button>
+        <button onClick={() => zoomBy(1 + 0.35 * zoomFactor(), 0.92)} title="Zoom out (-)" aria-label="Zoom out">−</button>
+        <button onClick={() => { keepRange.current = null; target.current = null; chartRef.current?.timeScale().fitContent(); }} title="Show all history (0)">All</button>
+        <select value={speed} onChange={(e) => setZoomSpeed(e.target.value as ZoomSpeed)} title="Zoom speed for the mouse wheel, trackpad and these buttons" aria-label="Zoom speed">
+          {ZOOM_SPEEDS.map((z) => <option key={z.key} value={z.key}>Zoom: {z.label}</option>)}
+        </select>
+      </div>
       <div className="term-scale">
         <button className={p.scaleMode === 2 ? "on" : ""} onClick={() => p.onScaleMode(p.scaleMode === 2 ? 0 : 2)} title="Percentage scale">%</button>
         <button className={p.scaleMode === 1 ? "on" : ""} onClick={() => p.onScaleMode(p.scaleMode === 1 ? 0 : 1)} title="Logarithmic scale">log</button>

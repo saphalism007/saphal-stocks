@@ -159,6 +159,11 @@ export default function Terminal() {
       if (e.altKey && !mod) { const k = e.code.replace("Key", "").toLowerCase(); const tl = [...TOOLS.values()].find((x) => x.key === k); if (tl) { e.preventDefault(); setTool(tl.id); } return; }
       if (!mod && e.key === "i") { e.preventDefault(); setPicker({ edit: null }); }
       if (!mod && e.key === "p") { e.preventDefault(); togglePanel(); }
+      if (!mod && (e.key === "+" || e.key === "=")) { e.preventDefault(); apis.current[active]?.zoom(0.75); }
+      if (!mod && (e.key === "-" || e.key === "_")) { e.preventDefault(); apis.current[active]?.zoom(1.33); }
+      if (!mod && e.key === "0") { e.preventDefault(); apis.current[active]?.fit(); }
+      if (!mod && !selected && e.key === "ArrowLeft") { e.preventDefault(); apis.current[active]?.pan(-0.15); }
+      if (!mod && !selected && e.key === "ArrowRight") { e.preventDefault(); apis.current[active]?.pan(0.15); }
       if (!mod && e.key === "t") { e.preventDefault(); toggleBars(); }
     };
     window.addEventListener("keydown", h);
@@ -305,7 +310,6 @@ export default function Terminal() {
         {/* AI panel + watchlist */}
         {st.panel && (
           <div className="t-side">
-            <button className="t-side-hide" onClick={togglePanel} title="Hide this panel to give the chart the full width (P)">Hide panel ›</button>
             <AiPanel symbol={sym} analysis={a ?? null} loading={analysis.loading} error={analysis.error} bars={bars.bars} tab={st.panelTab} setTab={(t) => setSt({ ...st, panelTab: t })} onSymbol={setSymbol} priceInfo={a?.priceInfo} />
             <div className="t-watch">
               <div className="row between"><span className="tiny faint" style={{ textTransform: "uppercase", letterSpacing: ".05em" }}>Watchlist</span>{firstList && !watch.includes(sym) && <button className="t-btn" onClick={addToWatch}>+ Add {sym}</button>}</div>
