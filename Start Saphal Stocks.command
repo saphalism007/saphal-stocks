@@ -4,7 +4,7 @@
 cd "$(dirname "$0")" || exit 1
 PORT="${API_PORT:-5181}"
 if ! command -v node >/dev/null 2>&1; then echo "Node.js is not installed. Get it from https://nodejs.org (version 22.13 or newer)."; read -r -p "Press Enter to close"; exit 1; fi
-if lsof -ti:"$PORT" >/dev/null 2>&1; then echo "Saphal Stocks is already running."; open "http://127.0.0.1:$PORT"; exit 0; fi
+if lsof -ti tcp:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then echo "Saphal Stocks is already running."; open "http://127.0.0.1:$PORT"; exit 0; fi
 [ -d node_modules ] || { echo "Installing (first run)..."; npm install --no-audit --no-fund || exit 1; }
 # Rebuild when missing, outdated, or last built for the online (GitHub Pages) version by a deploy.
 # The marker file only exists after a build for this Mac server (any other build empties dist).
