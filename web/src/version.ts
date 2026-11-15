@@ -5,12 +5,11 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.21.4";
-export const RELEASED = "2026-11-12";
+export const VERSION = "0.21.5";
+export const RELEASED = "2026-11-15";
 export const NOTES = [
-  "iPad (finger and Apple Pencil): drag the price column on the right up or down to squeeze or stretch prices, and drag the chart up and down as well as sideways, just like a Mac trackpad. Double-tap the price column (or tap auto) to reset. iPhone keeps its simpler touch behaviour.",
-  "Apple Pencil drawing: lines follow the Pencil tip exactly and keep following it even if it moves past the chart's edge.",
-  "On screens narrower than 1200 pixels (an iPad held upright, for example) the chart opens without the AI panel so it gets the full width; tap Show panel at the top right to bring it back.",
+  "Opens instantly again: the app used to wait for the whole new market file (about 15 MB) before opening whenever a daily update existed, which took minutes on a slow connection. It now opens at once from the data saved on your device, applies the latest prices from a small file, and fetches the full new file quietly in the background.",
+  "Shares its web address politely: the app no longer removes the offline files of your other apps at the same address (for example Saphal Manifest).",
 ];
 
 declare const __BUILD__: string;

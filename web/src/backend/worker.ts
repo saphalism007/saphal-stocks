@@ -15,7 +15,7 @@ import { aiRouter } from "../../../server/routes/ai.ts";
 import { wealthRouter } from "../../../server/routes/wealth.ts";
 import { evaluateAlerts } from "../../../server/lib/alerts.ts";
 import { idbGet, idbSet, idbDel } from "./idb.ts";
-import { applyLive } from "./live.ts";
+import { applyLive, forgetLive } from "./live.ts";
 
 const post = (m: unknown, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(m, transfer);
 const BASE = (import.meta.env.BASE_URL || "/").replace(/\/?$/, "/");
@@ -89,8 +89,20 @@ function mountMarket(bytes: Uint8Array) {
   mergeReferenceData();
 }
 
-async function loadMarket(force: boolean) {
+/** preferSaved (used when the app opens): if market data is already saved on this device, open with it at
+ *  once and skip the network; the newer file is then fetched in the background (see boot). Without this the
+ *  app waited for the whole download (about 15 MB) every time a new daily file existed. */
+async function loadMarket(force: boolean, preferSaved = false) {
   const cachedVer = await idbGet<string>("market-version");
+  if (preferSaved && cachedVer) {
+    const saved = await idbGet<Uint8Array>("market-db");
+    if (saved && isSqlite(saved)) {
+      const meta0 = (await idbGet<{ asOf: string; generatedAt: string }>("market-meta")) ?? { asOf: null, generatedAt: null };
+      mountMarket(saved);
+      market = { version: cachedVer, asOf: meta0.asOf, generatedAt: meta0.generatedAt, bytes: saved.length, source: "device" };
+      return false;
+    }
+  }
   const manifest = await fetchManifest();
   void force;
   if (manifest && manifest.version !== cachedVer) {
@@ -123,6 +135,7 @@ async function loadMarket(force: boolean) {
 hooks.checkForUpdate = async (force) => {
   const before = market.version;
   await loadMarket(force);
+  if (market.version !== before) forgetLive();
   const live = await applyLive(BASE);
   const updated = market.version !== before;
   if (updated || live) { const { resetMarketCaches } = await import("../../../server/lib/market.ts"); resetMarketCaches?.(); }
@@ -193,10 +206,16 @@ async function boot() {
   main = new SQL.Database(userBytes ?? undefined);
   main.exec(USER_SCHEMA);
   useDatabase(main);
-  await loadMarket(false);
+  await loadMarket(false, true);
   ensureStarterData();
   takeDirty(); // first-run starter data is not a change to sync
-  await applyLive(BASE);
+  // Latest prices and news (a small file) load in the background so opening never waits on the network.
+  void applyLive(BASE).then(async (ok) => {
+    if (!ok) return;
+    const { resetMarketCaches } = await import("../../../server/lib/market.ts"); resetMarketCaches?.();
+    try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); }
+    post({ type: "data-updated", message: "Applied the latest prices.", market, at: new Date().toISOString() });
+  }).catch(() => undefined);
   try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); }
   await persist();
   post({ type: "ready", market });
@@ -207,7 +226,7 @@ async function boot() {
     try { const r = await hooks.checkForUpdate(false); if (r.updated || /intraday/.test(r.message)) post({ type: "data-updated", message: r.message, market, at: new Date().toISOString() }); } catch { /* offline: try later */ }
     setTimeout(poll, marketHours() ? 60_000 : 5 * 60_000);
   };
-  setTimeout(poll, marketHours() ? 60_000 : 5 * 60_000);
+  setTimeout(poll, 3000); // first check right after opening: fetches a newer data file in the background
 }
 ready = boot().catch((e) => { post({ type: "fatal", message: e instanceof Error ? e.message : String(e) }); throw e; });
 

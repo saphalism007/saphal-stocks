@@ -4,6 +4,8 @@ import { run, get, tx } from "./b-db.ts";
 
 interface LiveFile { generatedAt: string; asOf: string; quotes: (string | number | null)[][]; columns: string[]; news?: (string | number | null)[][]; newsColumns?: string[] }
 let appliedAt = "";
+/** After a new market file is mounted, the latest intraday prices must be applied again on top of it. */
+export function forgetLive() { appliedAt = ""; }
 
 export async function applyLive(base: string): Promise<boolean> {
   let live: LiveFile;

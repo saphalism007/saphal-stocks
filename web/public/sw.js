@@ -8,8 +8,9 @@ self.addEventListener("install", (e) => {
   self.skipWaiting();
 });
 
+// This web address is shared with other apps (for example Saphal Manifest): only ever remove this app's own old caches.
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("saphal-stocks-") && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener("fetch", (e) => {
