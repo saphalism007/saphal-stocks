@@ -5,11 +5,11 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.21.5";
-export const RELEASED = "2026-11-15";
+export const VERSION = "0.21.6";
+export const RELEASED = "2026-11-16";
 export const NOTES = [
-  "Opens instantly again: the app used to wait for the whole new market file (about 15 MB) before opening whenever a daily update existed, which took minutes on a slow connection. It now opens at once from the data saved on your device, applies the latest prices from a small file, and fetches the full new file quietly in the background.",
-  "Shares its web address politely: the app no longer removes the offline files of your other apps at the same address (for example Saphal Manifest).",
+  "Opens instantly: the app no longer waits for GitHub each time you open it; it starts from the copy saved on your device (about 0.07 seconds instead of 2 or more on a slow connection). Updates still arrive in the background, and Update now installs them.",
+  "Shows your last data at once: the Dashboard and other pages appear immediately with what you saw last time, then refresh with the latest data a moment later.",
 ];
 
 declare const __BUILD__: string;

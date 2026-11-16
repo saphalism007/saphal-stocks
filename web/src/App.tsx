@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, lazy, Suspense, Fragment, type FormEvent } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { api, useApi } from "./lib/api.ts";
+import { api, useApi, lastSeen, rememberPath } from "./lib/api.ts";
 import { nptDate, num } from "./lib/format.ts";
 import { searchFeatures } from "../../shared/search.ts";
 import { I } from "./components/icons.tsx";
@@ -95,12 +95,16 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/settings", label: "Settings", icon: "settings" },
 ];
 
+const openedBefore = (() => { try { return localStorage.getItem("ss-opened") === "1"; } catch { return false; } })();
+onBackendEvent((e) => { if (e.type === "ready") { document.documentElement.dataset.backend = "ready"; try { localStorage.setItem("ss-opened", "1"); } catch { /* ignore */ } } });
 function BootScreen({ children }: { children: React.ReactNode }) {
   const [st, setSt] = useState(backendState);
   useEffect(() => onBackendEvent(() => setSt({ ...backendState })), []);
   // On phones page descriptions show two lines; tap to read the rest.
   useEffect(() => { const h = (e: MouseEvent) => { const p = (e.target as HTMLElement | null)?.closest?.(".page-head p"); if (p && !(e.target as HTMLElement).closest("a,button")) p.classList.toggle("open"); }; document.addEventListener("click", h); return () => document.removeEventListener("click", h); }, []);
-  if (!BROWSER_BACKEND || st.status === "ready") return <>{children}</>;
+  // A device that has opened the app before shows it at once (with the last data it saw); requests wait for
+  // the on-device database, which finishes starting in the background. Only the very first start shows this screen.
+  if (!BROWSER_BACKEND || st.status === "ready" || (st.status === "starting" && openedBefore)) return <>{children}</>;
   return (
     <div className="auth-wrap">
       <div className="card" style={{ width: "min(420px, 100%)", padding: 28, textAlign: "center" }}>
@@ -121,11 +125,11 @@ export function App() {
 }
 
 function AppInner() {
-  const [status, setStatus] = useState<{ setupRequired: boolean; user: User | null } | null>(null);
+  const [status, setStatus] = useState<{ setupRequired: boolean; user: User | null } | null>(() => lastSeen<{ setupRequired: boolean; user: User | null }>("/auth/status") ?? null);
   const [prefs, setPrefs] = useState<Prefs>(cachedPrefs);
   const [theme, setTheme] = useState(resolveTheme(prefs.theme));
   const [down, setDown] = useState(false);
-  const refresh = () => api<{ setupRequired: boolean; user: User | null }>("/auth/status").then((s) => { setDown(false); setStatus(s); }).catch(() => { setDown(true); setTimeout(() => void refresh(), 2500); });
+  const refresh = () => api<{ setupRequired: boolean; user: User | null }>("/auth/status").then((s) => { rememberPath("/auth/status", s); setDown(false); setStatus(s); }).catch(() => { setDown(true); setTimeout(() => void refresh(), 2500); });
   useEffect(() => { void refresh(); const h = () => setStatus((s) => (s ? { ...s, user: null } : s)); window.addEventListener("ss:unauthorized", h); return () => window.removeEventListener("ss:unauthorized", h); }, []);
   const save = (p: Prefs) => { setPrefs(p); setTheme(applyPrefs(p)); cachePrefs(p); void api("/settings/appearance", { method: "PUT", body: p }).catch(() => {}); };
   useEffect(() => { api<Partial<Prefs>>("/settings/appearance").then((r) => { if (r && Object.keys(r).length) { const p = { ...DEFAULT_PREFS, ...r }; setPrefs(p); setTheme(applyPrefs(p)); cachePrefs(p); } }).catch(() => {}); }, []);

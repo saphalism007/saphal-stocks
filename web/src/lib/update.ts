@@ -38,7 +38,8 @@ export async function update(): Promise<void> {
     try { await reg.update(); } catch { /* fall through */ }
     if (reg.installing || reg.waiting) await Promise.race([switched, new Promise<void>((res) => setTimeout(res, 8000))]);
   }
-  try { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); } catch { /* ignore */ }
+  // Only this app's own saved files: other apps share this web address (for example Saphal Manifest).
+  try { const keys = await caches.keys(); await Promise.all(keys.filter((k) => k.startsWith("saphal-stocks-")).map((k) => caches.delete(k))); } catch { /* ignore */ }
   location.reload();
 }
 

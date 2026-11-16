@@ -23,8 +23,31 @@ export async function api<T = unknown>(path: string, opts: { method?: string; bo
 
 // Recently viewed responses, so a page you come back to opens instantly with what you saw last,
 // then refreshes quietly in the background (stale while revalidate). Memory only, small.
+// Also kept on the device between launches, so the app opens instantly showing what you saw last time while
+// fresh data loads (small responses only, about 3 MB in total; never passwords or keys).
+const STORE = "ss-api-cache-v1", MAX_ENTRY = 400_000, MAX_TOTAL = 3_000_000;
 const recent = new Map<string, unknown>();
-const remember = (k: string, v: unknown) => { recent.delete(k); recent.set(k, v); if (recent.size > 80) recent.delete(recent.keys().next().value as string); };
+const sizes = new Map<string, number>();
+try { const saved = JSON.parse(localStorage.getItem(STORE) || "null") as [string, unknown][] | null; if (Array.isArray(saved)) for (const [k, v] of saved) { recent.set(k, v); sizes.set(k, JSON.stringify(v).length); } } catch { /* fresh start */ }
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+const saveSoon = () => {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    let total = 0; const keep: [string, unknown][] = [];
+    for (const [k, v] of [...recent.entries()].reverse()) { const n = sizes.get(k) ?? 0; if (n > MAX_ENTRY || total + n > MAX_TOTAL) continue; total += n; keep.push([k, v]); }
+    try { localStorage.setItem(STORE, JSON.stringify(keep.reverse())); } catch { /* storage full: skip */ }
+  }, 1500);
+};
+const remember = (k: string, v: unknown) => {
+  recent.delete(k); recent.set(k, v); if (recent.size > 80) { const old = recent.keys().next().value as string; recent.delete(old); sizes.delete(old); }
+  if (/^\/(auth\/(password|sessions)|vault|account|settings\/ai|backups)/.test(k)) return; // never kept on the device
+  sizes.set(k, JSON.stringify(v).length); saveSoon();
+};
+/** Save a response fetched outside useApi, so it is there instantly next launch. */
+export function rememberPath(path: string, v: unknown) { remember(path, v); }
+/** Last saved copy of a GET response, for instant first paint. */
+export function lastSeen<T>(path: string): T | undefined { return recent.get(path) as T | undefined; }
 
 /** Fetch-on-mount hook with reload. Shows the last copy at once and refreshes in the background. */
 export function useApi<T>(path: string | null, deps: unknown[] = []) {

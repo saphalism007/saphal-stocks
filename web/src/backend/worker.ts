@@ -216,9 +216,9 @@ async function boot() {
     try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); }
     post({ type: "data-updated", message: "Applied the latest prices.", market, at: new Date().toISOString() });
   }).catch(() => undefined);
-  try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); }
-  await persist();
   post({ type: "ready", market });
+  // Alert checks and the save to device storage run just after the app is ready, so opening never waits on them.
+  setTimeout(() => { try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); } void persist(); }, 1200);
   // While the app is open, look for new data: every minute from pre-open to after the close (about 10:25 AM to 3:30 PM
   // Nepal time), otherwise every 5 minutes (next day's snapshot).
   const marketHours = () => { const npt = new Date(Date.now() + 345 * 60_000), m = npt.getUTCHours() * 60 + npt.getUTCMinutes(); return m >= 10 * 60 + 25 && m <= 15 * 60 + 30; };

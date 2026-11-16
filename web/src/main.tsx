@@ -13,7 +13,7 @@ if ("serviceWorker" in navigator && import.meta.env.PROD && BROWSER_BACKEND) {
 } else if ("serviceWorker" in navigator) {
   // The Mac server version always loads fresh from this computer: remove any offline copy left behind.
   void navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => void r.unregister())).catch(() => {});
-  if ("caches" in window) void caches.keys().then((ks) => ks.forEach((k) => void caches.delete(k))).catch(() => {});
+  if ("caches" in window) void caches.keys().then((ks) => ks.filter((k) => k.startsWith("saphal-stocks-")).forEach((k) => void caches.delete(k))).catch(() => {});
 }
 if (import.meta.env.DEV) (window as unknown as { saphalApi: typeof api }).saphalApi = api;
 
