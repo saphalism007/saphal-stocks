@@ -7,6 +7,10 @@ import { startBackend, BROWSER_BACKEND } from "./lib/backend.ts";
 import { applyPrefs, cachedPrefs } from "./lib/prefs.ts";
 import { api } from "./lib/api.ts";
 
+// Fonts were fetched without blocking the first paint; switch them on now.
+const fonts = document.getElementById("ss-fonts") as HTMLLinkElement | null;
+if (fonts) fonts.media = "all";
+
 startBackend();
 if ("serviceWorker" in navigator && import.meta.env.PROD && BROWSER_BACKEND) {
   window.addEventListener("load", () => { navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => {}); });

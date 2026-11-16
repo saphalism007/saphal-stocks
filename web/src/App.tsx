@@ -49,6 +49,19 @@ const Start = lazy(() => import("./pages/Start.tsx"));
 const Terminal = lazy(() => import("./pages/Terminal.tsx"));
 const Indicators = lazy(() => import("./pages/Indicators.tsx"));
 
+// Start fetching the page being opened together with the app code, instead of only after the first render.
+{
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  let p = location.pathname.startsWith(base) ? location.pathname.slice(base.length) || "/" : location.pathname;
+  if (p === "/") { try { const l = cachedPrefs().landing; if (l && !sessionStorage.getItem("ss-landed")) p = l; } catch { /* ignore */ } }
+  const first: Record<string, () => Promise<unknown>> = {
+    "": () => import("./pages/Overview.tsx"), terminal: () => import("./pages/Terminal.tsx"), portfolio: () => import("./pages/Portfolio.tsx"),
+    market: () => import("./pages/Market.tsx"), watchlist: () => import("./pages/Watchlist.tsx"), analyst: () => import("./pages/Analyst.tsx"),
+    stocks: () => (p.split("/")[2] ? import("./pages/StockDetail.tsx") : import("./pages/Stocks.tsx")), indicators: () => import("./pages/Indicators.tsx"),
+  };
+  void first[p.split("/")[1] ?? ""]?.().catch(() => {});
+}
+
 interface User { id: number; username: string }
 const ThemeCtx = createContext<{ theme: string; toggle: () => void }>({ theme: "dark", toggle: () => {} });
 export const useTheme = () => useContext(ThemeCtx);

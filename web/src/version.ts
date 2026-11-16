@@ -5,11 +5,11 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.21.6";
+export const VERSION = "0.21.7";
 export const RELEASED = "2026-11-16";
 export const NOTES = [
-  "Opens instantly: the app no longer waits for GitHub each time you open it; it starts from the copy saved on your device (about 0.07 seconds instead of 2 or more on a slow connection). Updates still arrive in the background, and Update now installs them.",
-  "Shows your last data at once: the Dashboard and other pages appear immediately with what you saw last time, then refresh with the latest data a moment later.",
+  "No more white screen when opening: the Saphal Stocks logo shows from the very first moment on iPhone, iPad and Mac, until the app appears.",
+  "Opens even faster: the page you open loads together with the app instead of after it, and fonts no longer hold up the first screen.",
 ];
 
 declare const __BUILD__: string;

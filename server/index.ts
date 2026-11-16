@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import cookieParser from "cookie-parser";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { ZodError } from "zod";
 import { config, ROOT } from "./config.ts";
@@ -19,6 +20,14 @@ import { dailyBackup } from "./lib/backup.ts";
 
 seedReference();
 
+// The page's small inline start-up script (sets light or dark before the first paint) is allowed by its exact hash.
+const inlineHashes = (() => {
+  try {
+    const html = readFileSync(join(ROOT, "dist", "index.html"), "utf8");
+    return [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => ` 'sha256-${createHash("sha256").update(m[1]).digest("base64")}'`).join("");
+  } catch { return ""; }
+})();
+
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", "loopback");
@@ -27,7 +36,7 @@ app.use((_req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  if (config.isProd) res.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self'; frame-ancestors 'none'");
+  if (config.isProd) res.setHeader("Content-Security-Policy", `default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'${inlineHashes}; connect-src 'self'; frame-ancestors 'none'`);
   next();
 });
 app.use(express.json({ limit: "3mb" }));
