@@ -16,6 +16,20 @@
     <!-- Paint the app colour and logo in the very first frame, before any other file arrives. -->
     <script>
       try { var t = (JSON.parse(localStorage.getItem("ss-prefs") || "{}").theme) || "auto"; if (t === "auto") t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"; document.documentElement.dataset.theme = t; } catch (e) {}
+      // Self-repair: if a saved copy of the app points at files that no longer exist, clear this app's saved copy once and reload fresh.
+      (function () {
+        var healed = false;
+        function heal() {
+          if (healed || document.documentElement.dataset.app) return; healed = true;
+          try { if (sessionStorage.getItem("ss-heal")) return; sessionStorage.setItem("ss-heal", "1"); } catch (e) {}
+          var jobs = [];
+          try { jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf("saphal-stocks-") === 0; }).map(function (k) { return caches.delete(k); })); })); } catch (e) {}
+          try { jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.filter(function (r) { return r.scope.indexOf(location.origin + "%BASE_URL%") === 0; }).map(function (r) { return r.unregister(); })); })); } catch (e) {}
+          Promise.all(jobs).then(function () { location.reload(); }, function () { location.reload(); });
+        }
+        addEventListener("error", function (e) { var t = e.target; if (t && (t.tagName === "SCRIPT" || (t.tagName === "LINK" && /modulepreload|stylesheet/.test(t.rel) && t.id !== "ss-fonts"))) heal(); }, true);
+        setTimeout(heal, 20000);
+      })();
     </script>
     <style>
       html, body { margin: 0; background: #070b14; }

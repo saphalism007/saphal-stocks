@@ -11,6 +11,9 @@ import { api } from "./lib/api.ts";
 const fonts = document.getElementById("ss-fonts") as HTMLLinkElement | null;
 if (fonts) fonts.media = "all";
 
+document.documentElement.dataset.app = "1"; // the app code loaded (stops the start-up self-repair)
+try { sessionStorage.removeItem("ss-heal"); } catch { /* ignore */ }
+
 startBackend();
 if ("serviceWorker" in navigator && import.meta.env.PROD && BROWSER_BACKEND) {
   window.addEventListener("load", () => { navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => {}); });
