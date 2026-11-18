@@ -29,11 +29,15 @@ export default {
     if (!inSession()) return;
     try { await refresh(env); } catch (e) { await env.LIVE.put("error", `${new Date().toISOString()} ${e instanceof Error ? e.message : e}`, { expirationTtl: 86_400 }); }
   },
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }): Promise<Response> {
     const url = new URL(req.url), origin = req.headers.get("Origin");
     if (req.method === "OPTIONS") return new Response(null, { headers: { ...cors(origin), "Access-Control-Allow-Methods": "GET", "Access-Control-Max-Age": "86400" } });
     if (url.pathname === "/live.json") {
       let body = await env.LIVE.get("live");
+      // Backup for the timer: during the session, if the stored prices are over 90 seconds old, refresh them now
+      // (the device gets the stored copy at once; the next request gets the new one).
+      const age = body ? Date.now() - Date.parse((JSON.parse(body) as RelayFile).fetchedAt) : Infinity;
+      if (body && inSession() && age > 90_000) ctx.waitUntil(refresh(env).catch((e) => env.LIVE.put("error", `${new Date().toISOString()} ${e instanceof Error ? e.message : e}`, { expirationTtl: 86_400 })));
       // First use, or nothing stored yet: fetch once now (at most once a minute, by the stored time).
       if (!body) { try { await refresh(env); body = await env.LIVE.get("live"); } catch { /* fall through */ } }
       if (!body) return new Response(JSON.stringify({ error: "No live prices yet" }), { status: 503, headers: { "Content-Type": "application/json", ...cors(origin) } });
