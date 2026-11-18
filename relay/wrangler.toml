@@ -1,0 +1,14 @@
+# Saphal Stocks live-price relay (Cloudflare Workers, free plan).
+# About once a minute during NEPSE hours it reads ShareSansar's live-trading page and keeps the result in KV;
+# every device then reads it from https://<this worker>/live.json. One fetch per minute, whatever the number of devices.
+name = "saphal-stocks-live"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+
+# Every minute, 05:00 to 09:59 UTC (10:45 to 15:44 Nepal time), Monday to Friday. The code narrows this to the session.
+[triggers]
+crons = ["* 5-9 * * MON-FRI"]
+
+[[kv_namespaces]]
+binding = "LIVE"
+id = "3879ebd0f46446c5b3eb7a2a3d1c8e02"

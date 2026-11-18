@@ -71,11 +71,12 @@ export function applyQuotes(db: Db, p: string, live: LiveFile): boolean {
       db.run(`INSERT INTO ${p}quotes (symbol, date, open, high, low, close, ltp, prev_close, change, change_pct, vwap, volume, turnover, trades, high52, low52, fetched_at, source)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'live') ON CONFLICT(symbol) DO UPDATE SET date = excluded.date, open = excluded.open, high = excluded.high, low = excluded.low,
            close = excluded.close, ltp = excluded.ltp, prev_close = excluded.prev_close, change = excluded.change, change_pct = excluded.change_pct, vwap = excluded.vwap, volume = excluded.volume,
-           turnover = excluded.turnover, trades = excluded.trades, high52 = excluded.high52, low52 = excluded.low52, fetched_at = excluded.fetched_at, source = 'live'`,
+           turnover = excluded.turnover, trades = excluded.trades, high52 = COALESCE(excluded.high52, quotes.high52), low52 = COALESCE(excluded.low52, quotes.low52), fetched_at = excluded.fetched_at, source = 'live'`,
         v("symbol"), live.asOf, v("open"), v("high"), v("low"), v("close"), v("ltp"), v("prev_close"), v("change"), v("change_pct"), v("vwap"), v("volume"), v("turnover"), v("trades"), v("high52"), v("low52"), live.generatedAt);
       if (Number(v("volume")) > 0 && v("close") != null) {
         db.run(`INSERT INTO ${p}prices (symbol, date, open, high, low, close, volume, amount, trades, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'live')
-             ON CONFLICT(symbol, date) DO UPDATE SET open = excluded.open, high = excluded.high, low = excluded.low, close = excluded.close, volume = excluded.volume, amount = excluded.amount, trades = excluded.trades`,
+             ON CONFLICT(symbol, date) DO UPDATE SET open = excluded.open, high = excluded.high, low = excluded.low, close = excluded.close, volume = excluded.volume, amount = excluded.amount, trades = excluded.trades
+             WHERE prices.source = 'live'`, // never overwrite the official closing data
           v("symbol"), live.asOf, v("open") ?? v("close"), v("high") ?? v("close"), v("low") ?? v("close"), v("close"), v("volume"), v("turnover"), v("trades"));
       }
     }
@@ -84,3 +85,24 @@ export function applyQuotes(db: Db, p: string, live: LiveFile): boolean {
   });
   return true;
 }
+
+/** Today's index values during the session (from the live-trading page). A day's official index data replaces them. */
+export function applyLiveIndices(db: Db, p: string, asOf: string, indices: { id: number | null; name: string; value: number; changePct: number | null; turnover: number | null }[]): number {
+  let n = 0;
+  db.tx(() => {
+    for (const x of indices) {
+      if (x.id == null) continue;
+      const prev = db.get<{ close: number }>(`SELECT close FROM ${p}indices WHERE index_id = ? AND date < ? ORDER BY date DESC LIMIT 1`, x.id, asOf);
+      const change = prev ? Math.round((x.value - prev.close) * 100) / 100 : null;
+      db.run(`INSERT INTO ${p}indices (index_id, name, date, open, high, low, close, change, change_pct, turnover, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'live')
+              ON CONFLICT(index_id, date) DO UPDATE SET high = MAX(indices.high, excluded.close), low = MIN(indices.low, excluded.close), close = excluded.close,
+              change = excluded.change, change_pct = excluded.change_pct, turnover = COALESCE(excluded.turnover, indices.turnover) WHERE indices.source = 'live'`,
+        x.id, x.name, asOf, prev?.close ?? x.value, Math.max(x.value, prev?.close ?? x.value), Math.min(x.value, prev?.close ?? x.value), x.value, change, x.changePct, x.turnover);
+      n++;
+    }
+  });
+  return n;
+}
+
+/** The relay's file (relay/): live quotes plus today's index values. */
+export interface RelayFile { fetchedAt: string; asOf: string; time: string; marketOpen: boolean | null; quotes: LiveFile; indices: { id: number | null; name: string; value: number; changePct: number | null; turnover: number | null }[] }

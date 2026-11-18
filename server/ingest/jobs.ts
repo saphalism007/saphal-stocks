@@ -541,10 +541,11 @@ export function startIntradayPoller(intervalMin = Number(process.env.INTRADAY_RE
     if (n.minutes >= OPEN - 30 && n.minutes < OPEN && getSetting<string>("lastPreopenNews", "") !== n.date) { setSetting("lastPreopenNews", n.date); enqueue("news", () => syncNews()); return; }
     if (n.minutes < OPEN || n.minutes > CLOSE + 10) return;
     const f = get<{ last_success_at: string; as_of: string }>("SELECT last_success_at, as_of FROM data_freshness WHERE dataset = 'prices_latest'");
-    if (f && Date.now() - Date.parse(f.last_success_at) < intervalMin * 60_000) return;
+    if (f && Date.now() - Date.parse(f.last_success_at) < Math.min(intervalMin, 1) * 60_000) return;
     // If by 11:45 the source still shows an older trading date, treat today as a holiday and stop polling.
     if (f && n.minutes > OPEN + 45 && f.as_of !== n.date && Date.now() - Date.parse(f.last_success_at) < 20 * 60_000) { holidayDate = n.date; console.log(`[intraday] no trading detected on ${n.date}; polling paused for today`); return; }
-    enqueue("listing", (s) => syncListing(s));
+    // During the session: live prices (the end-of-day page used by the daily update only changes after the close).
+    enqueue("live", async (s) => { const { syncLive } = await import("../lib/published.ts"); const m = await syncLive(); if (s && m) s.message = m; if (m) console.log(`[intraday] ${m}`); return m ? 1 : 0; });
   }, 60_000);
 }
 

@@ -5,15 +5,12 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.22.1";
+export const VERSION = "0.23.0";
 export const RELEASED = "2026-11-18";
 export const NOTES = [
-  "Never silently out of date: if this device is missing the last trading day, the market badge at the top says so in orange with the date it has; tap it to fetch the latest prices at once.",
-  "Daily data always arrives: every device now fills in any missed trading days from a small file (about 150 KB) within seconds of opening, even on a slow connection while the full daily file is still downloading.",
-  "Screens update by themselves: when new prices arrive, or when you come back to the app, the page you are on refreshes without you moving to another page.",
-  "Mac version catches up at once: it takes the latest published prices from the cloud within a second of starting, and refreshes prices, history and indices right away instead of waiting.",
-  "Downloads that stall (for example when the phone app goes to the background) now continue from where they stopped.",
-  "Calendar: 30 Kartik (16 Nov) was a public holiday after Chhath, so there was no trading that day.",
+  "Live prices during market hours on every device: a small relay on Cloudflare reads ShareSansar's live-trading page about once a minute and every device (iPhone, iPad, Mac) shows those prices, about 1 to 2 minutes behind the market. No Mac needs to be running.",
+  "Live index values too: NEPSE and all 16 sub-indices update through the session.",
+  "Fixed: during the day the app used a page that only changes after the close, so 'live' prices were really the previous day's. It now uses the live-trading page. The official closing prices still replace the live ones each evening.",
 ];
 
 declare const __BUILD__: string;

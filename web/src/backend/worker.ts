@@ -15,7 +15,8 @@ import { aiRouter } from "../../../server/routes/ai.ts";
 import { wealthRouter } from "../../../server/routes/wealth.ts";
 import { evaluateAlerts } from "../../../server/lib/alerts.ts";
 import { idbGet, idbSet, idbDel } from "./idb.ts";
-import { applyLive, applyRecentDays, forgetLive } from "./live.ts";
+import { applyLive, applyRecentDays, applyRelay, forgetLive } from "./live.ts";
+import { inLiveSession } from "../../../shared/liveTrading.ts";
 
 const post = (m: unknown, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(m, transfer);
 const BASE = (import.meta.env.BASE_URL || "/").replace(/\/?$/, "/");
@@ -155,14 +156,15 @@ hooks.checkForUpdate = (force) => (checking ??= checkOnce(force).finally(() => {
 async function checkOnce(force: boolean) {
   // The small files first (missed trading days, then the latest prices), so new data shows within seconds even
   // when the big daily file is slow to download on a phone connection.
-  const days0 = await applyRecentDays(BASE);
-  const live0 = await applyLive(BASE);
+  const days0 = await applyRecentDays(BASE, force);
+  const pub0 = await applyLive(BASE), relay0 = inLiveSession() ? await applyRelay() : false; // the relay is newer during the session
+  const live0 = pub0 || relay0;
   if (days0 || live0) { await refreshed(); post({ type: "data-updated", message: days0 ? "Added the latest trading days." : "Applied the latest prices.", market, at: new Date().toISOString() }); }
   const before = market.version;
   await loadMarket(force).catch((e) => { console.warn("[market]", e); });
   const updated = market.version !== before;
   let days = days0, live = live0;
-  if (updated) { forgetLive(); days = (await applyRecentDays(BASE)) || days0; live = (await applyLive(BASE)) || live0; await refreshed(); post({ type: "data-updated", message: `Loaded market data as of ${latestDate() ?? market.asOf}.`, market, at: new Date().toISOString() }); }
+  if (updated) { forgetLive(); days = (await applyRecentDays(BASE, true)) || days0; const pub = await applyLive(BASE), rel = inLiveSession() ? await applyRelay() : false; live = pub || rel || live0; await refreshed(); post({ type: "data-updated", message: `Loaded market data as of ${latestDate() ?? market.asOf}.`, market, at: new Date().toISOString() }); }
   const fresh = updated || days || live;
   const asOf = latestDate() ?? market.asOf;
   return { updated: fresh, version: market.version, asOf, message: updated ? `Loaded market data as of ${asOf}.` : days ? `Added the latest trading days (data as of ${asOf}).` : live ? "Applied the latest intraday prices." : `Already up to date (data as of ${asOf}).` };
@@ -247,7 +249,8 @@ async function boot() {
   // Missed trading days, then the latest prices and news (small files), load in the background so opening never waits on the network.
   void (async () => {
     const days = await applyRecentDays(BASE).catch(() => false);
-    const live = await applyLive(BASE).catch(() => false);
+    const pub = await applyLive(BASE).catch(() => false), rel = inLiveSession() ? await applyRelay().catch(() => false) : false;
+    const live = pub || rel;
     if (!days && !live) return;
     await refreshed();
     post({ type: "data-updated", message: days ? "Added the latest trading days." : "Applied the latest prices.", market, at: new Date().toISOString() });
