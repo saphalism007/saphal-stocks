@@ -142,6 +142,12 @@ marketRouter.post("/backtest", (req, res) => {
   res.json(r);
 });
 
+// Every listed company with its latest price: the symbol picker on Portfolio and elsewhere (small, cached on the device).
+marketRouter.get("/symbols", (_req, res) => {
+  res.json(all(`SELECT c.symbol, c.name, c.sector, q.ltp, q.close, q.change_pct changePct, q.date FROM companies c LEFT JOIN quotes q ON q.symbol = c.symbol
+    WHERE c.status = 'active' ORDER BY c.symbol`));
+});
+
 marketRouter.get("/search", (req, res) => {
   const q = String(req.query.q || "").trim().toUpperCase();
   if (!q) return res.json([]);

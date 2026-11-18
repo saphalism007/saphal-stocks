@@ -5,13 +5,13 @@ import { adjustForBonus, adjustForRights } from "../../shared/adjust.ts";
 import { generateSetups, technicalSnapshot } from "../../shared/signals.ts";
 import { analyzeFundamentals, type QuarterReport, type FundamentalAnalysis } from "../../shared/fundamentals.ts";
 import { annualisedVolatility, type StockFactors } from "../../shared/ranking.ts";
-import { DEFAULT_FEES, type FeeConfig } from "../../shared/costs.ts";
+import { DEFAULT_FEES, CGT_SCHEDULE, type FeeConfig } from "../../shared/costs.ts";
 import { sma } from "../../shared/indicators.ts";
 
 export const fees = (): FeeConfig => {
   const saved = { ...getSetting<Partial<FeeConfig>>("fees", {}) };
-  // Saved settings from before FY 2083/84 still carry the old CGT (7.5% / 5%): use the current law instead.
-  if (saved.cgtShortTerm === 0.075 && saved.cgtLongTerm === 0.05) { delete saved.cgtShortTerm; delete saved.cgtLongTerm; }
+  // Saved settings that only repeat an official CGT schedule follow the law by date instead of freezing an old rate.
+  if (CGT_SCHEDULE.some((r) => r.short === saved.cgtShortTerm && r.long === saved.cgtLongTerm)) { delete saved.cgtShortTerm; delete saved.cgtLongTerm; }
   return { ...DEFAULT_FEES, ...saved };
 };
 

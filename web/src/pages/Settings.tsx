@@ -157,7 +157,7 @@ function FeesTab() {
         <div className="form-grid">
           <label className="field">Minimum commission (Rs.)<NumInput className="input" value={f.minCommission} onChange={(e) => setF({ ...f, minCommission: e.target.value })} /></label>
           <label className="field">SEBON fee %<NumInput className="input" step="0.001" value={+(f.sebonFeeRate * 100).toFixed(4)} onChange={(e) => setF({ ...f, sebonFeeRate: +e.target.value / 100 })} /></label>
-          <label className="field">DP charge per scrip sold (Rs.)<NumInput className="input" value={f.dpChargePerScrip} onChange={(e) => setF({ ...f, dpChargePerScrip: e.target.value })} /></label>
+          <label className="field">DP charge per company, buy and sell (Rs.)<NumInput className="input" value={f.dpChargePerScrip} onChange={(e) => setF({ ...f, dpChargePerScrip: e.target.value })} /></label>
           <label className="field">CGT, held up to threshold %<NumInput className="input" step="0.5" value={+(f.cgtShortTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtShortTerm: +e.target.value / 100 })} /></label>
           <label className="field">CGT, held longer %<NumInput className="input" step="0.5" value={+(f.cgtLongTerm * 100).toFixed(2)} onChange={(e) => setF({ ...f, cgtLongTerm: +e.target.value / 100 })} /></label>
           <label className="field">Long-term threshold (days)<NumInput className="input" value={f.holdingDaysForLongTerm} onChange={(e) => setF({ ...f, holdingDaysForLongTerm: e.target.value })} /></label>

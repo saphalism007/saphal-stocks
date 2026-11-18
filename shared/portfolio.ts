@@ -60,7 +60,7 @@ export function chargesFor(tx: Transaction, cfg: FeeConfig = DEFAULT_FEES) {
   if (tx.type === "buy") {
     const c = buyCost(tx.quantity, tx.price, cfg);
     const commission = tx.commission ?? c.commission;
-    const other = tx.otherCharges ?? c.sebonFee;
+    const other = tx.otherCharges ?? c.sebonFee + c.dpCharge;
     return { commission, other, total: commission + other };
   }
   if (tx.type === "sell") {

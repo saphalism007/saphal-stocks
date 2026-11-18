@@ -953,3 +953,43 @@ button, a, .chip, .btn, [role="button"], input, select, label { touch-action: ma
 .term-zoom button, .term-zoom select { border: 1px solid var(--border); background: var(--panel); color: var(--text-2); font-size: 12px; padding: 2px 9px; border-radius: 6px; cursor: pointer; line-height: 1.4; }
 .term-zoom button:hover, .term-zoom select:hover { color: var(--text); border-color: var(--accent); }
 .term-zoom select { padding: 2px 4px; }
+
+/* Company picker (SymbolPicker) */
+.sympick { position: relative; min-width: 0; }
+.sympick > .input { width: 100%; }
+.sympick-name { margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sympick-list { position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 4px); min-width: 300px; max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg-2); border: 1px solid var(--border-2); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35); padding: 4px; }
+.sympick-row { display: grid; grid-template-columns: 70px 1fr auto; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; border-radius: 7px; background: none; border: 0; color: inherit; cursor: pointer; min-height: 44px; }
+.sympick-row.on { background: var(--accent-soft); }
+.sympick-co { display: flex; flex-direction: column; min-width: 0; }
+.sympick-co > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sympick-px { text-align: right; white-space: nowrap; }
+.sympick-empty { padding: 10px; }
+
+/* Transaction form */
+.seg { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; }
+.seg-btn { flex: 1 1 auto; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 7px; background: none; color: var(--text-2); font-weight: 600; font-size: 13px; cursor: pointer; }
+.seg-btn.on { background: var(--accent-soft); color: var(--accent); }
+.seg-btn.sell.on { background: rgba(248, 113, 113, 0.14); color: var(--down); }
+.tx-co { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2); }
+.tx-bill { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; background: var(--panel); }
+.tx-bill-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; font-size: 13px; margin-bottom: 2px; }
+.tx-bill-sub { border-top: 1px dashed var(--border-2); padding-top: 5px; }
+.tx-bill-total { border-top: 1px solid var(--border-2); padding-top: 6px; font-size: 14px; }
+
+/* Portfolio */
+.hold-cards { display: none; flex-direction: column; gap: 8px; padding: 10px; }
+.hold-card { display: flex; flex-direction: column; gap: 5px; text-align: left; width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2); color: inherit; cursor: pointer; }
+.hold-card:active { border-color: var(--accent); }
+.alloc { display: flex; align-items: center; gap: 14px; width: 100%; }
+.alloc svg { flex: 0 0 auto; }
+.alloc-legend { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.alloc-item { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; }
+.alloc-item i { width: 9px; height: 9px; border-radius: 3px; }
+.alloc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) { .hold-cards.show-phone { display: flex; } }
+/* While a form or dialog is open, the phone tab bar and the AI button step aside so nothing covers it. */
+body:has(.modal-bg) .bottombar, body:has(.modal-bg) .ai-fab { display: none !important; }
+/* Phone: the dialog's buttons stay in view at the bottom while you scroll the form. */
+@media (max-width: 760px) { .modal > .card-head:last-child { position: sticky; bottom: 0; background: var(--panel); z-index: 2; } }

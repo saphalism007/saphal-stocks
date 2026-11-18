@@ -96,18 +96,22 @@ describe("Nepal costs", () => {
     const b = buyCost(100, 500); // 50,000
     expect(b.commission).toBeCloseTo(180, 6);
     expect(b.sebonFee).toBeCloseTo(7.5, 6);
-    expect(b.net).toBeCloseTo(50187.5, 6);
+    expect(b.dpCharge).toBe(25); // CDSC DP charge applies to purchases too
+    expect(b.net).toBeCloseTo(50212.5, 6);
     const s = sellCost(100, 600); // 60,000 -> 0.33%
     expect(s.commission).toBeCloseTo(198, 6);
     expect(s.dpCharge).toBe(25);
     expect(s.net).toBeCloseTo(60000 - 198 - 9 - 25, 6);
-    expect(cgtRate(100)).toBe(0.1); // Finance Act 2083
-    expect(cgtRate(400)).toBe(0.075);
-    expect(cgtRate(100, "individual", undefined, "2026-03-01")).toBe(0.075); // sold before FY 2083/84
+    expect(cgtRate(100, "individual", undefined, "2026-11-18")).toBe(0.05); // from 22 Sep 2026 (Gazette)
+    expect(cgtRate(400, "individual", undefined, "2026-11-18")).toBe(0.0375);
+    expect(cgtRate(100, "individual", undefined, "2026-08-10")).toBe(0.1); // 17 Jul to 21 Sep 2026
+    expect(cgtRate(400, "individual", undefined, "2026-09-21")).toBe(0.075);
+    expect(cgtRate(100, "individual", undefined, "2026-03-01")).toBe(0.075); // before FY 2083/84
     expect(cgtRate(400, "individual", undefined, "2026-03-01")).toBe(0.05);
+    expect(cgtRate(100, "individual", { ...DEFAULT_FEES, cgtShortTerm: 0.08 }, "2026-11-18")).toBe(0.08); // your own rate in Settings wins
     const rt = roundTrip(100, 500, 600, 100);
     expect(rt.grossGain).toBeCloseTo(s.net - b.net, 6);
-    expect(rt.cgt).toBeCloseTo(rt.grossGain * 0.1, 6);
+    expect(rt.cgt).toBeCloseTo(rt.grossGain * 0.05, 6); // a sale today: 5% when held 365 days or less
     expect(rt.breakevenPrice).toBeGreaterThan(500);
     expect(rt.breakevenPrice).toBeLessThan(505);
   });
@@ -128,7 +132,7 @@ describe("portfolio WACC", () => {
     );
     const h = s.holdings[0];
     expect(h.quantity).toBe(60);
-    const wacc = (50187.5 + 1000) / 110;
+    const wacc = (50212.5 + 1000) / 110;
     expect(h.wacc).toBeCloseTo(wacc, 6);
     expect(h.costBasis).toBeCloseTo(wacc * 60, 4);
     const proceeds = 35000 - (35000 * 0.0036 + 35000 * 0.00015 + 25); // Rs. 35,000 is in the 0.36% slab

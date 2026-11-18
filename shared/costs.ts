@@ -11,7 +11,8 @@ export interface FeeConfig {
   commissionSlabs: CommissionSlab[];
   minCommission: number; // Rs.
   sebonFeeRate: number; // fraction of transaction value
-  dpChargePerScrip: number; // Rs., charged by the DP on each scrip sold (per day)
+  dpChargePerScrip: number; // Rs., CDSC/DP transfer charge per company per settlement
+  dpOnBuy?: boolean; // the DP charge also applies to purchases (CDSC clearing FAQ); true by default
   nameTransferFee: number; // Rs., not applied by default
   cgtShortTerm: number; // individuals, held <= 365 days
   cgtLongTerm: number; // individuals, held > 365 days
@@ -22,7 +23,7 @@ export interface FeeConfig {
 }
 
 export const DEFAULT_FEES: FeeConfig = {
-  verifiedOn: "2026-11-08 (please re-check)",
+  verifiedOn: "2026-11-18",
   commissionSlabs: [
     { upTo: 50_000, rate: 0.0036 },
     { upTo: 500_000, rate: 0.0033 },
@@ -33,17 +34,18 @@ export const DEFAULT_FEES: FeeConfig = {
   minCommission: 10,
   sebonFeeRate: 0.00015,
   dpChargePerScrip: 25,
+  dpOnBuy: true,
   nameTransferFee: 5,
-  cgtShortTerm: 0.1, // Finance Act 2083 (FY 2083/84): 10% if held 365 days or less
-  cgtLongTerm: 0.075, // 7.5% if held longer (was 7.5% / 5% until FY 2082/83)
+  cgtShortTerm: 0.05, // from 22 Sep 2026 (Nepal Gazette): 5% if held 365 days or less
+  cgtLongTerm: 0.0375, // and 3.75% if held longer
   cgtInstitution: 0.1,
   dividendTax: 0.05,
   holdingDaysForLongTerm: 365,
   notes: [
     "Broker commission is charged on the whole transaction value at the slab rate for that value, with a Rs. 10 minimum.",
     "SEBON regulatory fee: 0.015% of transaction value, on both buy and sell.",
-    "DP charge: Rs. 25 per scrip per day on the selling side (CDSC/DP).",
-    "Capital gains tax for individuals on listed shares (Finance Act 2083, from FY 2083/84): 10% if held 365 days or less, 7.5% if held longer, deducted at sale. Until FY 2082/83 it was 7.5% / 5%.",
+    "DP charge: Rs. 25 per company per settlement, on purchases and on sales (CDSC clearing and settlement FAQ). Several purchases of the same company settled together pay it once.",
+    "Capital gains tax for resident individuals on listed shares: 5% if held 365 days or less, 3.75% if held longer, from 22 September 2026 (Cabinet decision published in the Nepal Gazette). From 17 July to 21 September 2026 it was 10% / 7.5%; before that 7.5% / 5%. Each sale uses the rate in force on its date. Deducted at settlement.",
     "Dividend tax: 5% final withholding on cash dividend and on bonus shares (on face value).",
     "Rates change with SEBON directives and the annual budget. Verify on sebon.gov.np, nepalstock.com and ird.gov.np.",
   ],
@@ -68,8 +70,9 @@ export function buyCost(qty: number, price: number, cfg: FeeConfig = DEFAULT_FEE
   const amount = qty * price;
   const commission = brokerCommission(amount, cfg);
   const sebonFee = amount * cfg.sebonFeeRate;
-  const total = commission + sebonFee;
-  return { amount, commission, sebonFee, dpCharge: 0, total, net: amount + total };
+  const dpCharge = cfg.dpOnBuy === false ? 0 : cfg.dpChargePerScrip;
+  const total = commission + sebonFee + dpCharge;
+  return { amount, commission, sebonFee, dpCharge, total, net: amount + total };
 }
 
 export function sellCost(qty: number, price: number, cfg: FeeConfig = DEFAULT_FEES): TradeCost {
@@ -81,13 +84,24 @@ export function sellCost(qty: number, price: number, cfg: FeeConfig = DEFAULT_FE
   return { amount, commission, sebonFee, dpCharge, total, net: amount - total };
 }
 
-/** FY 2083/84 began on 1 Shrawan 2083 (17 July 2026); sales before that were taxed at the old 7.5% / 5%. */
+/** Capital gains tax for resident individuals on listed shares, by the date of sale. */
+export const CGT_SCHEDULE: { from: string; short: number; long: number; basis: string }[] = [
+  { from: "0000-00-00", short: 0.075, long: 0.05, basis: "Until FY 2082/83" },
+  { from: "2026-07-17", short: 0.1, long: 0.075, basis: "Finance Act 2083 (FY 2083/84)" },
+  { from: "2026-09-22", short: 0.05, long: 0.0375, basis: "Cabinet decision, Nepal Gazette 22 Sep 2026" },
+];
+/** Kept for older callers: the date the FY 2083/84 rates began. */
 export const CGT_CHANGE_DATE = "2026-07-17";
+export const cgtScheduleOn = (date: string) => [...CGT_SCHEDULE].reverse().find((r) => date >= r.from) ?? CGT_SCHEDULE[0];
+/** True when the configured rates are one of the official schedules (not rates the user typed in Settings). */
+export const isOfficialCgt = (cfg: FeeConfig) => CGT_SCHEDULE.some((r) => r.short === cfg.cgtShortTerm && r.long === cfg.cgtLongTerm);
+
 export function cgtRate(holdingDays: number, investor: "individual" | "institution" = "individual", cfg: FeeConfig = DEFAULT_FEES, saleDate?: string) {
   if (investor === "institution") return cfg.cgtInstitution;
-  // Past sales keep the rate of their time unless you set your own rates in Settings.
-  if (saleDate && saleDate < CGT_CHANGE_DATE && cfg.cgtShortTerm === DEFAULT_FEES.cgtShortTerm && cfg.cgtLongTerm === DEFAULT_FEES.cgtLongTerm) return holdingDays > cfg.holdingDaysForLongTerm ? 0.05 : 0.075;
-  return holdingDays > cfg.holdingDaysForLongTerm ? cfg.cgtLongTerm : cfg.cgtShortTerm;
+  const long = holdingDays > cfg.holdingDaysForLongTerm;
+  // Each sale uses the rate in force on its date, unless you set your own rates in Settings.
+  if (isOfficialCgt(cfg)) { const r = cgtScheduleOn(saleDate ?? new Date(Date.now() + 345 * 60_000).toISOString().slice(0, 10)); return long ? r.long : r.short; }
+  return long ? cfg.cgtLongTerm : cfg.cgtShortTerm;
 }
 
 export interface RoundTrip {
@@ -120,6 +134,6 @@ export function roundTrip(qty: number, buyPrice: number, sellPrice: number, hold
 
 /** Approximate one-way cost as a fraction (used by the backtester). */
 export function oneWayCostFraction(amount: number, side: "buy" | "sell", cfg: FeeConfig = DEFAULT_FEES) {
-  const c = brokerCommission(amount, cfg) + amount * cfg.sebonFeeRate + (side === "sell" ? cfg.dpChargePerScrip : 0);
+  const c = brokerCommission(amount, cfg) + amount * cfg.sebonFeeRate + (side === "sell" || cfg.dpOnBuy !== false ? cfg.dpChargePerScrip : 0);
   return c / amount;
 }

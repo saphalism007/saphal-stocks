@@ -7,8 +7,9 @@ import { MultiLineChart, LineChart } from "../components/PriceChart.tsx";
 import { useTheme } from "../App.tsx";
 import { num, pct, tone, compact, int, nptDate, todayNpt, rs } from "../lib/format.ts";
 import { I } from "../components/icons.tsx";
-import { buyCost, sellCost } from "../../../shared/costs.ts";
-import { rebalancePlan } from "../../../shared/portfolio.ts";
+import { buyCost, sellCost, cgtRate, DEFAULT_FEES, type FeeConfig } from "../../../shared/costs.ts";
+import { SymbolPicker, useSymbols } from "../components/SymbolPicker.tsx";
+import { rebalancePlan, chargesFor } from "../../../shared/portfolio.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -50,10 +51,27 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
   const [view, setView] = useState<"holdings" | "performance" | "tax" | "rebalance">("holdings");
   const [edit, setEdit] = useState<Any>(null);
   const nav = useNavigate();
+  const feesApi = useApi<Any>("/settings/fees");
+  const feeCfg: FeeConfig = feesApi.data?.current ?? DEFAULT_FEES;
   if (d.loading && !d.data) return <Loading />;
   if (d.error) return <ErrorBox error={d.error} onRetry={d.reload} />;
-  const { portfolio: p, summary: s, health, sectors, extras, transactions, priceDate, cash } = d.data;
+  const { portfolio: p, summary: s, health, sectors, extras, transactions, priceDate, cash, day = {} } = d.data;
   const open = s.holdings.filter((h: Any) => h.quantity > 0);
+  // Today's gain: each holding's move since yesterday's close. Shares bought today are left out (their cost is today's price).
+  const today = (() => {
+    let pnl = 0, base = 0, live = false, date: string | null = null;
+    for (const h of open) {
+      const q = day[h.symbol]; if (!q || q.prevClose == null) continue;
+      date = date && date > q.date ? date : q.date; live = live || q.live;
+      for (const lot of h.lots ?? []) { if (lot.date >= q.date) continue; pnl += lot.qty * (q.close - q.prevClose); base += lot.qty * q.prevClose; }
+    }
+    return { pnl, pctv: base ? (pnl / base) * 100 : null, live, date };
+  })();
+  const dayOf = (h: Any) => {
+    const q = day[h.symbol]; if (!q || q.prevClose == null) return null;
+    const qty = (h.lots ?? []).reduce((t: number, l: Any) => t + (l.date < q.date ? l.qty : 0), 0);
+    return { chg: (q.close - q.prevClose) * qty, pctv: q.changePct };
+  };
   const closed = s.holdings.filter((h: Any) => h.quantity === 0 && (h.realizedPnl || h.dividendsReceived));
   const reload = () => { d.reload(); onChanged(); };
   const del = async () => { if (!confirm(`Delete portfolio "${p.name}" and all its transactions? This cannot be undone.`)) return; await api(`/portfolios/${id}`, { method: "DELETE" }); onChanged(); nav("/portfolio"); };
@@ -73,11 +91,11 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
       {s.missingPrices.length > 0 && <Notice tone="warn">No price available for {s.missingPrices.join(", ")}; valued at cost.</Notice>}
       <div className="grid g6">
         <Stat label="Market value" value={compact(s.marketValue)} sub={`Cost ${compact(s.invested)}`} />
+        <Stat label={<>Today {today.live && <Badge tone="up">live</Badge>}</>} value={today.pctv == null ? "-" : compact(today.pnl)} tone={tone(today.pnl)} sub={today.pctv == null ? (open.length ? "Shares bought today count from tomorrow" : "No holdings yet") : `${pct(today.pctv)}${today.date ? `, ${nptDate(today.date)}` : ""}`} />
         <Stat label="Unrealised" value={compact(s.unrealizedPnl)} tone={tone(s.unrealizedPnl)} sub={s.invested ? pct((s.unrealizedPnl / s.invested) * 100) : ""} />
-        <Stat label="Realised (net)" value={compact(s.realizedPnl)} tone={tone(s.realizedPnl)} />
+        <Stat label="Realised (after tax)" value={compact(s.realizedPnl)} tone={tone(s.realizedPnl)} />
         <Stat label="Dividends (net)" value={compact(s.dividends)} />
-        <Stat label="Total return" value={pct(s.totalReturnPct)} tone={tone(s.totalReturnPct)} sub={`on ${compact(s.cashIn)} invested`} />
-        {p.kind === "paper" ? <Stat label="Paper cash" value={compact(cash)} sub={`Start ${compact(p.paper_cash)}`} /> : <Stat label="Health score" value={health ? <Score value={health.score} /> : "-"} sub={health ? `${health.diversification.holdings} holdings, ${health.diversification.sectorCount} sectors` : ""} />}
+        {p.kind === "paper" ? <Stat label="Paper cash" value={compact(cash)} sub={`Start ${compact(p.paper_cash)}`} /> : <Stat label="Total return" value={pct(s.totalReturnPct)} tone={tone(s.totalReturnPct)} sub={`on ${compact(s.cashIn)} invested`} />}
       </div>
       <Tabs value={view} onChange={setView} tabs={[{ key: "holdings", label: "Holdings & transactions" }, { key: "performance", label: "Performance vs NEPSE" }, { key: "tax", label: "Tax report" }, { key: "rebalance", label: "Rebalance" }]} />
       {view === "performance" && <Performance id={id} />}
@@ -85,21 +103,32 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
       {view === "tax" && <TaxReport id={id} />}
       {view === "holdings" && <>
       <div className="grid g3">
-        <Card title="Holdings" className="span2" flush>
-          <DataTable rows={open} onRow={(h: Any) => nav(`/stocks/${h.symbol}`)} empty="No open positions" cols={[
+        <Card title={`Holdings (${open.length})`} className="span2" flush>
+          <div className="show-phone hold-cards">
+            {open.length === 0 ? <Empty title="No open positions" /> : [...open].sort((a: Any, b: Any) => (b.marketValue ?? b.costBasis) - (a.marketValue ?? a.costBasis)).map((h: Any) => { const dd = dayOf(h); return (
+              <button key={h.symbol} className="hold-card" onClick={() => nav(`/stocks/${h.symbol}`)}>
+                <div className="row between"><span><span className="sym">{h.symbol}</span> <span className="tiny faint">{int(h.quantity)} kitta</span></span><span className="mono">{compact(h.marketValue ?? h.costBasis)}</span></div>
+                <div className="row between tiny"><span className="faint">WACC {num(h.wacc)}, LTP {num(h.lastPrice)}</span><span className={tone(h.unrealizedPnl)}>{compact(h.unrealizedPnl)} ({pct(h.unrealizedPct, 1)})</span></div>
+                <div className="row between tiny"><span className="faint">{sectors[h.symbol]}</span>{dd && <span className={tone(dd.chg)}>Today {compact(dd.chg)} ({pct(dd.pctv, 2)})</span>}</div>
+              </button>
+            ); })}
+          </div>
+          <div className="hide-phone"><DataTable rows={open} onRow={(h: Any) => nav(`/stocks/${h.symbol}`)} empty="No open positions" cols={[
             { key: "symbol", label: "Stock", render: (h: Any) => <><span className="sym">{h.symbol}</span><div className="tiny faint">{sectors[h.symbol]}</div></> },
             { key: "quantity", label: "Qty", num: true, render: (h: Any) => int(h.quantity) },
             { key: "wacc", label: "WACC", num: true, render: (h: Any) => num(h.wacc) },
             { key: "lastPrice", label: "LTP", num: true, render: (h: Any) => num(h.lastPrice) },
+            { key: "today", label: "Today", num: true, sort: (h: Any) => dayOf(h)?.pctv ?? 0, render: (h: Any) => { const dd = dayOf(h); return dd ? <span className={tone(dd.chg)}>{compact(dd.chg)}<div className="tiny">{pct(dd.pctv, 2)}</div></span> : "-"; } },
             { key: "marketValue", label: "Value", num: true, render: (h: Any) => compact(h.marketValue) },
             { key: "weight", label: "Weight", num: true, sort: (h: Any) => h.marketValue, render: (h: Any) => `${num(((h.marketValue ?? h.costBasis) / (s.marketValue || 1)) * 100, 1)}%` },
             { key: "unrealizedPnl", label: "P&L", num: true, render: (h: Any) => <span className={tone(h.unrealizedPnl)}>{compact(h.unrealizedPnl)}<div className="tiny">{pct(h.unrealizedPct, 1)}</div></span> },
             { key: "netIfSoldToday", label: "Net if sold", num: true, title: "After sell charges and estimated CGT", render: (h: Any) => compact(h.netIfSoldToday) },
             { key: "f", label: "Fund.", num: true, sort: (h: Any) => extras[h.symbol]?.fundamentalScore, render: (h: Any) => <Score value={extras[h.symbol]?.fundamentalScore} /> },
             { key: "t", label: "Tech.", num: true, sort: (h: Any) => extras[h.symbol]?.technicalScore, render: (h: Any) => <Score value={extras[h.symbol]?.technicalScore} /> },
-          ]} />
+          ]} /></div>
         </Card>
         <div className="col">
+          {open.length > 0 && <Card title="Allocation"><Donut items={open.map((h: Any) => ({ label: h.symbol, value: h.marketValue ?? h.costBasis }))} /></Card>}
           <Card title="Sector exposure">
             {health?.sectorExposure?.length ? health.sectorExposure.map((x: Any) => (
               <div key={x.sector} style={{ marginBottom: 8 }}>
@@ -108,7 +137,7 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
               </div>
             )) : <Empty title="No holdings" />}
           </Card>
-          {health && <Card title="Portfolio health">
+          {health && <Card title="Portfolio health" actions={<Score value={health.score} />}>
             {health.issues.map((x: string) => <div key={x} className="small warn" style={{ marginBottom: 4 }}>⚠ {x}</div>)}
             {health.positives.map((x: string) => <div key={x} className="small up" style={{ marginBottom: 4 }}>✓ {x}</div>)}
             <div className="tiny faint" style={{ marginTop: 6 }}>Top holding {health.diversification.topWeightPct}%, top 3 {health.diversification.top3WeightPct}%, concentration (HHI) {health.diversification.hhi}</div>
@@ -123,13 +152,14 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
           { key: "type", label: "Type", render: (t: Any) => <Badge tone={["buy", "ipo", "right", "bonus", "merger_in"].includes(t.type) ? "up" : t.type === "cash_dividend" ? "blue" : "down"}>{t.type.replace("_", " ")}</Badge> },
           { key: "quantity", label: "Qty", num: true, render: (t: Any) => t.type === "cash_dividend" ? "-" : int(t.quantity) },
           { key: "price", label: "Price / amount", num: true, render: (t: Any) => num(t.price) },
-          { key: "charges", label: "Charges", num: true, render: (t: Any) => t.commission != null || t.otherCharges != null ? num((t.commission ?? 0) + (t.otherCharges ?? 0)) : <span className="faint">auto</span> },
+          { key: "charges", label: "Charges", num: true, title: "Broker commission, SEBON fee and DP charge (calculated unless you entered your bill's figures)", render: (t: Any) => { const c = chargesFor(t, feeCfg); return c.total ? <>{num(c.total)}{t.commission == null && t.otherCharges == null && <div className="tiny faint">calculated</div>}</> : "-"; } },
+          { key: "total", label: "Total", num: true, title: "Purchases: amount plus charges. Sales: amount less charges (before tax).", render: (t: Any) => { if (!["buy", "sell"].includes(t.type)) return t.type === "cash_dividend" ? num(t.price) : "-"; const c = chargesFor(t, feeCfg); return num(t.quantity * t.price + (t.type === "buy" ? c.total : -c.total)); } },
           { key: "notes", label: "Notes", render: (t: Any) => <span className="small muted">{t.notes ?? ""}</span> },
           { key: "x", label: "", render: (t: Any) => <span className="row" style={{ flexWrap: "nowrap" }}><button className="btn ghost sm" onClick={() => setEdit(t)}>Edit</button><button className="btn ghost sm danger" onClick={async () => { if (confirm("Delete this transaction?")) { await api(`/transactions/${t.id}`, { method: "DELETE" }); reload(); } }}><I.trash /></button></span> },
         ]} />
       </Card>
       </>}
-      {(adding === "tx" || edit) && <TxModal portfolioId={id} tx={edit} onClose={() => { setAdding(null); setEdit(null); }} onDone={() => { setAdding(null); setEdit(null); reload(); }} />}
+      {(adding === "tx" || edit) && <TxModal portfolioId={id} tx={edit} holdings={s.holdings} onClose={() => { setAdding(null); setEdit(null); }} onDone={() => { setAdding(null); setEdit(null); reload(); }} />}
       {adding === "paper" && <PaperModal portfolioId={id} cash={cash} onClose={() => setAdding(null)} onDone={() => { setAdding(null); reload(); }} />}
       {adding === "import" && <ImportModal portfolioId={id} onClose={() => setAdding(null)} onDone={() => { setAdding(null); reload(); }} />}
     </div>
@@ -155,42 +185,129 @@ function CreateModal({ onClose, onDone }: { onClose: () => void; onDone: (id: nu
   );
 }
 
-function TxModal({ portfolioId, tx, onClose, onDone }: { portfolioId: number; tx?: Any; onClose: () => void; onDone: () => void }) {
+const TX_TYPES: { key: string; label: string }[] = [
+  { key: "buy", label: "Buy" }, { key: "sell", label: "Sell" }, { key: "ipo", label: "IPO" }, { key: "right", label: "Right" },
+  { key: "bonus", label: "Bonus" }, { key: "cash_dividend", label: "Dividend" }, { key: "merger_in", label: "Merger in" }, { key: "merger_out", label: "Merger out" },
+];
+
+function TxModal({ portfolioId, tx, holdings, onClose, onDone }: { portfolioId: number; tx?: Any; holdings: Any[]; onClose: () => void; onDone: () => void }) {
   const [f, setF] = useState({ symbol: tx?.symbol ?? "", type: tx?.type ?? "buy", date: tx?.date ?? todayNpt(), quantity: tx?.quantity ?? "", price: tx?.price ?? "", commission: tx?.commission ?? "", otherCharges: tx?.otherCharges ?? "", tax: tx?.tax ?? "", notes: tx?.notes ?? "" });
   const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const feesApi = useApi<Any>("/settings/fees");
+  const cfg: FeeConfig = feesApi.data?.current ?? DEFAULT_FEES;
+  const symbols = useSymbols();
+  const sym = f.symbol.trim().toUpperCase();
+  const co = symbols.find((r) => r.symbol === sym);
+  const held = holdings.find((h: Any) => h.symbol === sym && h.quantity > 0);
+  const heldSymbols = holdings.filter((h: Any) => h.quantity > 0).map((h: Any) => h.symbol as string);
+  const ltp = co ? co.ltp ?? co.close : null;
   const q = +f.quantity, pr = +f.price;
-  const est = q > 0 && pr > 0 ? (f.type === "buy" ? buyCost(q, pr) : f.type === "sell" ? sellCost(q, pr) : null) : null;
-  const priceLabel = f.type === "cash_dividend" ? "Total cash received before tax (Rs.)" : f.type === "bonus" ? "Cost per share (Rs. 100 face value by default)" : "Price per share (Rs.)";
+  const isTrade = f.type === "buy" || f.type === "sell";
+  const est = q > 0 && pr > 0 ? (f.type === "buy" ? buyCost(q, pr, cfg) : f.type === "sell" ? sellCost(q, pr, cfg) : null) : null;
+  // Your own charges (from the broker's bill) replace the calculated ones.
+  const commission = f.commission !== "" ? +f.commission : est?.commission ?? 0;
+  const other = f.otherCharges !== "" ? +f.otherCharges : est ? est.sebonFee + est.dpCharge : 0;
+  const charges = commission + other;
+  const amount = q * pr;
+  const slab = amount > 0 ? cfg.commissionSlabs.find((x) => x.upTo == null || amount <= x.upTo) : null;
+  // Selling: gain against your WACC, holding period from the first purchase still held, and the tax in force on that date.
+  const holdDays = held?.lots?.[0]?.date ? Math.max(0, Math.round((Date.parse(f.date) - Date.parse(held.lots[0].date)) / 86_400_000)) : null;
+  const sellCalc = f.type === "sell" && held && q > 0 && pr > 0 ? (() => {
+    const basis = held.wacc * q, net = amount - charges, gain = net - basis;
+    const rate = cgtRate(holdDays ?? 0, "individual", cfg, f.date);
+    const tax = f.tax !== "" ? +f.tax : gain > 0 ? gain * rate : 0;
+    return { basis, net, gain, rate, tax, after: gain - tax, received: net - tax };
+  })() : null;
+  const buyCalc = f.type === "buy" && q > 0 && pr > 0 ? (() => {
+    const total = amount + charges, perShare = total / q;
+    const newQty = (held?.quantity ?? 0) + q, newWacc = ((held?.costBasis ?? 0) + total) / newQty;
+    let lo = pr * 0.9, hi = pr * 1.25 + 50; // price at which selling everything gets your money back after charges
+    for (let i = 0; i < 50; i++) { const m = (lo + hi) / 2; if (sellCost(q, m, cfg).net < total) lo = m; else hi = m; }
+    return { total, perShare, newQty, newWacc, breakeven: hi };
+  })() : null;
+  const tooMany = f.type === "sell" && held && q > held.quantity;
+  const notHeld = f.type === "sell" && sym && !held && !tx;
+  const priceLabel = f.type === "cash_dividend" ? "Cash dividend received before tax (Rs.)" : f.type === "bonus" ? "Cost per share (Rs. 100 face value)" : f.type === "ipo" || f.type === "right" ? "Issue price per share (Rs.)" : "Price per share (Rs.)";
+  const canSave = !!sym && (f.type === "cash_dividend" ? pr > 0 : q > 0 && pr >= 0) && !tooMany && !saving;
   const save = async () => {
-    const body = { symbol: f.symbol.toUpperCase(), type: f.type, date: f.date, quantity: f.type === "cash_dividend" ? 0 : +f.quantity, price: +f.price, commission: f.commission === "" ? null : +f.commission, otherCharges: f.otherCharges === "" ? null : +f.otherCharges, tax: f.tax === "" ? null : +f.tax, notes: f.notes || null };
-    try { if (tx) await api(`/transactions/${tx.id}`, { method: "PUT", body }); else await api(`/portfolios/${portfolioId}/transactions`, { body }); onDone(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    if (!canSave) return;
+    const body = { symbol: sym, type: f.type, date: f.date, quantity: f.type === "cash_dividend" ? 0 : +f.quantity, price: +f.price, commission: f.commission === "" ? null : +f.commission, otherCharges: f.otherCharges === "" ? null : +f.otherCharges, tax: f.tax === "" ? null : +f.tax, notes: f.notes || null };
+    setSaving(true);
+    try { if (tx) await api(`/transactions/${tx.id}`, { method: "PUT", body }); else await api(`/portfolios/${portfolioId}/transactions`, { body }); onDone(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setSaving(false); }
   };
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
+  const line = (label: React.ReactNode, value: React.ReactNode, cls = "") => <div className={`row between small ${cls}`}><span className="muted">{label}</span><span className="mono">{value}</span></div>;
   return (
-    <Modal title={tx ? "Edit transaction" : "Add transaction"} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
-      <div className="col">
-        <div className="grid g3">
-          <label className="field">Symbol<input className="input" value={f.symbol} onChange={(e) => setF({ ...f, symbol: e.target.value.toUpperCase() })} autoFocus /></label>
-          <label className="field">Type<select className="input" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value, price: e.target.value === "bonus" && !f.price ? "100" : f.price })}>
-            <option value="buy">Buy</option><option value="sell">Sell</option><option value="ipo">IPO allotment</option><option value="right">Right shares</option><option value="bonus">Bonus shares</option><option value="cash_dividend">Cash dividend</option><option value="merger_in">Merger (shares in)</option><option value="merger_out">Merger (shares out)</option>
-          </select></label>
-          <label className="field">Date<input className="input" type="date" value={f.date} onChange={set("date")} /></label>
+    <Modal title={tx ? "Edit transaction" : "Add transaction"} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!canSave} onClick={save}>{saving ? <span className="spinner" /> : tx ? "Save changes" : f.type === "buy" ? "Add purchase" : f.type === "sell" ? "Add sale" : "Save"}</button></>}>
+      <form className="col" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+        <div className="seg" role="tablist" aria-label="Transaction type">
+          {TX_TYPES.map((t) => <button type="button" key={t.key} role="tab" aria-selected={f.type === t.key} className={`seg-btn${f.type === t.key ? " on" : ""}${t.key === "sell" ? " sell" : ""}`}
+            onClick={() => setF({ ...f, type: t.key, price: t.key === "bonus" && !f.price ? "100" : f.price })}>{t.label}</button>)}
         </div>
         <div className="grid g2">
-          {f.type !== "cash_dividend" && <label className="field">Quantity<NumInput className="input" value={f.quantity} onChange={set("quantity")} /></label>}
-          <label className="field">{priceLabel}<NumInput className="input" step="0.01" value={f.price} onChange={set("price")} /></label>
+          <label className="field">Company
+            <SymbolPicker value={f.symbol} autoFocus={!tx} hideName only={f.type === "sell" && heldSymbols.length && !tx ? heldSymbols : undefined}
+              placeholder={f.type === "sell" ? "Pick a stock you hold" : "Type a symbol, e.g. N for NABIL"}
+              onChange={(v) => setF((x) => ({ ...x, symbol: v }))}
+              onPick={(r) => setF((x) => ({ ...x, symbol: r.symbol, price: x.price === "" && isTrade && (r.ltp ?? r.close) ? String(r.ltp ?? r.close) : x.price }))} />
+          </label>
+          <label className="field">Date<input className="input" type="date" value={f.date} max={todayNpt()} onChange={set("date")} /></label>
         </div>
-        <details><summary className="small muted">Charges & tax (leave blank to auto-calculate)</summary>
+        {(co || held) && <div className="tx-co">
+          <div className="col" style={{ gap: 2, minWidth: 0 }}><strong className="small">{co?.name ?? sym}</strong><span className="tiny faint">{co?.sector ?? ""}{held ? `${co?.sector ? ", " : ""}you hold ${int(held.quantity)} at WACC Rs. ${num(held.wacc)}` : ""}</span></div>
+          {ltp != null && <div className="right"><div className="mono">Rs. {num(ltp)}</div>{co?.changePct != null && <div className={`tiny ${tone(co.changePct)}`}>{pct(co.changePct)} {co.date ? nptDate(co.date) : ""}</div>}</div>}
+        </div>}
+        <div className="grid g2">
+          {f.type !== "cash_dividend" && <label className="field">Quantity (kitta)
+            <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}><NumInput className="input" value={f.quantity} onChange={set("quantity")} plain />
+              {f.type === "sell" && held && <button type="button" className="btn sm" onClick={() => setF({ ...f, quantity: String(held.quantity) })}>All {int(held.quantity)}</button>}</div>
+          </label>}
+          <label className="field">{priceLabel}
+            <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}><NumInput className="input" step="0.01" value={f.price} onChange={set("price")} />
+              {isTrade && ltp != null && +f.price !== ltp && <button type="button" className="btn sm" title="Use the latest price" onClick={() => setF({ ...f, price: String(ltp) })}>LTP</button>}</div>
+          </label>
+        </div>
+        {tooMany && <Notice tone="warn">You hold only {int(held.quantity)} {sym}. You cannot sell {int(q)}.</Notice>}
+        {notHeld && <Notice tone="warn">{sym} is not in this portfolio. Add its purchase first, or check the symbol.</Notice>}
+
+        {isTrade && est && <div className="tx-bill">
+          <div className="tx-bill-head">{f.type === "buy" ? "Purchase bill" : "Sale bill"}<span className="tiny faint">rules checked {nptDate(cfg.verifiedOn?.slice(0, 10)) || cfg.verifiedOn}</span></div>
+          {line(`Amount (${int(q)} x Rs. ${num(pr)})`, rs(amount))}
+          {line(<>Broker commission{f.commission === "" && slab ? ` (${num(slab.rate * 100, 2)}%${est.commission === cfg.minCommission ? `, min. Rs. ${cfg.minCommission}` : ""})` : " (your figure)"}</>, rs(commission))}
+          {f.otherCharges === "" ? <>{line(`SEBON fee (${num(cfg.sebonFeeRate * 100, 3)}%)`, rs(est.sebonFee))}{line("DP charge (CDSC, per company)", rs(est.dpCharge))}</> : line("SEBON + DP (your figure)", rs(other))}
+          {line("Total charges", rs(charges), "tx-bill-sub")}
+          {buyCalc && <>
+            {line(<strong>Total payable</strong>, <strong>{rs(buyCalc.total)}</strong>, "tx-bill-total")}
+            {line("Cost per share (with charges)", rs(buyCalc.perShare))}
+            {held && line(`New holding: ${int(buyCalc.newQty)} kitta, WACC`, rs(buyCalc.newWacc))}
+            {line("Break-even sell price", rs(buyCalc.breakeven), "faint")}
+          </>}
+          {f.type === "sell" && <>
+            {line(<strong>Receivable before tax</strong>, <strong>{rs(amount - charges)}</strong>, "tx-bill-total")}
+            {sellCalc && <>
+              {line(`Your cost (WACC Rs. ${num(held.wacc)} x ${int(q)})`, rs(sellCalc.basis))}
+              {line("Gain before tax", <span className={tone(sellCalc.gain)}>{rs(sellCalc.gain)}</span>)}
+              {line(<>Capital gains tax {f.tax === "" ? `(${num(sellCalc.rate * 100, 2)}%, held ${holdDays ?? "?"} days, ${(holdDays ?? 0) > cfg.holdingDaysForLongTerm ? "long term" : "short term"})` : "(your figure)"}</>, rs(sellCalc.tax))}
+              {line(<strong>Net profit after tax</strong>, <strong className={tone(sellCalc.after)}>{rs(sellCalc.after)}</strong>, "tx-bill-total")}
+              {line("Money you receive", rs(sellCalc.received), "faint")}
+              {holdDays != null && holdDays <= cfg.holdingDaysForLongTerm && holdDays > cfg.holdingDaysForLongTerm - 60 && <div className="tiny warn" style={{ marginTop: 4 }}>In {cfg.holdingDaysForLongTerm + 1 - holdDays} days this holding becomes long term ({num(cgtRate(400, "individual", cfg, f.date) * 100, 2)}% tax instead of {num(sellCalc.rate * 100, 2)}%).</div>}
+            </>}
+          </>}
+        </div>}
+        {f.type === "cash_dividend" && pr > 0 && <div className="tx-bill">{line("Dividend tax (5%, withheld by the company)", rs(f.tax !== "" ? +f.tax : pr * cfg.dividendTax))}{line(<strong>Net received</strong>, <strong>{rs(pr - (f.tax !== "" ? +f.tax : pr * cfg.dividendTax))}</strong>, "tx-bill-total")}</div>}
+
+        <details><summary className="small muted">Use the figures from your broker's bill instead (optional)</summary>
           <div className="grid g3" style={{ marginTop: 8 }}>
             <label className="field">Broker commission<NumInput className="input" value={f.commission} placeholder={est ? num(est.commission) : "auto"} onChange={set("commission")} /></label>
-            <label className="field">SEBON + DP etc.<NumInput className="input" value={f.otherCharges} placeholder={est ? num(est.sebonFee + est.dpCharge) : "auto"} onChange={set("otherCharges")} /></label>
-            <label className="field">{f.type === "sell" ? "CGT withheld" : f.type === "cash_dividend" ? "Dividend tax (5% if blank)" : "Tax paid"}<NumInput className="input" value={f.tax} placeholder="auto" onChange={set("tax")} /></label>
+            <label className="field">SEBON + DP<NumInput className="input" value={f.otherCharges} placeholder={est ? num(est.sebonFee + est.dpCharge) : "auto"} onChange={set("otherCharges")} /></label>
+            <label className="field">{f.type === "sell" ? "CGT withheld" : f.type === "cash_dividend" ? "Dividend tax" : "Tax paid"}<NumInput className="input" value={f.tax} placeholder="auto" onChange={set("tax")} /></label>
           </div>
         </details>
-        {est && <div className="small muted">Estimated: amount {rs(est.amount)}, commission {rs(est.commission)}, SEBON {rs(est.sebonFee)}{est.dpCharge ? `, DP ${rs(est.dpCharge)}` : ""}, {f.type === "buy" ? "total cost" : "net proceeds before CGT"} <strong>{rs(est.net)}</strong></div>}
-        <label className="field">Notes<textarea className="input" value={f.notes} onChange={set("notes")} style={{ minHeight: 50 }} /></label>
+        <label className="field">Notes<textarea className="input" value={f.notes} onChange={set("notes")} style={{ minHeight: 44 }} placeholder="Why you bought or sold (optional)" /></label>
         {err && <Notice tone="warn">{err}</Notice>}
-      </div>
+        <button type="submit" hidden />
+      </form>
     </Modal>
   );
 }
@@ -205,7 +322,7 @@ function PaperModal({ portfolioId, cash, onClose, onDone }: { portfolioId: numbe
       <div className="col">
         <Notice>No real money moves. Orders fill at the latest close (or your price) with Nepal fees applied. Paper cash available: {rs(cash)}.</Notice>
         <div className="grid g2">
-          <label className="field">Symbol<input className="input" value={f.symbol} onChange={(e) => setF({ ...f, symbol: e.target.value.toUpperCase() })} autoFocus /></label>
+          <label className="field">Company<SymbolPicker value={f.symbol} autoFocus onChange={(v) => setF((x) => ({ ...x, symbol: v }))} /></label>
           <label className="field">Side<select className="input" value={f.side} onChange={(e) => setF({ ...f, side: e.target.value })}><option value="buy">Buy</option><option value="sell">Sell</option></select></label>
           <label className="field">Quantity<NumInput className="input" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} /></label>
           <label className="field">Price (blank = last close)<NumInput className="input" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></label>
@@ -368,9 +485,31 @@ function Rebalance({ summary, sectors, extras }: { summary: Any; sectors: Record
               { key: "w", label: "Weight", num: true, render: (t: Any) => `${num(t.fromWeightPct, 1)}% > ${num(t.toWeightPct, 1)}%` },
             ]} />
           </Card>
-          <p className="tiny faint">A plan only; nothing is traded. Consider taxes and whether selling short-term holdings (10% CGT) can wait until they become long-term (7.5%). Rebalancing small differences often costs more in charges than it is worth.</p>
+          <p className="tiny faint">A plan only; nothing is traded. Consider taxes: a holding sold within 365 days pays the short-term capital gains tax (now 5%), after that the long-term rate (now 3.75%). Rebalancing small differences often costs more in charges than it is worth.</p>
         </>}
       </div>
+    </div>
+  );
+}
+
+/** Simple allocation ring: the largest holdings, the rest grouped. */
+const RING = ["#34d399", "#60a5fa", "#a78bfa", "#fbbf24", "#fb7185", "#22d3ee", "#f97316", "#94a3b8"];
+function Donut({ items }: { items: { label: string; value: number }[] }) {
+  const sorted = [...items].filter((x) => x.value > 0).sort((a, b) => b.value - a.value);
+  const top = sorted.slice(0, 7), rest = sorted.slice(7).reduce((t, x) => t + x.value, 0);
+  const parts = rest > 0 ? [...top, { label: `${sorted.length - 7} others`, value: rest }] : top;
+  const total = parts.reduce((t, x) => t + x.value, 0) || 1;
+  let acc = 0;
+  const R = 42, C = 2 * Math.PI * R;
+  return (
+    <div className="alloc">
+      <svg viewBox="0 0 100 100" style={{ width: 112, height: 112 }} role="img" aria-label="Allocation by holding">
+        <circle cx="50" cy="50" r={R} fill="none" stroke="var(--border)" strokeWidth="12" />
+        {parts.map((x, i) => { const len = (x.value / total) * C; const el = <circle key={x.label} cx="50" cy="50" r={R} fill="none" stroke={RING[i % RING.length]} strokeWidth="12" strokeDasharray={`${Math.max(len - 0.6, 0)} ${C}`} strokeDashoffset={-acc} transform="rotate(-90 50 50)" />; acc += len; return el; })}
+        <text x="50" y="47" textAnchor="middle" fontSize="9" fill="var(--text-3)">holdings</text>
+        <text x="50" y="60" textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--text)">{items.length}</text>
+      </svg>
+      <div className="alloc-legend">{parts.map((x, i) => <div key={x.label} className="alloc-item small"><i style={{ background: RING[i % RING.length] }} /><span className="alloc-name">{x.label}</span><span className="mono">{num((x.value / total) * 100, 1)}%</span></div>)}</div>
     </div>
   );
 }

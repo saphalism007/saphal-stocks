@@ -29,7 +29,13 @@ export function portfolioSummary(portfolioId: number) {
   const extras: Record<string, { fundamentalScore: number | null; technicalScore: number | null; volatility: number | null }> = {};
   for (const s of syms) { const f = factors.get(s); extras[s] = { fundamentalScore: f?.fundamentalScore ?? null, technicalScore: f?.technicalScore ?? null, volatility: f?.volatility ?? null }; }
   const health = syms.length ? portfolioHealth(summary, sectors, extras) : null;
-  return { summary, health, sectors, extras, priceDate: M.latestTradingDate(), transactions: txs };
+  // Today's move for each holding (live during the session), for "today's gain" and the day change column.
+  const day: Record<string, { date: string; close: number; prevClose: number | null; changePct: number | null; live: boolean }> = {};
+  for (const s of syms) {
+    const q = get<{ date: string; close: number; prev_close: number | null; change_pct: number | null; source: string | null }>("SELECT date, close, prev_close, change_pct, source FROM quotes WHERE symbol = ?", s);
+    if (q?.close) day[s] = { date: q.date, close: q.close, prevClose: q.prev_close, changePct: q.change_pct, live: q.source === "live" };
+  }
+  return { summary, health, sectors, extras, day, priceDate: M.latestTradingDate(), transactions: txs };
 }
 
 export function portfolioData(userId: number, portfolioId?: number) {
