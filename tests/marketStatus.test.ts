@@ -5,6 +5,16 @@ const q = (asOf: string, checked: string, titles: string[] = []) => (<T,>(sql: s
 const MF = [1, 2, 3, 4, 5];
 
 describe("market status", () => {
+  it("warns when this device is missing the last trading day, skipping the Chhath holiday", () => {
+    // 2 Mangsir (18 Nov), morning: the last trading day was 1 Mangsir (17 Nov); 16 Nov was a holiday.
+    const stale = computeMarketStatus({ date: "2026-11-18", minutes: 10 * 60, weekday: 3 }, MF, q("2026-11-13", "2026-11-13T18:00:00Z"));
+    expect(stale.lastSession).toBe("2026-11-17"); expect(stale.behind).toBe("2026-11-17");
+    const ok = computeMarketStatus({ date: "2026-11-18", minutes: 10 * 60, weekday: 3 }, MF, q("2026-11-17", "2026-11-17T19:00:00Z"));
+    expect(ok.behind).toBeNull();
+    // On 17 Nov the last trading day before it was 13 Nov (Tihar, weekend and the Chhath holiday in between).
+    const tue = computeMarketStatus({ date: "2026-11-17", minutes: 10 * 60, weekday: 2 }, MF, q("2026-11-13", "2026-11-13T18:00:00Z"));
+    expect(tue.lastSession).toBe("2026-11-13"); expect(tue.behind).toBeNull();
+  });
   it("is closed on the Tihar holiday with the next session on Friday 13 Nov", () => {
     const s = computeMarketStatus({ date: "2026-11-12", minutes: 12 * 60 + 20, weekday: 4 }, MF, q("2026-11-06", "2026-11-11T17:55:00Z"));
     expect(s.session).toBe("closed"); expect(s.holiday).toBe(true); expect(s.reason).toMatch(/Tihar/); expect(s.nextOpen).toBe("2026-11-13");

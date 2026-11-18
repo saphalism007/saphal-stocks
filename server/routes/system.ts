@@ -1,3 +1,5 @@
+import { resetMarketCaches } from "../lib/market.ts";
+import { syncFromPublished } from "../lib/published.ts";
 import { Router } from "express";
 import { z } from "zod";
 import { join } from "node:path";
@@ -42,8 +44,9 @@ systemRouter.get("/data/status", (_req, res) => {
 });
 
 systemRouter.post("/data/refresh", (req, res) => {
-  const { job } = z.object({ job: z.enum(["all", "listing", "history", "indices", "details", "news", "forex", "alerts", "issues", "funds"]) }).parse(req.body);
+  const { job } = z.object({ job: z.enum(["all", "catchup", "listing", "history", "indices", "details", "news", "forex", "alerts", "issues", "funds"]) }).parse(req.body);
   if (job === "all") queueDailyRefresh();
+  else if (job === "catchup") { void syncFromPublished().then((m) => { if (m) { resetMarketCaches(); console.log(`[published] ${m}`); } }); enqueue("listing", (s) => syncListing(s)); enqueue("history", (s) => syncHistory(s)); enqueue("indices", (s) => syncIndices(s)); }
   else if (job === "listing") enqueue("listing", (s) => syncListing(s));
   else if (job === "history") enqueue("history", (s) => syncHistory(s));
   else if (job === "indices") enqueue("indices", (s) => syncIndices(s));

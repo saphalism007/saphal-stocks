@@ -44,8 +44,13 @@ export function computeMarketStatus(n: { date: string; minutes: number; weekday:
   const reason = known ? known.reason : holiday ? (notice ? `closure notice: ${notice.title}` : "no trades reported today") : !weekday ? "weekly day off" : null;
   let nextOpen = tradingDay && n.minutes < OPEN ? n.date : "";
   for (let t = Date.parse(n.date + "T00:00:00Z") + 86_400_000, k = 0; !nextOpen && k < 30; t += 86_400_000, k++) { const d = new Date(t).toISOString().slice(0, 10); if (days.includes(new Date(t).getUTCDay()) && !closureOn(d)) nextOpen = d; }
+  // The last full trading day before today. The cloud publishes its closing data the same evening, so from the next
+  // morning the app should have it; if not, the data is behind and the app says so instead of staying quiet.
+  let lastSession = "";
+  for (let t = Date.parse(n.date + "T00:00:00Z") - 86_400_000, k = 0; !lastSession && k < 30; t -= 86_400_000, k++) { const d = new Date(t).toISOString().slice(0, 10); if (days.includes(new Date(t).getUTCDay()) && !closureOn(d)) lastSession = d; }
+  const behind = !!f && !!lastSession && f.as_of < lastSession && n.minutes >= 9 * 60 ? lastSession : null;
   return {
-    nptDate: n.date, nptTime: `${String(Math.floor(n.minutes / 60)).padStart(2, "0")}:${String(n.minutes % 60).padStart(2, "0")}`,
+    nptDate: n.date, lastSession, behind, nptTime: `${String(Math.floor(n.minutes / 60)).padStart(2, "0")}:${String(n.minutes % 60).padStart(2, "0")}`,
     tradingDay, holiday, reason, nextOpen, notice, session, hours: "11:00-15:00 NPT",
     lastUpdate: f?.last_success_at ?? null, dataDate: f?.as_of ?? null,
     live: session === "open" && !!f && f.as_of === n.date,

@@ -402,13 +402,23 @@ function GlobalSearch() {
 }
 
 function MarketBadge() {
-  const m = useApi<{ session: string; live: boolean; lastUpdate: string | null; dataDate: string | null; holiday: boolean; tradingDay: boolean; reason: string | null; nextOpen: string | null; note: string; hours: string }>("/market/status");
+  const m = useApi<{ session: string; live: boolean; lastUpdate: string | null; dataDate: string | null; holiday: boolean; tradingDay: boolean; reason: string | null; nextOpen: string | null; note: string; hours: string; behind: string | null }>("/market/status");
+  const [fetching, setFetching] = useState(false);
   useEffect(() => { const id = setInterval(() => m.reload(), 60_000); return () => clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   if (!m.data) return null;
   const d = m.data;
   const next = d.nextOpen ? `opens ${nptDate(d.nextOpen)}, 11:00` : "";
   const label = d.session === "open" ? (d.live ? "Market open, live" : "Market open") : d.session === "pre-open" ? "Opens 11:00" : d.holiday ? `Closed today${d.reason ? `: ${d.reason}` : ""}${next ? `, ${next}` : ""}` : !d.tradingDay ? `Closed today${next ? `, ${next}` : ""}` : `Market closed${next ? `, ${next}` : ""}`;
   const mins = d.lastUpdate ? Math.round((Date.now() - Date.parse(d.lastUpdate)) / 60000) : null;
+  // Data older than the last trading day: say so plainly, with a button to fetch it now.
+  if (d.behind) return (
+    <button className="badge" style={{ gap: 6, borderColor: "var(--warn)", color: "var(--warn)", cursor: "pointer" }} disabled={fetching}
+      title={`The latest trading day was ${nptDate(d.behind)}, but this device has prices up to ${nptDate(d.dataDate)}. Tap to fetch the latest data now.`}
+      onClick={async () => { setFetching(true); try { await api("/data/refresh", { body: { job: "catchup" } }); } catch { /* shown on Settings > Data */ } setFetching(false); m.reload(); }}>
+      <span className="dot" style={{ background: "var(--warn)" }} />
+      <span className="hide-phone">{fetching ? "Fetching the latest prices..." : `Prices from ${nptDate(d.dataDate)}, tap to update`}</span><span className="show-phone">{fetching ? "Updating" : "Update"}</span>
+    </button>
+  );
   return (
     <span className="badge" title={`${label}. ${d.note} Hours ${d.hours}. Data date ${d.dataDate ?? "-"}.`} style={{ gap: 6 }}>
       <span className="dot" style={{ background: d.session === "open" ? "var(--up)" : d.session === "pre-open" ? "var(--warn)" : "var(--text-3)" }} />

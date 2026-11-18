@@ -5,9 +5,10 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.22.0";
+export const VERSION = "0.22.1";
 export const RELEASED = "2026-11-18";
 export const NOTES = [
+  "Never silently out of date: if this device is missing the last trading day, the market badge at the top says so in orange with the date it has; tap it to fetch the latest prices at once.",
   "Daily data always arrives: every device now fills in any missed trading days from a small file (about 150 KB) within seconds of opening, even on a slow connection while the full daily file is still downloading.",
   "Screens update by themselves: when new prices arrive, or when you come back to the app, the page you are on refreshes without you moving to another page.",
   "Mac version catches up at once: it takes the latest published prices from the cloud within a second of starting, and refreshes prices, history and indices right away instead of waiting.",
