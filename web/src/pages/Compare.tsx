@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SymbolPicker } from "../components/SymbolPicker.tsx";
 import { Link, useSearchParams } from "react-router-dom";
 import { useApi } from "../lib/api.ts";
 import { Card, Loading, Notice, Score, Seg, Badge, Empty } from "../components/ui.tsx";
@@ -65,7 +66,7 @@ export default function Compare() {
       <div className="page-head">
         <div><h1>Compare stocks</h1><p>Side-by-side valuation, profitability, financial health, dividends and performance (up to 6 stocks). Best value in each row is highlighted.</p></div>
         <form className="row" onSubmit={(e) => { e.preventDefault(); const s = add.trim().toUpperCase(); if (s && !syms.includes(s) && syms.length < 6) setSyms([...syms, s]); setAdd(""); }}>
-          <input className="input" placeholder="Add symbol" value={add} onChange={(e) => setAdd(e.target.value.toUpperCase())} style={{ width: 140 }} /><button className="btn"><I.plus /> Add</button>
+          <SymbolPicker width={230} placeholder="Add a company" value={add} onChange={setAdd} onPick={(r) => { if (!syms.includes(r.symbol) && syms.length < 6) setSyms([...syms, r.symbol]); setAdd(""); }} /><button className="btn"><I.plus /> Add</button>
           <Link className="btn" to={`/analyst?q=${encodeURIComponent(`Compare ${syms.join(", ")}: valuation, profitability, financial health, dividends, technical position and risk. Which is most attractive for long-term investing and which for a swing trade, and why?`)}`}><I.ai /> AI comparison</Link>
         </form>
       </div>

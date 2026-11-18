@@ -460,7 +460,7 @@ function Rebalance({ summary, sectors, extras }: { summary: Any; sectors: Record
               <td className="num"><NumInput className="input" step="0.5" style={{ width: 64, padding: "5px 6px" }} value={targets[sym]} onChange={(e) => setTargets({ ...targets, [sym]: +e.target.value })} /></td></tr>
           ); })}
         </tbody></table></div>
-        <form className="row" style={{ marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); void addSymbol(); }}><input className="input" placeholder="Add stock" value={add} onChange={(e) => setAdd(e.target.value.toUpperCase())} style={{ width: 120 }} /><button className="btn sm"><I.plus /></button></form>
+        <form className="row" style={{ marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); void addSymbol(); }}><SymbolPicker width={200} placeholder="Add a company" value={add} onChange={setAdd} /><button className="btn sm"><I.plus /></button></form>
         <div className="grid g2" style={{ marginTop: 10 }}>
           <label className="field">New cash to invest (Rs.)<NumInput className="input" value={cash} onChange={(e) => setCash(+e.target.value)} /></label>
           <label className="field">Skip trades under (Rs.)<NumInput className="input" value={minTrade} onChange={(e) => setMinTrade(+e.target.value)} /></label>

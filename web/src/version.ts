@@ -5,9 +5,10 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.24.0";
+export const VERSION = "0.24.1";
 export const RELEASED = "2026-11-18";
 export const NOTES = [
+  "Company search everywhere: Watchlist, Compare, Journal, Indicators, Growth, alerts and Rebalance now list every NEPSE company as you type the first letter, with name, sector and live price. On Watchlist and Compare, one tap adds the company.",
   "Portfolio: type the first letter of a symbol and every listed NEPSE company starting with it appears, with its name, sector and live price. Picking one fills in today's price.",
   "Accurate bills: each purchase and sale now shows broker commission (with its slab rate), SEBON fee 0.015% and the Rs. 25 CDSC DP charge, which also applies to purchases. Totals, cost per share, your new WACC and the break-even price are shown before you save.",
   "Capital gains tax updated: 5% (held 365 days or less) and 3.75% (held longer) for individuals from 22 September 2026, per the Nepal Gazette. Each sale uses the rate in force on its date (10% / 7.5% from 17 July to 21 September 2026, 7.5% / 5% before).",

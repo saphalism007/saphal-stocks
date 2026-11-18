@@ -1,6 +1,7 @@
 // Indicator Guide: every indicator in the chart library explained to the point (origin, what it shows,
 // how to read it, buy and sell signals, best use, the common trap, a tip), with a live reading and a
 // mini chart on a real stock, an all-indicator consensus for that stock, and one tap to add it to the chart.
+import { SymbolPicker } from "../components/SymbolPicker.tsx";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api.ts";
@@ -88,7 +89,7 @@ export default function Indicators() {
 
       <Card title="Live on a real stock" sub="Every reading below uses this stock's daily prices.">
         <form className="row" style={{ gap: 8, flexWrap: "wrap" }} onSubmit={(e) => { e.preventDefault(); const v = symIn.trim().toUpperCase(); if (v) { setBars(null); setSym(v); } }}>
-          <input className="input" style={{ width: 140 }} value={symIn} onChange={(e) => setSymIn(e.target.value.toUpperCase())} aria-label="Stock symbol" />
+          <SymbolPicker width={230} value={symIn} onChange={setSymIn} onPick={(r) => { setBars(null); setSym(r.symbol); }} />
           <button className="btn">Use this stock</button>
           <Link className="btn ghost" to={`/terminal/${sym}`}>Open {sym} chart</Link>
         </form>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SymbolPicker } from "../components/SymbolPicker.tsx";
 import { useNavigate } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { Card, Loading, ErrorBox, DataTable, Score, Badge, Empty, Notice } from "../components/ui.tsx";
@@ -14,8 +15,8 @@ export default function Watchlist() {
   const nav = useNavigate();
   if (w.loading && !w.data) return <Loading />;
   if (w.error) return <ErrorBox error={w.error} onRetry={w.reload} />;
-  const addItem = async (id: number) => {
-    const sym = (add[id] || "").trim().toUpperCase();
+  const addItem = async (id: number, pick?: string) => {
+    const sym = (pick ?? add[id] ?? "").trim().toUpperCase();
     if (!sym) return;
     try { await api(`/watchlists/${id}/items`, { body: { symbol: sym } }); setAdd({ ...add, [id]: "" }); setErr(null); w.reload(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   };
@@ -30,7 +31,7 @@ export default function Watchlist() {
       {err && <Notice tone="warn">{err}</Notice>}
       {w.data?.map((l) => (
         <Card key={l.id} title={l.name} flush actions={<>
-          <form className="row" onSubmit={(e) => { e.preventDefault(); void addItem(l.id); }}><input className="input" style={{ width: 130 }} placeholder="Add symbol" value={add[l.id] ?? ""} onChange={(e) => setAdd({ ...add, [l.id]: e.target.value.toUpperCase() })} /><button className="btn sm"><I.plus /></button></form>
+          <form className="row" onSubmit={(e) => { e.preventDefault(); void addItem(l.id); }}><SymbolPicker width={230} placeholder="Add a company" value={add[l.id] ?? ""} onChange={(v) => setAdd((a) => ({ ...a, [l.id]: v }))} onPick={(r) => void addItem(l.id, r.symbol)} /><button className="btn sm"><I.plus /></button></form>
           <button className="btn ghost sm danger" onClick={async () => { if (confirm(`Delete watchlist "${l.name}"?`)) { await api(`/watchlists/${l.id}`, { method: "DELETE" }); w.reload(); } }}><I.trash /></button>
         </>}>
           {l.items.length === 0 ? <Empty title="Empty watchlist">Add a symbol above, or use Watch on any stock page.</Empty> : (

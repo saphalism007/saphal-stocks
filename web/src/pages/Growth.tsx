@@ -1,5 +1,6 @@
 // My Growth: today's to-do list, a plan for every holding, the trading discipline coach (with the
 // pre-buy checklist) and the dividend & events calendar.
+import { SymbolPicker } from "../components/SymbolPicker.tsx";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
@@ -138,7 +139,7 @@ function Coach() {
     <div className="col">
       <Card title="Before you buy: the checklist" sub="Works out how many shares to buy from the risk you accept, and checks every rule">
         <div className="form-grid">
-          <label className="field">Stock symbol<input className="input" value={sym} onChange={(e) => setSym(e.target.value.toUpperCase())} placeholder="e.g. NABIL" onKeyDown={(e) => { if (e.key === "Enter") void run(); }} autoCapitalize="characters" /></label>
+          <label className="field">Stock symbol<SymbolPicker value={sym} onChange={setSym} placeholder="e.g. NABIL" /></label>
           <label className="field">Trading capital (Rs.)<NumInput className="input" value={capital} onChange={(e) => setCapital(e.target.value === "" ? "" : Number(e.target.value))} /></label>
           <label className="field">Risk per trade (% of capital)<NumInput className="input" value={risk} step={0.5} onChange={(e) => setRisk(e.target.value === "" ? "" : Number(e.target.value))} /></label>
         </div>

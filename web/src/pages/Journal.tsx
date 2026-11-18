@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { SymbolPicker } from "../components/SymbolPicker.tsx";
 import { Link } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { Card, Stat, Empty, Badge, Tabs, Modal, Notice, DataTable, Score, NumInput } from "../components/ui.tsx";
@@ -94,7 +95,7 @@ function TradeModal({ row, onClose, onDone }: { row: VaultRow<Trade> | null; onC
       <div className="col">
         <div className="grid g3">
           <label className="field">Date<input className="input" type="date" value={t.date} onChange={set("date")} /></label>
-          <label className="field">Symbol<input className="input" value={t.symbol} onChange={(e) => setT({ ...t, symbol: e.target.value.toUpperCase() })} /></label>
+          <label className="field">Symbol<SymbolPicker value={t.symbol} onChange={(v) => setT({ ...t, symbol: v })} /></label>
           <label className="field">Setup<select className="input" value={t.setup} onChange={set("setup")}>{SETUPS.map((s) => <option key={s}>{s}</option>)}</select></label>
           <label className="field">Entry price<NumInput className="input" value={t.entry} onChange={set("entry")} /></label>
           <label className="field">Planned stop<NumInput className="input" value={t.stop} onChange={set("stop")} /></label>
@@ -172,7 +173,7 @@ function ThesisModal({ row, price, onClose, onDone }: { row: VaultRow<Thesis> | 
     <Modal title={row ? `Thesis: ${row.data.symbol}` : "New investment thesis"} onClose={onClose} footer={<>{row && <button className="btn danger" onClick={async () => { await api(`/vault/thesis/${row.id}`, { method: "DELETE" }); onDone(); }}>Delete</button>}<button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
       <div className="col">
         <div className="grid g3">
-          <label className="field">Symbol<input className="input" value={t.symbol} onChange={(e) => setT({ ...t, symbol: e.target.value.toUpperCase() })} disabled={!!row} /></label>
+          <label className="field">Symbol{row ? <input className="input" value={t.symbol} disabled /> : <SymbolPicker value={t.symbol} onChange={(v) => setT({ ...t, symbol: v })} />}</label>
           <label className="field">Horizon<select className="input" value={t.horizon} onChange={set("horizon")}>{["6-12 months", "1-3 years", "3-5 years", "5+ years"].map((x) => <option key={x}>{x}</option>)}</select></label>
           <label className="field">Status<select className="input" value={t.status} onChange={set("status")}>{["active", "validated", "broken", "closed"].map((x) => <option key={x}>{x}</option>)}</select></label>
           <label className="field">Your fair value (Rs.)<NumInput className="input" value={t.fairValue ?? ""} onChange={set("fairValue")} /></label>

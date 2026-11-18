@@ -27,12 +27,14 @@ export function rankSymbols(all: SymbolRow[], q: string, limit = 500): SymbolRow
   return all.map((r) => [score(r), r] as const).filter(([k]) => k < 9).sort((a, b) => a[0] - b[0] || a[1].symbol.localeCompare(b[1].symbol)).slice(0, limit).map(([, r]) => r);
 }
 
-export function SymbolPicker({ value, onChange, onPick, autoFocus, placeholder = "Type a symbol or company name", only, hideName }: {
+export function SymbolPicker({ value, onChange, onPick, autoFocus, placeholder = "Type a symbol or company name", only, hideName, width }: {
   value: string; onChange: (v: string) => void; onPick?: (r: SymbolRow) => void; autoFocus?: boolean; placeholder?: string;
   /** Limit the list (for example to stocks you hold, when selling). */
   only?: string[];
   /** The form shows the company itself, so skip the name line under the box. */
   hideName?: boolean;
+  /** Fixed width when used inline in a row (default: fills its column). */
+  width?: number;
 }) {
   const all = useSymbols();
   const pool = useMemo(() => (only ? all.filter((r) => only.includes(r.symbol)) : all), [all, only]);
@@ -49,7 +51,7 @@ export function SymbolPicker({ value, onChange, onPick, autoFocus, placeholder =
   useEffect(() => { box.current?.querySelector(`[data-i="${hi}"]`)?.scrollIntoView({ block: "nearest" }); }, [hi]);
   const pick = (r: SymbolRow) => { onChange(r.symbol); onPick?.(r); setOpen(false); };
   return (
-    <div className="sympick" ref={box}>
+    <div className="sympick" ref={box} style={width ? { width, flex: "0 1 auto" } : undefined}>
       <input className="input" value={value} autoFocus={autoFocus} placeholder={placeholder} autoComplete="off" autoCapitalize="characters" spellCheck={false}
         role="combobox" aria-expanded={open} aria-autocomplete="list"
         onFocus={() => setOpen(true)}

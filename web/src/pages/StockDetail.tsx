@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { SymbolPicker } from "../components/SymbolPicker.tsx";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
@@ -575,7 +576,7 @@ export function AlertModal({ sym, onClose }: { sym?: string; onClose: () => void
     <Modal title="Create alert" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Create</button></>}>
       <div className="col">
         <label className="field">Alert type<select className="input" value={type} onChange={(e) => { setType(e.target.value); setParams({}); }}>{types.data?.map((t: Any) => <option key={t.type} value={t.type}>{t.label}</option>)}</select></label>
-        {def?.needsSymbol && <label className="field">Symbol<input className="input" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} /></label>}
+        {def?.needsSymbol && <label className="field">Symbol<SymbolPicker value={symbol} onChange={setSymbol} /></label>}
         <div className="grid g2">{def?.params.map((p: string) => <label key={p} className="field">{p}<NumInput className="input" placeholder={placeholders[p]} value={params[p] ?? ""} onChange={(e) => setParams({ ...params, [p]: e.target.value })} /></label>)}</div>
         <label className="field">Note<input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why you set this alert" /></label>
         <label className="chk"><input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} /> Keep active after it fires (repeat)</label>
