@@ -507,9 +507,12 @@ export function startScheduler() {
     }
   };
   setInterval(tick, 60_000);
-  // On boot: if the market data is older than 12 hours (or empty), refresh now.
   const latest = get<{ last_success_at: string }>("SELECT last_success_at FROM data_freshness WHERE dataset = 'prices_latest'");
-  if (!latest || Date.now() - Date.parse(latest.last_success_at) > 12 * 3_600_000) queueDailyRefresh();
+  // On boot: the latest prices, price history and indices update right away if they are more than 2 hours old,
+  // so a Mac that was off or closed early catches up within seconds of opening (the full refresh can take minutes).
+  const age = latest ? Date.now() - Date.parse(latest.last_success_at) : Infinity;
+  if (age > 12 * 3_600_000) queueDailyRefresh();
+  else if (age > 2 * 3_600_000) { enqueue("listing", (s) => syncListing(s)); enqueue("history", (s) => syncHistory(s)); enqueue("indices", (s) => syncIndices(s)); }
 }
 
 // ---------- intraday refresh during market hours ----------

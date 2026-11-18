@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BROWSER_BACKEND, backendFetch } from "./backend.ts";
+import { BROWSER_BACKEND, backendFetch, onBackendEvent } from "./backend.ts";
 
 const doFetch = (url: string, init: RequestInit) => (BROWSER_BACKEND ? backendFetch(url, init) : fetch(url, init));
 
@@ -49,6 +49,20 @@ export function rememberPath(path: string, v: unknown) { remember(path, v); }
 /** Last saved copy of a GET response, for instant first paint. */
 export function lastSeen<T>(path: string): T | undefined { return recent.get(path) as T | undefined; }
 
+// Every open screen refreshes itself when new market data lands, and when the app comes back to the front
+// (a phone app returning from the background, or the Mac tab being looked at again).
+const refreshers = new Set<() => void>();
+const refreshAll = () => refreshers.forEach((f) => f());
+onBackendEvent((e) => { if (e.type === "data-updated") refreshAll(); });
+let lastFront = Date.now();
+if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || Date.now() - lastFront < 20_000) return;
+  lastFront = Date.now();
+  // In the phone/browser version, also look for newer data at once (the worker may have been paused in the background).
+  if (BROWSER_BACKEND) void api("/data/refresh", { method: "POST" }).catch(() => undefined);
+  refreshAll();
+});
+
 /** Fetch-on-mount hook with reload. Shows the last copy at once and refreshes in the background. */
 export function useApi<T>(path: string | null, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(() => (path && recent.has(path) ? (recent.get(path) as T) : null));
@@ -73,6 +87,7 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, ...deps]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const f = () => { void load(); }; refreshers.add(f); return () => { refreshers.delete(f); }; }, [load]);
   return { data, error, loading, reload: load, setData };
 }
 

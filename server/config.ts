@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-export const DATA_DIR = join(ROOT, "data");
+export const DATA_DIR = process.env.SAPHAL_DATA_DIR || join(ROOT, "data"); // a different folder only for tests
 mkdirSync(join(DATA_DIR, "cache"), { recursive: true });
 mkdirSync(join(DATA_DIR, "uploads"), { recursive: true });
 mkdirSync(join(DATA_DIR, "backups"), { recursive: true });

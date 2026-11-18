@@ -13,5 +13,6 @@ if [ ! -f dist/index.html ] || [ ! -f dist/.mac-server-build ] || [ -n "$(find w
   echo "Building the app..."; { npm run build:server >/dev/null && touch dist/.mac-server-build; } || { echo "Build failed. Run 'npm run build' to see why."; [ "$NO_OPEN" = "1" ] || read -r -p "Press Enter to close"; exit 1; }
 fi
 echo "Starting Saphal Stocks on http://127.0.0.1:$PORT  (close this window or press Ctrl+C to stop)"
-[ "$NO_OPEN" = "1" ] || ( sleep 3; open "http://127.0.0.1:$PORT" ) &
+# Open the browser only once the app answers (starting can take more than a few seconds), so Safari never shows "can't connect".
+[ "$NO_OPEN" = "1" ] || ( for _ in $(seq 1 120); do curl -s -o /dev/null "http://127.0.0.1:$PORT/api/health" && break; sleep 0.5; done; open "http://127.0.0.1:$PORT" ) &
 NODE_ENV=production API_PORT="$PORT" exec npx tsx server/index.ts

@@ -15,7 +15,7 @@ import { aiRouter } from "../../../server/routes/ai.ts";
 import { wealthRouter } from "../../../server/routes/wealth.ts";
 import { evaluateAlerts } from "../../../server/lib/alerts.ts";
 import { idbGet, idbSet, idbDel } from "./idb.ts";
-import { applyLive, forgetLive } from "./live.ts";
+import { applyLive, applyRecentDays, forgetLive } from "./live.ts";
 
 const post = (m: unknown, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(m, transfer);
 const BASE = (import.meta.env.BASE_URL || "/").replace(/\/?$/, "/");
@@ -55,18 +55,35 @@ async function gunzip(buf: ArrayBuffer): Promise<Uint8Array> {
   return new Uint8Array(await new Response(ds).arrayBuffer());
 }
 
+/** Downloads the daily file. A connection that stalls (no data for 40 seconds, common when a phone app is put in
+ *  the background) is picked up again from where it stopped instead of hanging or starting over. */
 async function download(url: string, total: number): Promise<ArrayBuffer> {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok || !res.body) throw new Error(`Download failed (${res.status})`);
-  const reader = res.body.getReader();
   const parts: Uint8Array[] = [];
   let got = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    parts.push(value); got += value.length;
-    post({ type: "progress", message: `Downloading market data... ${total ? Math.round((got / total) * 100) : Math.round(got / 1e6)}${total ? "%" : " MB"}` });
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const ctl = new AbortController();
+    let timer = setTimeout(() => ctl.abort(), 40_000);
+    try {
+      const res = await fetch(url, { cache: "no-store", signal: ctl.signal, headers: got ? { Range: `bytes=${got}-` } : {} });
+      if (got && res.status !== 206) { parts.length = 0; got = 0; } // the server sent the whole file again
+      if (!res.ok || !res.body) throw new Error(`Download failed (${res.status})`);
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 40_000);
+        parts.push(value); got += value.length;
+        post({ type: "progress", message: `Downloading market data... ${total ? Math.round((got / total) * 100) : Math.round(got / 1e6)}${total ? "%" : " MB"}` });
+      }
+      clearTimeout(timer);
+      if (!total || got >= total) break;
+    } catch (e) {
+      clearTimeout(timer);
+      if (attempt === 5) throw e;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
   }
+  if (total && got < total) throw new Error("Download incomplete");
   const out = new Uint8Array(got); let o = 0;
   for (const p of parts) { out.set(p, o); o += p.length; }
   return out.buffer;
@@ -132,16 +149,34 @@ async function loadMarket(force: boolean, preferSaved = false) {
   return false;
 }
 
-hooks.checkForUpdate = async (force) => {
+// One check at a time: opening the app, the timer and returning to the front can all ask at once.
+let checking: ReturnType<typeof checkOnce> | null = null;
+hooks.checkForUpdate = (force) => (checking ??= checkOnce(force).finally(() => { checking = null; }));
+async function checkOnce(force: boolean) {
+  // The small files first (missed trading days, then the latest prices), so new data shows within seconds even
+  // when the big daily file is slow to download on a phone connection.
+  const days0 = await applyRecentDays(BASE);
+  const live0 = await applyLive(BASE);
+  if (days0 || live0) { await refreshed(); post({ type: "data-updated", message: days0 ? "Added the latest trading days." : "Applied the latest prices.", market, at: new Date().toISOString() }); }
   const before = market.version;
-  await loadMarket(force);
-  if (market.version !== before) forgetLive();
-  const live = await applyLive(BASE);
+  await loadMarket(force).catch((e) => { console.warn("[market]", e); });
   const updated = market.version !== before;
-  if (updated || live) { const { resetMarketCaches } = await import("../../../server/lib/market.ts"); resetMarketCaches?.(); }
-  if (updated || live) { try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn(e); } }
-  return { updated, version: market.version, asOf: market.asOf, message: updated ? `Loaded market data as of ${market.asOf}.` : live ? "Applied the latest intraday prices." : `Already up to date (data as of ${market.asOf}).` };
-};
+  let days = days0, live = live0;
+  if (updated) { forgetLive(); days = (await applyRecentDays(BASE)) || days0; live = (await applyLive(BASE)) || live0; await refreshed(); post({ type: "data-updated", message: `Loaded market data as of ${latestDate() ?? market.asOf}.`, market, at: new Date().toISOString() }); }
+  const fresh = updated || days || live;
+  const asOf = latestDate() ?? market.asOf;
+  return { updated: fresh, version: market.version, asOf, message: updated ? `Loaded market data as of ${asOf}.` : days ? `Added the latest trading days (data as of ${asOf}).` : live ? "Applied the latest intraday prices." : `Already up to date (data as of ${asOf}).` };
+}
+
+/** Newest trading day in the data now mounted (the saved file plus anything added since). */
+function latestDate(): string | null {
+  try { return (main.exec("SELECT MAX(date) FROM m.prices")[0]?.values[0]?.[0] as string | null) ?? null; } catch { return null; }
+}
+async function refreshed() {
+  const d = latestDate(); if (d && (!market.asOf || d > market.asOf)) market = { ...market, asOf: d };
+  const { resetMarketCaches } = await import("../../../server/lib/market.ts"); resetMarketCaches?.();
+  try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); }
+}
 hooks.marketInfo = () => ({ ...market });
 // Backups and sync never carry device secrets (the AI key stays on each device).
 const DEVICE_ONLY_SETTINGS = ["aiKey"];
@@ -209,13 +244,14 @@ async function boot() {
   await loadMarket(false, true);
   ensureStarterData();
   takeDirty(); // first-run starter data is not a change to sync
-  // Latest prices and news (a small file) load in the background so opening never waits on the network.
-  void applyLive(BASE).then(async (ok) => {
-    if (!ok) return;
-    const { resetMarketCaches } = await import("../../../server/lib/market.ts"); resetMarketCaches?.();
-    try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); }
-    post({ type: "data-updated", message: "Applied the latest prices.", market, at: new Date().toISOString() });
-  }).catch(() => undefined);
+  // Missed trading days, then the latest prices and news (small files), load in the background so opening never waits on the network.
+  void (async () => {
+    const days = await applyRecentDays(BASE).catch(() => false);
+    const live = await applyLive(BASE).catch(() => false);
+    if (!days && !live) return;
+    await refreshed();
+    post({ type: "data-updated", message: days ? "Added the latest trading days." : "Applied the latest prices.", market, at: new Date().toISOString() });
+  })();
   post({ type: "ready", market });
   // Alert checks and the save to device storage run just after the app is ready, so opening never waits on them.
   setTimeout(() => { try { bookkeeping(() => evaluateAlerts()); } catch (e) { console.warn("[alerts]", e); } void persist(); }, 1200);
@@ -223,7 +259,7 @@ async function boot() {
   // Nepal time), otherwise every 5 minutes (next day's snapshot).
   const marketHours = () => { const npt = new Date(Date.now() + 345 * 60_000), m = npt.getUTCHours() * 60 + npt.getUTCMinutes(); return m >= 10 * 60 + 25 && m <= 15 * 60 + 30; };
   const poll = async () => {
-    try { const r = await hooks.checkForUpdate(false); if (r.updated || /intraday/.test(r.message)) post({ type: "data-updated", message: r.message, market, at: new Date().toISOString() }); } catch { /* offline: try later */ }
+    try { await hooks.checkForUpdate(false); } catch { /* offline: try later */ } // it tells the screen itself when data changes
     setTimeout(poll, marketHours() ? 60_000 : 5 * 60_000);
   };
   setTimeout(poll, 3000); // first check right after opening: fetches a newer data file in the background

@@ -11,6 +11,8 @@ const range = (from: string, to: string, reason: string, source: string): Closur
 
 export const CLOSURES: Closure[] = [
   // 22 to 26 Kartik 2083; trading resumes Friday 27 Kartik (13 Nov 2026).
+  // 30 Kartik 2083 (Monday): public holiday the day after Chhath; trading resumed 1 Mangsir (17 Nov 2026).
+  { date: "2026-11-16", reason: "Public holiday after Chhath", source: "https://www.sharesansar.com/newsdetail/government-declares-public-holiday-on-monday-following-chhath-festival-2026-11-13" },
   ...range("2026-11-08", "2026-11-12", "Tihar public holiday", "https://www.sharesansar.com/newsdetail/nepse-to-remain-closed-govt-declares-public-holiday-on-the-occasion-of-tihar-2026-11-08"),
 ];
 const MAP = new Map(CLOSURES.map((c) => [c.date, c]));

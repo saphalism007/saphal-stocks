@@ -3,6 +3,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../server/config.ts";
 import { all, get } from "../server/db.ts";
+import { buildRecent } from "../shared/published.ts";
 
 const cols = ["symbol", "open", "high", "low", "close", "ltp", "prev_close", "change", "change_pct", "vwap", "volume", "turnover", "trades", "high52", "low52"];
 const asOf = get<{ d: string }>("SELECT MAX(date) d FROM quotes")?.d;
@@ -15,3 +16,7 @@ const f = get<{ last_success_at: string }>("SELECT last_success_at FROM data_fre
 mkdirSync(join(ROOT, "web", "public", "data"), { recursive: true });
 writeFileSync(join(ROOT, "web", "public", "data", "live.json"), JSON.stringify({ generatedAt: f?.last_success_at ?? new Date().toISOString(), asOf, columns: cols, quotes: rows.map((r) => cols.map((c) => r[c] ?? null)), newsColumns: ncols, news: news.map((r) => ncols.map((c) => r[c] ?? null)) }));
 console.log(`live.json: ${rows.length} quotes as of ${asOf}, ${news.length} news items`);
+// Every price and index row of the last trading days: any device that missed a day fills it in from this small file.
+const recent = buildRecent(all, f?.last_success_at ?? new Date().toISOString());
+writeFileSync(join(ROOT, "web", "public", "data", "recent.json"), JSON.stringify(recent));
+console.log(`recent.json: ${recent.prices.rows.length} prices and ${recent.indices.rows.length} index rows for ${recent.dates[0]} to ${recent.asOf}`);
