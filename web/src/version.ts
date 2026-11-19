@@ -5,15 +5,14 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.24.1";
-export const RELEASED = "2026-11-18";
+export const VERSION = "0.25.0";
+export const RELEASED = "2026-11-19";
 export const NOTES = [
-  "Company search everywhere: Watchlist, Compare, Journal, Indicators, Growth, alerts and Rebalance now list every NEPSE company as you type the first letter, with name, sector and live price. On Watchlist and Compare, one tap adds the company.",
-  "Portfolio: type the first letter of a symbol and every listed NEPSE company starting with it appears, with its name, sector and live price. Picking one fills in today's price.",
-  "Accurate bills: each purchase and sale now shows broker commission (with its slab rate), SEBON fee 0.015% and the Rs. 25 CDSC DP charge, which also applies to purchases. Totals, cost per share, your new WACC and the break-even price are shown before you save.",
-  "Capital gains tax updated: 5% (held 365 days or less) and 3.75% (held longer) for individuals from 22 September 2026, per the Nepal Gazette. Each sale uses the rate in force on its date (10% / 7.5% from 17 July to 21 September 2026, 7.5% / 5% before).",
-  "Selling shows your gain against WACC, the holding period, the tax, and your net profit after tax, and warns when a holding is close to becoming long term.",
-  "New on Portfolio: today's gain from live prices, a Today column, an allocation chart, easy holding cards on the phone, and full charges and totals for every transaction.",
+  "Portfolio, What to do next: every stock you hold gets one clear action (Hold, Add, Book profit, Reduce, Sell or Review), your break-even, a stop-loss, sell zones with the net profit at each, where to add more (with your new WACC), and numbered next steps. Stocks you sold get a buy-back view.",
+  "News on your stocks: the last 45 days of announcements, results and dividends for everything you hold or sold, each opening the full story or the company page.",
+  "Your position on every stock page: open a stock you hold and your plan appears at the top.",
+  "Signals no longer change during the day: buy and sell signals are set on the last official close and recalculated once after each close. A new Live now column shows whether the entry is still available at today's price, and each signal shows since when it has stood.",
+  "Trading Opportunities: each stock's plan now links to its full company page and chart.",
 ];
 
 declare const __BUILD__: string;

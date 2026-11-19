@@ -34,7 +34,9 @@ export function analysisFor(symbol: string, opts: { history?: boolean } = {}): C
   const bars = M.bars(symbol, { limit: 600 }).bars;
   const f = M.allFactors().find((x) => x.symbol === symbol);
   const fa = TR.fundamentalInput(symbol);
-  const opp = TR.withTrack([evaluate({ symbol, name: c.name || symbol, sector, bars: bars.slice(-420), fundamentals: fa, avgTurnover20: f?.avgTurnover20 ?? null, latestMarketDate: M.latestTradingDate() ?? "", fees: M.fees() })])[0];
+  // The verdict uses closing prices only, so it matches Trading Opportunities and does not change during the session.
+  const official = M.bars(symbol, { limit: 420, official: true }).bars;
+  const opp = TR.withTrack([evaluate({ symbol, name: c.name || symbol, sector, bars: official, fundamentals: fa, avgTurnover20: f?.avgTurnover20 ?? null, latestMarketDate: M.latestTradingDate() ?? "", fees: M.fees() })])[0];
   let stockTrack: TrackSummary | null = null;
   let signals: PastSignal[] | undefined;
   if (opts.history && bars.length >= 200) {

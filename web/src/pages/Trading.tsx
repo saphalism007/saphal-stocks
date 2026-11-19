@@ -54,8 +54,9 @@ export default function Trading() {
           {rows.length === 0 ? <Empty title="No stocks in this group right now">{tab === "buy" ? "No stock meets every BUY condition today (setup quality, reward/risk at least 1.8, price in the entry zone, liquidity). That is a normal result." : ""}</Empty> : (
             <DataTable rows={rows} rowKey={(r: Any) => r.symbol} onRow={(r: Any) => setOpen(r.symbol)} maxHeight={640} initialSort={{ key: "confidence", dir: -1 }} cols={[
               { key: "symbol", label: "Stock", render: (r: Any) => <span><span className="sym">{r.symbol}</span> <span className="tiny faint">{r.sector}</span></span> },
-              { key: "price", label: "Price", num: true, render: (r: Any) => <span>{num(r.price)}<span className="tiny faint" style={{ display: "block" }}>{r.priceDate}</span></span> },
-              { key: "action", label: "Action", render: (r: Any) => <Badge tone={ACTION_TONE[r.action]}>{r.action === "INSUFFICIENT" ? "NO DATA" : r.action}</Badge> },
+              { key: "price", label: "Close", num: true, title: "The closing price the signal was set on", render: (r: Any) => <span>{num(r.price)}<span className="tiny faint" style={{ display: "block" }}>{nptDate(r.priceDate)}</span></span> },
+              { key: "live", label: "Live now", num: true, sort: (r: Any) => r.live?.price ?? 0, render: (r: Any) => r.live ? <span title={r.live.note}>{num(r.live.price)}<span style={{ display: "block" }}><LiveTag s={r.live.status} /></span></span> : <span className="tiny faint">-</span> },
+              { key: "action", label: "Action", render: (r: Any) => <span><Badge tone={ACTION_TONE[r.action]}>{r.action === "INSUFFICIENT" ? "NO DATA" : r.action}</Badge>{r.signalSince && <span className="tiny faint" style={{ display: "block" }}>since {nptDate(r.signalSince)}</span>}</span> },
               ...(tab === "buy" || tab === "watch" ? [
                 { key: "entryLow", label: "Buy range", num: true, render: (r: Any) => r.entryLow != null ? `${num(r.entryLow)}-${num(r.entryHigh)}` : "-" },
                 { key: "stop", label: "Stop", num: true, render: (r: Any) => r.stop != null ? num(r.stop) : "-" },
@@ -67,7 +68,7 @@ export default function Trading() {
               { key: "headline", label: "Why", render: (r: Any) => <span className="small">{r.headline}</span> },
             ]} />
           )}
-          <p className="tiny faint" style={{ marginTop: 8 }}>Tap a stock for the full plan, trade planner, paper trading and alerts. Review signals after each trading day; levels change when prices do.</p>
+          <p className="tiny faint" style={{ marginTop: 8 }}>Signals are set on the last official close and stay the same all day; they are recalculated once after each day's close. "Live now" shows whether the entry is still available at today's price. Tap a stock for the full plan, trade planner, paper trading, alerts and the full company page.</p>
         </Card>
       )}
       {open && <Modal title={`${open}, trade plan`} onClose={() => setOpen(null)}><Detail symbol={open} /></Modal>}
@@ -118,7 +119,9 @@ function Detail({ symbol }: { symbol: string }) {
         <div><strong style={{ fontSize: 18 }}>{d.name}</strong> <span className="small muted">{d.sector}</span><div className="small">Rs. {num(d.price)}, {d.priceDate}, <span className="faint">{d.priceInfo?.kind === "delayed" ? "delayed intraday (about 15 min)" : "end-of-day price"}</span></div></div>
         <Badge tone={ACTION_TONE[d.action]}>{d.action === "INSUFFICIENT" ? "INSUFFICIENT DATA" : d.action}</Badge>
       </div>
-      <Notice tone={d.action === "BUY" ? "info" : "warn"}>{d.headline}{d.buyNow === "wait" && d.waitFor ? ` Wait for ${d.waitFor}.` : d.buyNow === "now" ? " Entry conditions are met now." : ""}</Notice>
+      <div className="row" style={{ gap: 8 }}><Link className="btn primary sm" to={`/stocks/${symbol}`}>Full company page: chart, financials, news</Link><Link className="btn sm" to={`/terminal/${symbol}`}>Open chart</Link></div>
+      {d.live && <Notice tone={d.live.status === "in-zone" ? "info" : "warn"}><strong>Live now:</strong> {d.live.note}</Notice>}
+      <Notice tone={d.action === "BUY" ? "info" : "warn"}>{d.signalSince ? <strong>Signal since {nptDate(d.signalSince)}. </strong> : null}{d.headline}{d.buyNow === "wait" && d.waitFor ? ` Wait for ${d.waitFor}.` : d.buyNow === "now" ? " Entry conditions are met now." : ""}</Notice>
       {d.entryLow != null && (
         <div className="plan-grid">
           <div><span>Buy range</span><strong>{num(d.entryLow)}-{num(d.entryHigh)}</strong><em>entry about {num(d.entry)}</em></div>
@@ -210,4 +213,10 @@ function TrackRecord() {
       </Card>
     </div>
   );
+}
+
+const LIVE_LABEL: Record<string, [string, "up" | "down" | "warn" | "blue"]> = { "in-zone": ["still in zone", "up"], "above-zone": ["above zone, wait", "warn"], "below-zone": ["below zone", "warn"], "stop-hit": ["stop hit", "down"], "target-hit": ["target hit", "blue"], holding: ["", "blue"], none: ["", "blue"] };
+function LiveTag({ s }: { s: string }) {
+  const [label, t] = LIVE_LABEL[s] ?? ["", "blue"];
+  return label ? <Badge tone={t}>{label}</Badge> : null;
 }

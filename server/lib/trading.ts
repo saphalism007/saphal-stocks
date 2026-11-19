@@ -3,7 +3,7 @@
 // walk-forward track record. Heavy results are precomputed into the snapshot by the export script.
 import { all, get } from "../db.ts";
 import * as M from "./market.ts";
-import { evaluate, longTermIdea, trackRecord, summarizeTrack, type FundamentalInput, type Opportunity, type LongTermIdea, type TrackTrade } from "../../shared/opportunities.ts";
+import { evaluate, longTermIdea, trackRecord, summarizeTrack, liveCheck, type FundamentalInput, type Opportunity, type LongTermIdea, type TrackTrade } from "../../shared/opportunities.ts";
 
 export function fundamentalInput(symbol: string): FundamentalInput | null {
   const fa = M.fundamentalsFor(symbol);
@@ -31,7 +31,7 @@ export function computeOpportunities(): { asOf: string | null; rows: Opportunity
   const fees = M.fees();
   for (const c of cos) {
     try {
-      const bars = M.bars(c.symbol, { limit: 420 }).bars;
+      const bars = M.bars(c.symbol, { limit: 420, official: true }).bars;
       const fa = fundamentalInput(c.symbol);
       const o = evaluate({ symbol: c.symbol, name: c.name || c.symbol, sector: c.sector || "Unclassified", bars, fundamentals: fa, avgTurnover20: turnover.get(c.symbol) ?? null, latestMarketDate: latest, fees });
       rows.push(o);
@@ -59,7 +59,7 @@ export function computeTrack() {
   const trades: TrackTrade[] = [];
   const fees = M.fees();
   for (const f of turnover) {
-    try { trades.push(...trackRecord(f.symbol, M.bars(f.symbol, { limit: 520 }).bars, fundamentalInput(f.symbol), { step: 5, lookback: 250, fees })); } catch { /* skip */ }
+    try { trades.push(...trackRecord(f.symbol, M.bars(f.symbol, { limit: 520, official: true }).bars, fundamentalInput(f.symbol), { step: 5, lookback: 250, fees })); } catch { /* skip */ }
   }
   trades.sort((a, b) => (a.date < b.date ? 1 : -1));
   const latest = M.latestTradingDate();
@@ -112,3 +112,21 @@ export function signalLog(limit = 200) {
 }
 
 export { priceKind };
+
+/** Adds today's live price against each signal, and how long the signal has stood (from the daily signal log). */
+export function withLive<T extends Opportunity>(rows: T[]) {
+  const q = new Map(all<{ symbol: string; close: number; date: string }>("SELECT symbol, close, date FROM quotes").map((r) => [r.symbol, r]));
+  let log: { symbol: string; action: string; date: string }[] = [];
+  try { log = all("SELECT symbol, action, date FROM signal_log WHERE date >= date('now', '-60 days') ORDER BY date DESC"); } catch { /* older data */ }
+  const days = [...new Set(log.map((r) => r.date))]; // logged days, newest first
+  const by = new Map<string, Map<string, string>>();
+  for (const r of log) { const m = by.get(r.symbol) ?? new Map(); m.set(r.date, r.action); by.set(r.symbol, m); }
+  return rows.map((o) => {
+    const lq = q.get(o.symbol);
+    // Signal age: the run of consecutive logged days with the same action, ending at the latest logged day.
+    const m = by.get(o.symbol);
+    let since: string | null = null;
+    for (const d of days) { if (m?.get(d) !== o.action) break; since = d; }
+    return { ...o, live: liveCheck(o, lq?.close ?? null, lq?.date ?? null), signalSince: since };
+  });
+}

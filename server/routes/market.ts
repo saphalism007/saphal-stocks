@@ -457,7 +457,7 @@ function priceInfo() {
 marketRouter.get("/trading/opportunities", (_req, res) => {
   const o = TR.opportunities();
   const t = TR.track();
-  res.json({ asOf: o.asOf, price: priceInfo(), rows: TR.withTrack(o.rows), longTerm: o.longTerm, track: t.summary, trackMethod: t.method,
+  res.json({ asOf: o.asOf, price: priceInfo(), rows: TR.withLive(TR.withTrack(o.rows)), longTerm: o.longTerm, track: t.summary, trackMethod: t.method,
     disclaimer: "Educational, rule-based analysis from stored NEPSE data. Not a guarantee or licensed investment advice; past results of these rules are shown so you can judge them." });
 });
 marketRouter.get("/chart/:symbol/analysis", (req, res) => {
@@ -479,8 +479,8 @@ marketRouter.get("/trading/stock/:symbol", (req, res) => {
   if (!c) return res.status(404).json({ error: "Unknown symbol" });
   const f = M.allFactors().find((x) => x.symbol === sym);
   const fa = TR.fundamentalInput(sym);
-  const o = evaluate({ symbol: sym, name: (c as { name?: string }).name || sym, sector: (c as { sector?: string }).sector || "", bars: M.bars(sym, { limit: 420 }).bars, fundamentals: fa, avgTurnover20: f?.avgTurnover20 ?? null, latestMarketDate: M.latestTradingDate() ?? "", fees: M.fees() });
-  res.json({ ...TR.withTrack([o])[0], longTerm: longTermIdea(o, fa), priceInfo: priceInfo(), fees: M.fees() });
+  const o = evaluate({ symbol: sym, name: (c as { name?: string }).name || sym, sector: (c as { sector?: string }).sector || "", bars: M.bars(sym, { limit: 420, official: true }).bars, fundamentals: fa, avgTurnover20: f?.avgTurnover20 ?? null, latestMarketDate: M.latestTradingDate() ?? "", fees: M.fees() });
+  res.json({ ...TR.withLive(TR.withTrack([o]))[0], longTerm: longTermIdea(o, fa), priceInfo: priceInfo(), fees: M.fees() });
 });
 
 // ---------- reports, audited results and official filings ----------

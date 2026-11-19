@@ -15,9 +15,11 @@ export const fees = (): FeeConfig => {
   return { ...DEFAULT_FEES, ...saved };
 };
 
-export function rawBars(symbol: string, limit?: number): Bar[] {
+/** official: leave out today's unfinished candle from the live prices (signals are set on closing prices only,
+ *  so they stay the same through the session instead of changing with every price move). */
+export function rawBars(symbol: string, limit?: number, official = false): Bar[] {
   const rows = all<Bar>(
-    `SELECT date, open, high, low, close, volume, amount FROM prices WHERE symbol = ? ORDER BY date ${limit ? "DESC LIMIT " + Number(limit) : "ASC"}`,
+    `SELECT date, open, high, low, close, volume, amount FROM prices WHERE symbol = ?${official ? " AND COALESCE(source, '') <> 'live'" : ""} ORDER BY date ${limit ? "DESC LIMIT " + Number(limit) : "ASC"}`,
     symbol,
   );
   return limit ? rows.reverse() : rows;
@@ -36,8 +38,8 @@ export function rightEvents(symbol: string) {
 }
 
 /** Bars adjusted for bonus and right issues (only where the expected gap is visible in the data). */
-export function bars(symbol: string, opts: { adjusted?: boolean; limit?: number } = {}) {
-  const raw = rawBars(symbol);
+export function bars(symbol: string, opts: { adjusted?: boolean; limit?: number; official?: boolean } = {}) {
+  const raw = rawBars(symbol, undefined, opts.official);
   if (opts.adjusted === false) return { bars: opts.limit ? raw.slice(-opts.limit) : raw, adjustments: [], skippedAdjustments: [], rightAdjustments: [] };
   const bonus = adjustForBonus(raw, bonusEvents(symbol));
   const rights = adjustForRights(bonus.bars, rightEvents(symbol));
@@ -176,10 +178,12 @@ export function marketSummary() {
 // ---------- factors for ranking (cached per data date) ----------
 let factorCache: { key: string; rows: StockFactors[] } | null = null;
 
-const priceStamp = () => get<{ t: string }>("SELECT last_success_at t FROM data_freshness WHERE dataset = 'prices_latest'")?.t ?? "";
+// Scores and signals depend on closing prices only, so live price updates during the session do not recompute
+// (or reshuffle) them; they change once the day's official close arrives.
+const priceStamp = () => { const r = get<{ d: string | null; n: number }>("SELECT MAX(date) d, COUNT(*) n FROM prices WHERE date >= date((SELECT MAX(date) FROM prices), '-7 days') AND COALESCE(source, '') <> 'live'"); return `${r?.d ?? ""}:${r?.n ?? 0}`; };
 
-const factorKey = () => `${latestTradingDate()}|${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}|${get<{ n: number }>("SELECT COUNT(*) n FROM dividends")?.n}`;
-const setupKey = () => `${latestTradingDate()}|${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}`;
+const factorKey = () => `${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}|${get<{ n: number }>("SELECT COUNT(*) n FROM dividends")?.n}`;
+const setupKey = () => `${priceStamp()}|${get<{ n: number }>("SELECT COUNT(*) n FROM reports")?.n}`;
 /** Precomputed result stored in the snapshot (by the export script), if it matches the current data. */
 function persisted<T>(name: string, key: string): T | null {
   try { const r = get<{ stamp: string; json: string }>("SELECT stamp, json FROM computed WHERE name = ?", name); return r && r.stamp === key ? (JSON.parse(r.json) as T) : null; } catch { return null; }
@@ -196,7 +200,7 @@ export function allFactors(): StockFactors[] {
   const rows: StockFactors[] = [];
   for (const c of cos) {
     try {
-      const b = bars(c.symbol, { limit: 400 }).bars;
+      const b = bars(c.symbol, { limit: 400, official: true }).bars;
       if (b.length < 30) continue;
       const snap = technicalSnapshot(b);
       const fa = fundamentalsFor(c.symbol);
@@ -240,7 +244,7 @@ function computeSetups() {
   const f = new Map(allFactors().map((r) => [r.symbol, r]));
   const out = [];
   for (const { symbol } of cos) {
-    const b = bars(symbol, { limit: 400 }).bars;
+    const b = bars(symbol, { limit: 400, official: true }).bars;
     if (b.length < 60) continue;
     const fr = f.get(symbol);
     if ((fr?.avgTurnover20 ?? 0) < 2_000_000) continue; // skip illiquid

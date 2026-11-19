@@ -9,6 +9,7 @@ import { num, pct, tone, compact, int, nptDate, todayNpt, rs } from "../lib/form
 import { I } from "../components/icons.tsx";
 import { buyCost, sellCost, cgtRate, DEFAULT_FEES, type FeeConfig } from "../../../shared/costs.ts";
 import { SymbolPicker, useSymbols } from "../components/SymbolPicker.tsx";
+import { PlanCard, PLAN_TONE } from "../components/PlanCard.tsx";
 import { rebalancePlan, chargesFor } from "../../../shared/portfolio.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -48,7 +49,7 @@ export default function Portfolio() {
 function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void }) {
   const d = useApi<Any>(`/portfolios/${id}`, [id]);
   const [adding, setAdding] = useState<null | "tx" | "paper" | "import">(null);
-  const [view, setView] = useState<"holdings" | "performance" | "tax" | "rebalance">("holdings");
+  const [view, setView] = useState<"plan" | "holdings" | "performance" | "tax" | "rebalance">("plan");
   const [edit, setEdit] = useState<Any>(null);
   const nav = useNavigate();
   const feesApi = useApi<Any>("/settings/fees");
@@ -97,7 +98,8 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
         <Stat label="Dividends (net)" value={compact(s.dividends)} />
         {p.kind === "paper" ? <Stat label="Paper cash" value={compact(cash)} sub={`Start ${compact(p.paper_cash)}`} /> : <Stat label="Total return" value={pct(s.totalReturnPct)} tone={tone(s.totalReturnPct)} sub={`on ${compact(s.cashIn)} invested`} />}
       </div>
-      <Tabs value={view} onChange={setView} tabs={[{ key: "holdings", label: "Holdings & transactions" }, { key: "performance", label: "Performance vs NEPSE" }, { key: "tax", label: "Tax report" }, { key: "rebalance", label: "Rebalance" }]} />
+      <Tabs value={view} onChange={setView} tabs={[{ key: "plan", label: "What to do next" }, { key: "holdings", label: "Holdings & transactions" }, { key: "performance", label: "Performance vs NEPSE" }, { key: "tax", label: "Tax report" }, { key: "rebalance", label: "Rebalance" }]} />
+      {view === "plan" && <PlanView id={id} onAdd={() => setAdding(p.kind === "paper" ? "paper" : "tx")} />}
       {view === "performance" && <Performance id={id} />}
       {view === "rebalance" && <Rebalance summary={s} sectors={sectors} extras={extras} />}
       {view === "tax" && <TaxReport id={id} />}
@@ -513,3 +515,44 @@ function Donut({ items }: { items: { label: string; value: number }[] }) {
     </div>
   );
 }
+
+/* ---------- What to do next: a plan for every holding, buy-back views for sold stocks, and their news ---------- */
+function PlanView({ id, onAdd }: { id: number; onAdd: () => void }) {
+  const d = useApi<Any>(`/portfolios/${id}/insights`, [id]);
+  const [filter, setFilter] = useState<string>("");
+  if (d.error) return <ErrorBox error={d.error} onRetry={d.reload} />;
+  if (!d.data) return <Loading label="Building your plan from prices, signals, fundamentals and news" />;
+  const { plans, closed, news, counts, signalsAsOf } = d.data;
+  if (!plans.length && !closed.length) return <Empty title="No holdings yet">Add your first purchase and this page will tell you what to do next with it.<div style={{ marginTop: 10 }}><button className="btn primary" onClick={onAdd}><I.plus /> Add transaction</button></div></Empty>;
+  const shown = filter ? plans.filter((x: Any) => x.action === filter) : plans;
+  const newsBy = (sym: string) => news.filter((n: Any) => n.symbol === sym);
+  return (
+    <div className="col">
+      <div className="plan-bar">
+        <button className={`chip${!filter ? " on" : ""}`} onClick={() => setFilter("")}>All {plans.length}</button>
+        {["SELL", "REVIEW", "REDUCE", "BOOK PROFIT", "ADD", "HOLD"].filter((k) => counts[k]).map((k) => <button key={k} className={`chip${filter === k ? " on" : ""}`} onClick={() => setFilter(filter === k ? "" : k)}><Badge tone={PLAN_TONE[k]}>{k}</Badge> {counts[k]}</button>)}
+        <span className="tiny faint" style={{ marginLeft: "auto" }}>Signals from the close of {nptDate(signalsAsOf)}; prices live in market hours.</span>
+      </div>
+      {shown.map((x: Any) => <PlanCard key={x.symbol} x={x} news={newsBy(x.symbol)} />)}
+      {closed.length > 0 && <Card title="Stocks you sold: buy back?" sub="Whether the signal now supports buying again, and how the price moved since your sale" flush>
+        <div className="plan-sold">{closed.map((c: Any) => (
+          <Link key={c.symbol} to={`/stocks/${c.symbol}`} className="plan-sold-row">
+            <div><span className="sym">{c.symbol}</span> <Badge tone={c.action === "BUY" ? "up" : c.action === "SELL" || c.action === "AVOID" ? "down" : "blue"}>{c.action === "BUY" ? "BUY BACK" : c.action === "SELL" || c.action === "AVOID" ? "STAY OUT" : "WAIT"}</Badge><div className="tiny faint">{c.name}</div></div>
+            <div className="small">{c.headline}{c.zone && c.action !== "SELL" ? <div className="tiny muted">Zone {num(c.zone.low)}-{num(c.zone.high)}{c.stop ? `, stop ${num(c.stop)}` : ""}{c.t1 ? `, target ${num(c.t1)}` : ""}</div> : null}</div>
+            <div className="right mono small">{num(c.price)}{c.changeSinceSalePct != null && <div className={`tiny ${tone(c.changeSinceSalePct)}`}>{pct(c.changeSinceSalePct, 1)} since sale</div>}</div>
+          </Link>
+        ))}</div>
+      </Card>}
+      <Card title="News on your stocks" sub="Last 45 days: announcements, results, dividends, AGMs" flush>
+        {news.length === 0 ? <Empty title="No recent news on your stocks" /> : <div className="plan-news">{news.map((n: Any, i: number) => (
+          <div key={i} className="plan-news-row">
+            <Link to={`/stocks/${n.symbol}`} className="sym">{n.symbol}</Link>
+            <div className="small">{n.url ? <a href={n.url} target="_blank" rel="noreferrer">{n.title}</a> : n.title}<div className="tiny faint">{n.published_date ? nptDate(n.published_date) : ""}{n.category ? `, ${n.category}` : ""}</div></div>
+          </div>
+        ))}</div>}
+      </Card>
+      <p className="tiny faint">Rule-based guidance from stored NEPSE prices, the daily signal and company statements. Not licensed investment advice; the market can move against any plan, so always keep the stop.</p>
+    </div>
+  );
+}
+

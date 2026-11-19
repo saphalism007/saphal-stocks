@@ -165,6 +165,25 @@ export function evaluate(inp: OpportunityInput): Opportunity {
   return { ...common, action: "WATCH", bucket: "watch", buyNow: "wait", waitFor: "a clear setup (breakout, pullback to support or trend continuation)", headline: `No trade setup: trend is ${snap.trend}. Watch for a clear signal.`, techReasons: snap.trendNotes, confidence: 40, confidenceLabel: "Low" };
 }
 
+export interface LiveCheck { price: number; date: string; status: "in-zone" | "above-zone" | "below-zone" | "stop-hit" | "target-hit" | "holding" | "none"; note: string }
+/** Where today's live price stands against a signal that was set on the last close. The signal itself does not change
+ *  during the session; this tells you whether its entry is still available. */
+export function liveCheck(o: Opportunity, price: number | null, date: string | null): LiveCheck | null {
+  if (price == null || !date || !o.priceDate || date <= o.priceDate) return null;
+  const f = (x: number) => `Rs. ${Math.round(x * 100) / 100}`;
+  const t1 = o.targets[0]?.price ?? null;
+  if (o.stop != null && price <= o.stop) return { price, date, status: "stop-hit", note: `Live price ${f(price)} is at or below the stop ${f(o.stop)}: the setup has failed for now.` };
+  if (o.action === "BUY" || o.action === "WATCH") {
+    if (t1 != null && price >= t1) return { price, date, status: "target-hit", note: `Live price ${f(price)} already reached target 1 (${f(t1)}): too late to enter.` };
+    if (o.entryLow != null && o.entryHigh != null) {
+      if (price > o.entryHigh * 1.01) return { price, date, status: "above-zone", note: `Live price ${f(price)} is above the entry zone (${f(o.entryLow)}-${f(o.entryHigh)}). Do not chase; wait for a pullback into the zone.` };
+      if (price < o.entryLow * 0.98) return { price, date, status: "below-zone", note: `Live price ${f(price)} is below the entry zone; wait for it to hold above ${f(o.entryLow)}.` };
+      return { price, date, status: "in-zone", note: `Live price ${f(price)} is inside the entry zone (${f(o.entryLow)}-${f(o.entryHigh)}).` };
+    }
+  }
+  return { price, date, status: o.action === "HOLD" ? "holding" : "none", note: `Live price ${f(price)}.` };
+}
+
 /** Long-term ideas are about the business, not the chart: strong fundamentals, sane valuation, no red flags. */
 export function longTermIdea(o: Opportunity, fa: FundamentalInput | null): LongTermIdea | null {
   if (!fa || fa.score == null || fa.score < 65 || fa.redFlags.length > 0 || (o.avgTurnover ?? 0) < RULES.minTurnover) return null;

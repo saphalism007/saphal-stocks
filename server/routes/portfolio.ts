@@ -2,7 +2,7 @@ import { Router, type Request } from "express";
 import * as GR from "../lib/growth.ts";
 import { z } from "zod";
 import { all, get, run, nowIso } from "../db.ts";
-import { portfolioSummary, txsFor, latestPrices } from "../lib/portfolioService.ts";
+import { portfolioSummary, portfolioInsights, txsFor, latestPrices } from "../lib/portfolioService.ts";
 import * as M from "../lib/market.ts";
 import { ALERT_TYPES, evaluateAlerts, dailyBriefing } from "../lib/alerts.ts";
 import { buyCost, sellCost } from "../../shared/costs.ts";
@@ -53,6 +53,22 @@ function paperCash(portfolioId: number, start: number) {
   const s = computeHoldings(txsFor(portfolioId), {}, M.fees());
   return start - s.cashIn + s.cashOut;
 }
+
+// Your position in one stock (for the top of its page): the plan from each portfolio that holds it.
+portfolioRouter.get("/positions/:symbol", (req, res) => {
+  const sym = String(req.params.symbol).toUpperCase();
+  const ports = all<{ id: number; name: string; kind: string }>("SELECT p.id, p.name, p.kind FROM portfolios p WHERE p.user_id = ? AND EXISTS (SELECT 1 FROM transactions t WHERE t.portfolio_id = p.id AND t.symbol = ?)", uid(req), sym);
+  const out = ports.map((p) => {
+    const ins = portfolioInsights(p.id);
+    return { portfolio: { id: p.id, name: p.name, kind: p.kind }, plan: ins.plans.find((x) => x.symbol === sym) ?? null, sold: ins.closed.find((x) => x.symbol === sym) ?? null, news: ins.news.filter((n) => n.symbol === sym) };
+  }).filter((x) => x.plan || x.sold);
+  res.json(out);
+});
+
+portfolioRouter.get("/portfolios/:id/insights", (req, res) => {
+  const p = ownPortfolio(req, Number(req.params.id));
+  res.json(portfolioInsights(p.id));
+});
 
 portfolioRouter.get("/portfolios/:id", (req, res) => {
   const p = ownPortfolio(req, Number(req.params.id));
