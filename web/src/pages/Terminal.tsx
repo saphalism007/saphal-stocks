@@ -15,10 +15,12 @@ import IndicatorPicker, { instFrom } from "../terminal/IndicatorPicker.tsx";
 import { TOOL_GROUPS, TOOLS, COLORS, migrate, type Drawing, type ToolId } from "../terminal/draw.ts";
 import type { ChartAnalysis } from "../../../shared/analyst.ts";
 import type { Timeframe } from "../../../shared/timeframe.ts";
+import { INTRADAY_MINUTES, isIntraday, ticksFor, intradayBars, type IntradayTf } from "../../../shared/intraday.ts";
+import { RELAY_URL } from "../../../shared/liveTrading.ts";
 import type { Bar } from "../../../shared/types.ts";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
-interface PaneState { symbol: string; tf: Timeframe; type: ChartType; scale: 0 | 1 | 2; indicators: IndInst[] }
+interface PaneState { symbol: string; tf: Timeframe | IntradayTf; type: ChartType; scale: 0 | 1 | 2; indicators: IndInst[] }
 interface TermState { layout: "1" | "2h" | "2v" | "4"; panes: PaneState[]; active: number; range: string; from: string | null; to: string | null; panel: boolean; panelTab: PanelTab; ai: boolean; patterns: boolean; volume: boolean; grid: boolean; magnet: boolean; keep: boolean; hide: boolean; clean: boolean; v?: number; bars?: boolean }
 const RANGES: [string, number][] = [["1M", 22], ["3M", 66], ["6M", 130], ["YTD", 0], ["1Y", 250], ["3Y", 750], ["5Y", 1250], ["All", 100000]];
 const SKEY = "ss-term-v2";
@@ -59,6 +61,48 @@ function useBars(symbol: string) {
     return () => { live = false; };
   }, [symbol, ver]);
   return state.sym === symbol ? state : { sym: symbol, bars: null, error: null };
+}
+
+// ---------- intraday candles from the relay's minute record ----------
+const dayText: { date: string; text: string; last: string; at: number } = { date: "", text: "", last: "", at: 0 };
+let dayLoad: Promise<void> | null = null;
+/** Today's minute record (fetched once, then only the new lines about every minute). */
+function loadDay(force = false): Promise<void> {
+  if (!RELAY_URL) return Promise.resolve();
+  if (dayLoad) return dayLoad;
+  if (!force && dayText.at && Date.now() - dayText.at < 55_000) return Promise.resolve();
+  dayLoad = (async () => {
+    try {
+      const since = dayText.last ? `?since=${dayText.last}` : "";
+      const r = await fetch(`${RELAY_URL}/intraday.txt${since}`, { cache: "no-store" });
+      if (!r.ok) return;
+      const date = r.headers.get("X-Date") ?? "";
+      const t = await r.text();
+      if (date !== dayText.date) { dayText.date = date; dayText.text = since ? "" : t; if (since) { dayText.last = ""; dayLoad = null; return loadDay(true); } }
+      else dayText.text += t;
+      const lines = dayText.text.trimEnd().split("\n");
+      dayText.last = lines[lines.length - 1]?.split("|")[0] ?? "";
+      dayText.at = Date.now();
+    } finally { dayLoad = null; }
+  })();
+  return dayLoad;
+}
+function useIntraday(symbol: string | null, tf: IntradayTf | null) {
+  const [st, setSt] = useState<{ bars: Bar[] | null; error: string | null; note: string | null }>({ bars: null, error: null, note: null });
+  useEffect(() => {
+    if (!symbol || !tf) return;
+    let live = true;
+    const build = () => {
+      const ticks = ticksFor(dayText.text, symbol);
+      const bars = intradayBars(ticks, INTRADAY_MINUTES[tf], dayText.date);
+      if (!live) return;
+      setSt({ bars, error: null, note: !RELAY_URL ? "Intraday prices need the live relay." : !bars.length ? `No intraday prices recorded for ${symbol}${dayText.date ? ` on ${dayText.date}` : ""} yet. Intraday candles start when trading does (recorded from 19 Nov 2026).` : null });
+    };
+    loadDay().then(build).catch((e) => live && setSt({ bars: [], error: String(e?.message ?? e), note: null }));
+    const id = setInterval(() => { void loadDay().then(build); }, 60_000);
+    return () => { live = false; clearInterval(id); };
+  }, [symbol, tf]);
+  return st;
 }
 
 // ---------- drawings per symbol with undo / redo ----------
@@ -223,7 +267,7 @@ export default function Terminal() {
         {lastBar && <span className="t-quote"><strong className="mono">{num(lastBar.close)}</strong> <span className={tone(chg)}>{pct(chg)}</span></span>}
         <span className={`t-live ${a?.priceInfo?.kind === "delayed" ? "delayed" : ""}`} title={a?.priceInfo?.note ?? ""}>{a?.priceInfo?.kind === "delayed" ? "Delayed" : "End of day"}{lastBar ? `, ${lastBar.date}` : ""}</span>
         <div className="t-group">
-          {(["1m", "5m", "15m", "30m", "1h"] as const).map((x) => <button key={x} className="t-btn dim" disabled title="NEPSE intraday candles aren't available from free official sources, so these timeframes are not shown rather than invented.">{x}</button>)}
+          {(["1m", "5m", "15m", "30m", "1h"] as const).map((x) => <button key={x} className={`t-btn ${ap.tf === x ? "on" : ""}`} title="Intraday candles from prices recorded about once a minute (ShareSansar live trading), from 19 Nov 2026 on" onClick={() => setPane(active, { tf: x })}>{x}</button>)}
           {(["D", "W", "M"] as Timeframe[]).map((x) => <button key={x} className={`t-btn ${ap.tf === x ? "on" : ""}`} onClick={() => setPane(active, { tf: x })}>{x === "D" ? "1D" : x === "W" ? "1W" : "1M"}</button>)}
         </div>
         <div className="t-group">
@@ -328,16 +372,20 @@ function PaneHost({ pn, st, active, tool, drawings, onDrawings, selected, onSele
   i: number; pn: PaneState; st: TermState; active: boolean; tool: ToolId; drawings: Drawing[]; onDrawings: (d: Drawing[], c: boolean) => void; selected: string | null; onSelect: (id: string | null) => void;
   analysis: ChartAnalysis | null; onToolDone: () => void; onFocus: () => void; setPane: (p: Partial<PaneState>) => void; onEdit: (uid: string) => void; register: (a: PaneApi | null) => void; rangeDays: number; themeKey: string; full: boolean; onFull: () => void;
 }) {
-  const b = useBars(pn.symbol);
+  const intra = isIntraday(pn.tf) ? pn.tf : null;
+  const daily = useBars(pn.symbol);
+  const id = useIntraday(intra ? pn.symbol : null, intra);
+  const b = intra ? id : daily;
   const reg = useCallback((x: PaneApi | null) => register(x), []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="t-cell">
       {st.layout !== "1" && <PaneSymbol value={pn.symbol} onPick={(s) => setPane({ symbol: s })} active={active} />}
       {b.error && <div className="term-msg">Couldn't load prices: {b.error}</div>}
-      <ChartPane bars={b.bars} symbol={pn.symbol} tf={pn.tf} chartType={pn.type} scaleMode={pn.scale} range={rangeDays} from={st.from} to={st.to}
+      {intra && id.note && <div className="term-msg">{id.note}</div>}
+      <ChartPane bars={b.bars} symbol={pn.symbol} tf={intra ? "D" : (pn.tf as Timeframe)} chartType={pn.type} scaleMode={pn.scale} range={rangeDays} from={intra ? null : st.from} to={intra ? null : st.to} intraday={intra}
         indicators={st.clean ? [] : pn.indicators} onEditIndicator={onEdit} onRemoveIndicator={(u) => setPane({ indicators: pn.indicators.filter((x) => x.uid !== u) })} onToggleIndicator={(u) => setPane({ indicators: pn.indicators.map((x) => (x.uid === u ? { ...x, hidden: !x.hidden } : x)) })}
-        drawings={drawings} onDrawings={onDrawings} selected={selected} onSelect={onSelect} tool={tool} onToolDone={onToolDone} magnet={st.magnet} keepDrawing={st.keep} hideDrawings={st.hide || st.clean}
-        analysis={analysis && analysis.symbol === pn.symbol ? analysis : null} showAi={st.ai && !st.clean} showPatterns={st.patterns && !st.clean} showVolume={st.volume && !st.clean} grid={st.grid}
+        drawings={intra ? [] : drawings} onDrawings={onDrawings} selected={selected} onSelect={onSelect} tool={intra ? ("cursor" as ToolId) : tool} onToolDone={onToolDone} magnet={st.magnet} keepDrawing={st.keep} hideDrawings={intra ? true : st.hide || st.clean}
+        analysis={analysis && analysis.symbol === pn.symbol && !intra ? analysis : null} showAi={st.ai && !st.clean && !intra} showPatterns={st.patterns && !st.clean && !intra} showVolume={st.volume && !st.clean} grid={st.grid}
         onScaleMode={(m) => setPane({ scale: m })} active={active} onFocus={onFocus} register={reg} themeKey={themeKey} full={full} onFull={onFull} />
     </div>
   );

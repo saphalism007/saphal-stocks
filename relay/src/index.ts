@@ -17,9 +17,45 @@ async function refresh(env: Env): Promise<string> {
   if (!res.ok) throw new Error(`ShareSansar answered ${res.status}`);
   const at = new Date().toISOString();
   const p = parseLiveTrading(await res.text(), at);
+  const range = await recordTicks(env, p.asOf, p.time, p.quotes.quotes);
+  // Today's high and low: ShareSansar's own High/Low for today (the page is checked to carry today's date), widened by
+  // any price the relay recorded beyond them. The official close data replaces the candle in the evening.
+  const ci = (c: string) => p.quotes.columns.indexOf(c);
+  for (const r of p.quotes.quotes) {
+    const g = range[String(r[0])]; if (!g) continue;
+    const hi = Number(r[ci("high")]), lo = Number(r[ci("low")]);
+    r[ci("high")] = Number.isFinite(hi) && hi > 0 ? Math.max(hi, g[0]) : g[0];
+    r[ci("low")] = Number.isFinite(lo) && lo > 0 ? Math.min(lo, g[1]) : g[1];
+  }
   const file: RelayFile = { fetchedAt: at, asOf: p.asOf, time: p.time, marketOpen: p.marketOpen, quotes: p.quotes, indices: p.indices };
   await env.LIVE.put("live", JSON.stringify(file), { expirationTtl: 7 * 86_400 });
   return `${p.quotes.quotes.length} prices as of ${p.asOf} ${p.time}`;
+}
+
+/** Minute-by-minute record of the day for intraday charts: one line per page update, "HH:MM:SS|SYM:ltp:volume,...",
+ *  holding only the stocks whose price or volume changed since the previous line (the first line holds all). */
+async function recordTicks(env: Env, date: string, time: string, rows: (string | number | null)[][]): Promise<Record<string, [number, number]>> {
+  const lastKey = `last:${date}`, dayKey = `ticks:${date}`;
+  // p: last [price, volume] per stock; r: the day's [high, low] from the open and every recorded price.
+  const prev = JSON.parse((await env.LIVE.get(lastKey)) ?? '{"time":"","p":{},"r":{}}') as { time: string; p: Record<string, [number, number]>; r?: Record<string, [number, number]> };
+  prev.r ??= {};
+  const fresh = !!time && time > prev.time;
+  const parts: string[] = [];
+  for (const r of rows) {
+    const sym = String(r[0]), ltp = Number(r[5]), vol = Number(r[10] ?? 0), open = Number(r[1]);
+    if (!Number.isFinite(ltp) || ltp <= 0) continue;
+    const g = prev.r[sym] ?? [Number.isFinite(open) && open > 0 ? Math.max(open, ltp) : ltp, Number.isFinite(open) && open > 0 ? Math.min(open, ltp) : ltp];
+    prev.r[sym] = [Math.max(g[0], ltp), Math.min(g[1], ltp)];
+    const old = prev.p[sym];
+    if (fresh && (!old || old[0] !== ltp || old[1] !== vol)) { parts.push(`${sym}:${ltp}:${vol}`); prev.p[sym] = [ltp, vol]; }
+  }
+  if (fresh) {
+    prev.time = time;
+    const day = (await env.LIVE.get(dayKey)) ?? "";
+    if (parts.length) await env.LIVE.put(dayKey, `${day}${time}|${parts.join(",")}\n`, { expirationTtl: 45 * 86_400 });
+    await env.LIVE.put(lastKey, JSON.stringify(prev), { expirationTtl: 3 * 86_400 });
+  }
+  return prev.r;
 }
 
 const cors = (origin: string | null): Record<string, string> => (origin && ALLOWED.includes(origin) ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : {});
@@ -42,6 +78,14 @@ export default {
       if (!body) { try { await refresh(env); body = await env.LIVE.get("live"); } catch { /* fall through */ } }
       if (!body) return new Response(JSON.stringify({ error: "No live prices yet" }), { status: 503, headers: { "Content-Type": "application/json", ...cors(origin) } });
       return new Response(body, { headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...cors(origin) } });
+    }
+    if (url.pathname === "/intraday.txt") {
+      // The day's minute record (today by default). ?since=HH:MM:SS returns only the lines after that time.
+      const date = url.searchParams.get("date") ?? ((JSON.parse((await env.LIVE.get("live")) ?? "{}") as Partial<RelayFile>).asOf ?? "");
+      let body = /^\d{4}-\d{2}-\d{2}$/.test(date) ? (await env.LIVE.get(`ticks:${date}`)) ?? "" : "";
+      const since = url.searchParams.get("since");
+      if (since && /^\d{2}:\d{2}:\d{2}$/.test(since)) { const i = body.indexOf(`${since}|`); if (i >= 0) { const nl = body.indexOf("\n", i); body = nl >= 0 ? body.slice(nl + 1) : ""; } }
+      return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Date": date, "Access-Control-Expose-Headers": "X-Date", ...cors(origin) } });
     }
     if (url.pathname === "/health") {
       const [body, error] = await Promise.all([env.LIVE.get("live"), env.LIVE.get("error")]);

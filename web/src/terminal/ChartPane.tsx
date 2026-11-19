@@ -26,6 +26,8 @@ export interface PaneProps {
   analysis: ChartAnalysis | null; showAi: boolean; showPatterns: boolean; showVolume: boolean; grid: boolean;
   onScaleMode: (m: 0 | 1 | 2) => void; active: boolean; onFocus: () => void; register: (api: PaneApi | null) => void; themeKey: string;
   full?: boolean; onFull?: () => void;
+  /** Intraday candles: Bar.date holds Unix seconds (Nepal clock time) instead of a day. */
+  intraday?: string | null;
 }
 
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -113,7 +115,7 @@ export default function ChartPane(p: PaneProps) {
       autoSize: true, layout: { attributionLogo: false, background: { color: "transparent" }, textColor: text, fontSize: 11, panes: { separatorColor: grid, enableResize: true } },
       grid: { vertLines: { color: p.grid ? grid + "44" : "transparent" }, horzLines: { color: p.grid ? grid + "44" : "transparent" } },
       rightPriceScale: { borderColor: grid, mode: p.scaleMode === 1 ? PriceScaleMode.Logarithmic : p.scaleMode === 2 ? PriceScaleMode.Percentage : PriceScaleMode.Normal },
-      timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5, maxBarSpacing: MAX_SPACING }, crosshair: { mode: CrosshairMode.Normal },
+      timeScale: { borderColor: grid, rightOffset: 4, minBarSpacing: 0.5, maxBarSpacing: MAX_SPACING, timeVisible: !!p.intraday, secondsVisible: false }, crosshair: { mode: CrosshairMode.Normal },
       // The mouse wheel and trackpad are handled below (smooth zoom around the pointer, with a speed setting).
       handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: bigTouch },
       // On touch screens a stray drag on the price axis squashed the candles; keep the price scale automatic there.
@@ -121,7 +123,7 @@ export default function ChartPane(p: PaneProps) {
     });
     chartRef.current = chart;
     try { if (localStorage.getItem("ss-debug") === "1") (window as unknown as { __ssChart: IChartApi }).__ssChart = chart; } catch { /* ignore */ }
-    const T = (d: string) => d as Time;
+    const T = (d: string) => (/^\d+$/.test(d) ? (Number(d) as unknown as Time) : (d as Time));
     const ohlc = shown.map((b) => ({ time: T(b.date), open: b.open, high: b.high, low: b.low, close: b.close }));
     const line = shown.map((b) => ({ time: T(b.date), value: b.close }));
     let main: ISeriesApi<SeriesType>;
@@ -235,6 +237,8 @@ export default function ChartPane(p: PaneProps) {
     if (p.from || p.to) {
       const a = p.from ? toL(p.from) : 0, b = p.to ? toL(p.to) : n - 1;
       chart.timeScale().setVisibleLogicalRange({ from: a, to: b + 3 });
+    } else if (p.intraday) {
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(-2, n - 160), to: n + 3 });
     } else {
       const per = p.tf === "W" ? 5 : p.tf === "M" ? 21 : 1;
       const k = Math.ceil(p.range / per);
@@ -242,6 +246,8 @@ export default function ChartPane(p: PaneProps) {
     }
   }
   useEffect(() => { keepRange.current = null; applyRange(); }, [p.range, p.from, p.to]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Intraday candles show the time of day on the axis.
+  useEffect(() => { chartRef.current?.applyOptions({ timeScale: { timeVisible: !!p.intraday, secondsVisible: false } }); keepRange.current = null; applyRange(); }, [p.intraday]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // iPhone / iPad: when a finger lands on a drawing (or one of its handles), stop the browser from
   // turning the gesture into a page scroll, which would cancel the move after a few pixels.
@@ -539,7 +545,7 @@ export default function ChartPane(p: PaneProps) {
       {bar && (
         <div className="term-legend">
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-            <strong>{p.symbol}</strong><span className="faint">{p.tf === "D" ? "1D" : p.tf === "W" ? "1W" : "1M"} | {bar.date}</span>
+            <strong>{p.symbol}</strong><span className="faint">{p.intraday ? `${p.intraday} | ${/^\d+$/.test(bar.date) ? new Date(Number(bar.date) * 1000).toISOString().slice(11, 16) : bar.date}` : `${p.tf === "D" ? "1D" : p.tf === "W" ? "1W" : "1M"} | ${bar.date}`}</span>
             <span className={bar.close >= bar.open ? "up" : "down"} style={{ fontVariantNumeric: "tabular-nums" }}>O {fmtP(bar.open)} H {fmtP(bar.high)} L {fmtP(bar.low)} C {fmtP(bar.close)} {chg != null ? `${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%` : ""}</span>
             <span className="faint">Vol {fmtP(bar.volume)}</span>
           </div>

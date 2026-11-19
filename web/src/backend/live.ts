@@ -64,7 +64,7 @@ export async function applyRelay(): Promise<boolean> {
   if (!f?.fetchedAt || f.fetchedAt === relayAt) return false;
   relayAt = f.fetchedAt;
   try {
-    const q = applyQuotes(DB, "m.", f.quotes);
+    const q = applyQuotes(DB, "m.", f.quotes); // high/low are the relay's recorded range
     const i = q && f.indices?.length ? applyLiveIndices(DB, "m.", f.asOf, f.indices) : 0;
     return q || i > 0;
   } catch (e) { console.warn("[relay]", e); return false; }

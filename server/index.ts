@@ -16,6 +16,7 @@ import { systemRouter } from "./routes/system.ts";
 import { startScheduler, onJobDone, startIntradayPoller } from "./ingest/jobs.ts";
 import { startCloudNudge } from "./lib/cloudNudge.ts";
 import { startPublishedSync } from "./lib/published.ts";
+import { RELAY_URL } from "../shared/liveTrading.ts";
 import { resetMarketCaches } from "./lib/market.ts";
 import { evaluateAlerts } from "./lib/alerts.ts";
 import { dailyBackup } from "./lib/backup.ts";
@@ -38,7 +39,7 @@ app.use((_req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  if (config.isProd) res.setHeader("Content-Security-Policy", `default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'${inlineHashes}; connect-src 'self'; frame-ancestors 'none'`);
+  if (config.isProd) res.setHeader("Content-Security-Policy", `default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'${inlineHashes}; connect-src 'self'${RELAY_URL ? ` ${RELAY_URL}` : ""}; frame-ancestors 'none'`);
   next();
 });
 app.use(express.json({ limit: "3mb" }));

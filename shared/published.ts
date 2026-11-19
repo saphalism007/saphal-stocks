@@ -60,14 +60,20 @@ export function applyRecent(db: Db, p: string, f: RecentFile): number {
 }
 
 /** Applies the latest quotes from live.json when they are newer than what this database has. */
-export function applyQuotes(db: Db, p: string, live: LiveFile): boolean {
+/** observedRange: the source page's day High/Low columns are not used (they were seen showing a high that no recorded
+ *  trade confirms); the range is the open and the last price only. The relay instead sends the high and low of every
+ *  price it recorded during the day. The official close data replaces either in the evening. */
+export function applyQuotes(db: Db, p: string, live: LiveFile, opts: { observedRange?: boolean } = {}): boolean {
   if (!live?.asOf || !live.quotes?.length) return false;
   const snap = db.get<{ last_success_at: string; as_of: string }>(`SELECT last_success_at, as_of FROM ${p}data_freshness WHERE dataset = 'prices_latest'`);
   if (snap && (live.asOf < snap.as_of || (live.asOf === snap.as_of && live.generatedAt <= snap.last_success_at))) return false;
   const ix = (c: string) => live.columns.indexOf(c);
   db.tx(() => {
     for (const q of live.quotes) {
-      const v = (c: string) => (ix(c) >= 0 ? q[ix(c)] ?? null : null);
+      const raw = (c: string) => (ix(c) >= 0 ? q[ix(c)] ?? null : null);
+      const seenHi = opts.observedRange ? Math.max(Number(raw("open") ?? raw("ltp") ?? raw("close")), Number(raw("ltp") ?? raw("close"))) : null;
+      const seenLo = opts.observedRange ? Math.min(Number(raw("open") ?? raw("ltp") ?? raw("close")), Number(raw("ltp") ?? raw("close"))) : null;
+      const v = (c: string) => (opts.observedRange && c === "high" ? seenHi : opts.observedRange && c === "low" ? seenLo : raw(c));
       db.run(`INSERT INTO ${p}quotes (symbol, date, open, high, low, close, ltp, prev_close, change, change_pct, vwap, volume, turnover, trades, high52, low52, fetched_at, source)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'live') ON CONFLICT(symbol) DO UPDATE SET date = excluded.date, open = excluded.open, high = excluded.high, low = excluded.low,
            close = excluded.close, ltp = excluded.ltp, prev_close = excluded.prev_close, change = excluded.change, change_pct = excluded.change_pct, vwap = excluded.vwap, volume = excluded.volume,
