@@ -134,5 +134,17 @@ systemRouter.get("/market/status", (_req, res) => res.json(marketStatus()));
 systemRouter.get("/settings/notifications", (_req, res) => res.json({ supported: desktopSupported(), enabled: desktopEnabled() }));
 systemRouter.put("/settings/notifications", (req, res) => { const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body); setSetting("desktopNotifications", enabled); res.json({ ok: true, enabled: desktopEnabled() }); });
 systemRouter.post("/settings/notifications/test", async (_req, res) => res.json({ sent: await desktopNotify("Test notification", "Alerts will appear like this when their conditions are met.", true) }));
+// Split Expenses groups, kept with your personal data (backed up and synced with it).
+const splitGroups = z.array(z.object({
+  id: z.string().max(64), name: z.string().max(120), updatedAt: z.string().max(40).optional(),
+  people: z.array(z.object({ id: z.string().max(64), name: z.string().max(60) })).max(60),
+  expenses: z.array(z.object({
+    id: z.string().max(64), title: z.string().max(160), date: z.string().max(20).optional(), amount: z.number().min(0).max(1e10),
+    payers: z.array(z.object({ personId: z.string().max(64), amount: z.number().min(0).max(1e10) })).max(60),
+    mode: z.enum(["equal", "shares", "exact"]), among: z.array(z.string().max(64)).max(60), shares: z.record(z.number().min(0).max(1e10)).optional(),
+  })).max(2000),
+})).max(200);
+systemRouter.get("/splits", (_req, res) => res.json(getSetting("splitGroups", [])));
+systemRouter.put("/splits", (req, res) => { setSetting("splitGroups", splitGroups.parse(req.body)); res.json({ ok: true }); });
 systemRouter.get("/settings/appearance", (_req, res) => res.json(getSetting("appearance", {})));
 systemRouter.put("/settings/appearance", (req, res) => { setSetting("appearance", z.record(z.unknown()).parse(req.body)); res.json({ ok: true }); });

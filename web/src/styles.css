@@ -1016,3 +1016,21 @@ body:has(.modal-bg) .bottombar, body:has(.modal-bg) .ai-fab { display: none !imp
 .plan-sold-row:hover { background: var(--panel); text-decoration: none; }
 .plan-news-row { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--border); }
 @media (max-width: 760px) { .plan-sold-row { grid-template-columns: 1fr auto; } .plan-sold-row > .small { grid-column: 1 / -1; grid-row: 2; } .plan-grid4 { grid-template-columns: 1fr 1fr; } }
+
+/* Split Expenses */
+.chip.on { border-color: var(--accent); color: var(--accent); }
+.split-people { display: flex; flex-wrap: wrap; gap: 6px; }
+.split-person { padding-right: 4px; }
+.split-person button { border: 0; background: none; color: var(--text-3); font-size: 16px; line-height: 1; padding: 0 4px; cursor: pointer; }
+.split-pick { min-height: 36px; padding: 6px 12px; font-size: 13.5px; }
+.split-pick.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.split-list { display: flex; flex-direction: column; }
+.split-exp { display: flex; flex-direction: column; gap: 3px; text-align: left; width: 100%; padding: 12px 16px; border: 0; border-top: 1px solid var(--border); background: none; color: inherit; cursor: pointer; }
+.split-exp:hover { background: var(--panel); }
+.split-transfers { display: flex; flex-direction: column; gap: 8px; }
+.split-transfer { display: grid; grid-template-columns: 1fr auto 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2); }
+.split-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.split-arrow { font-size: 12px; color: var(--text-3); }
+.split-grid { display: flex; flex-direction: column; gap: 6px; }
+.split-row { display: grid; grid-template-columns: 1fr 140px; align-items: center; gap: 10px; font-size: 13.5px; }
+@media (max-width: 560px) { .split-transfer { grid-template-columns: 1fr auto; } .split-transfer .split-arrow { display: none; } .split-transfer .split-name:nth-of-type(1)::after { content: " pays"; font-weight: 400; color: var(--text-3); } .split-transfer strong { grid-column: 2; grid-row: 1 / span 2; } }

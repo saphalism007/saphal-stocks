@@ -19,6 +19,7 @@ const StrategyLab = lazy(() => import("./pages/StrategyLab.tsx"));
 const Journal = lazy(() => import("./pages/Journal.tsx"));
 const Growth = lazy(() => import("./pages/Growth.tsx"));
 const Calculators = lazy(() => import("./pages/Calculators.tsx"));
+const Split = lazy(() => import("./pages/Split.tsx"));
 const Discover = lazy(() => import("./pages/Discover.tsx"));
 const Picks = lazy(() => import("./pages/Picks.tsx"));
 const Purchases = lazy(() => import("./pages/Purchases.tsx"));
@@ -94,6 +95,7 @@ const NAV: { section?: string; to: string; label: string; icon: keyof typeof I }
   { to: "/purchases", label: "Purchase Planner", icon: "money" },
   { to: "/loan", label: "Loan & EMI Planner", icon: "planner" },
   { to: "/calculators", label: "Money Calculators", icon: "planner" },
+  { to: "/split", label: "Split Expenses", icon: "money" },
   { to: "/planner", label: "Goals & Planning", icon: "planner" },
   { to: "/opportunities", label: "Investment Directory", icon: "opportunities" },
   { section: "Market & Updates", to: "/monitor", label: "Market Monitor", icon: "monitor" },
@@ -288,6 +290,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
               <Route path="/journal" element={<Journal />} />
               <Route path="/growth" element={<Growth />} />
               <Route path="/calculators" element={<Calculators />} />
+              <Route path="/split" element={<Split />} />
               <Route path="/discover" element={<Discover />} />
               <Route path="/picks" element={<Picks />} />
               <Route path="/purchases" element={<Purchases />} />

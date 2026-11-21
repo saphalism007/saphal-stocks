@@ -122,6 +122,7 @@ export const FEATURES: { label: string; to: string; words: string }[] = [
   { label: "Market mood (fear & greed)", to: "/discover", words: "mood fear greed sentiment market mood emotion panic euphoria" },
   { label: "Stock baskets (ready-made portfolios)", to: "/discover?tab=baskets", words: "basket baskets smallcase theme portfolio ready made dividend payers momentum value banks hydropower quality" },
   { label: "Money calculators", to: "/calculators", words: "calculator calculators tax income tax salary tds sip step up lumpsum goal retirement cagr real return average wacc bonus right debenture yield rent buy home loan emi affordability gold making charge" },
+  { label: "Split expenses (settle up a group)", to: "/split", words: "split expense expenses bill bills share group trip dinner settle settlement owe owes who pays splitwise friends roommates hisab" },
   { label: "Income tax calculator 2083/84", to: "/calculators#income-tax", words: "income tax salary tax tds ssf cit slab 2083 84 rebate" },
   { label: "Which investment is best?", to: "/invest?tab=best", words: "best return compare which investment highest return safe" },
   { label: "Wealth roadmap", to: "/growth?tab=roadmap", words: "roadmap guide steps wealth plan financial freedom how to get rich" },
