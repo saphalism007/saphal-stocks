@@ -460,6 +460,7 @@ marketRouter.get("/research/:symbol", (req, res) => {
   if (!r) return res.status(404).json({ error: "Unknown symbol" });
   res.json(r);
 });
+marketRouter.get("/market/intel", (_req, res) => res.json(RS.marketIntel()));
 marketRouter.get("/trading/opportunities", (_req, res) => {
   const o = TR.opportunities();
   const t = TR.track();

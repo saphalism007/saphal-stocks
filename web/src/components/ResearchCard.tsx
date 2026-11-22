@@ -1,4 +1,4 @@
-// The full research verdict for one stock: final decision, the six areas studied with their reasons, and the plan.
+// The full research verdict for one stock: final decision, the eight areas studied with their reasons, and the plan.
 import { useState } from "react";
 import { useApi } from "../lib/api.ts";
 import { Badge, Loading, ErrorBox } from "./ui.tsx";
@@ -13,7 +13,7 @@ export function ResearchCard({ symbol, compact = false }: { symbol: string; comp
   const r = useApi<Any>(`/research/${symbol}`, [symbol]);
   const [open, setOpen] = useState<string | null>(compact ? null : "all");
   if (r.error) return <ErrorBox error={r.error} />;
-  if (!r.data) return <Loading label="Studying chart, indicators, statements, reports, news and market" />;
+  if (!r.data) return <Loading label="Studying chart, indicators, statements, reports, news, brokers and the economy" />;
   const d = r.data;
   const show = (k: string) => open === "all" || open === k;
   return (
@@ -28,6 +28,12 @@ export function ResearchCard({ symbol, compact = false }: { symbol: string; comp
         </div>
       </div>
       <div className="research-headline">{d.headline}</div>
+      {d.smart && <div className="research-smart" title="Smart money and manipulation check: price and volume footprints plus the broker-by-broker floorsheet">
+        <span>Phase <strong>{d.smart.phase}</strong></span>
+        <span>Big brokers <strong className={d.smart.brokerRead === "Accumulation" ? "up" : d.smart.brokerRead === "Distribution" ? "down" : ""}>{d.smart.brokerRead === "Accumulation" ? "accumulating" : d.smart.brokerRead === "Distribution" ? "distributing" : d.smart.brokerRead.toLowerCase()}</strong>{d.smart.sessions ? <span className="faint"> ({d.smart.sessions} sessions)</span> : null}</span>
+        <span>Manipulation risk <strong className={d.smart.risk === "High" ? "down" : d.smart.risk === "Medium" ? "warn" : "up"}>{d.smart.risk}</strong></span>
+        {d.macroSummary && <span>Economy <strong className={d.macroSummary.verdict === "positive" ? "up" : d.macroSummary.verdict === "negative" ? "down" : ""}>{d.macroSummary.verdict === "positive" ? "supportive" : d.macroSummary.verdict === "negative" ? "against" : "mixed"}</strong></span>}
+      </div>}
       {d.whyNot.length > 0 && <ul className="research-why small">{d.whyNot.map((x: string) => <li key={x}>{x}</li>)}</ul>}
       {(d.plan.entry || d.plan.stop || d.plan.targets.length > 0) && <div className="research-plan">
         {d.plan.entry && <div><span>When to buy</span><p>{d.plan.entry}</p></div>}
@@ -49,7 +55,7 @@ export function ResearchCard({ symbol, compact = false }: { symbol: string; comp
         ); })}
       </div>
       {d.changeMind.length > 0 && <div className="tiny muted" style={{ marginTop: 8 }}><strong>What would change this:</strong> {d.changeMind.join(" ")}</div>}
-      <div className="tiny faint" style={{ marginTop: 6 }}>Rule-based research from stored NEPSE prices, statements, reports and notices. Not a guarantee or licensed advice; always keep the stop.</div>
+      <div className="tiny faint" style={{ marginTop: 6 }}>Rule-based research from stored NEPSE prices, the broker floorsheet, statements, reports, notices, NRB data and news. Not a guarantee or licensed advice; always keep the stop.</div>
     </div>
   );
 }

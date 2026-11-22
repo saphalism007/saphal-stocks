@@ -1,11 +1,14 @@
-// Full research verdict for one stock. Before any recommendation it studies six areas and shows each with its
+// Full research verdict for one stock. Before any recommendation it studies eight areas and shows each with its
 // reasons: the chart setup, all indicators together, the business (statements and valuation), the latest reports
-// (quarterly trend, audited report), news and events, and the market and sector. The final decision needs these to
+// (quarterly trend, audited report), news and events, the market and sector, smart money and manipulation (Wyckoff
+// phase, money flow, broker-by-broker floorsheet, operator footprints) and the economy, policy and politics. The final decision needs these to
 // agree: a chart BUY with a weak business, bad news or a falling market is downgraded, and the reasons say why.
 // Rule-based and educational, built only on stored data. It never claims certainty and never invents figures; where
 // something cannot be judged (for example the text of an audit opinion), it says so and links to the source.
 import type { Opportunity, FundamentalInput, LiveCheck } from "./opportunities.ts";
 import type { FundamentalAnalysis } from "./fundamentals.ts";
+import type { SmartMoney } from "./smartMoney.ts";
+import type { Macro } from "./macro.ts";
 
 export type Verdict = "positive" | "neutral" | "negative" | "unknown";
 export interface Pillar { key: string; title: string; verdict: Verdict; score: number | null; summary: string; reasons: string[]; links?: { label: string; url: string }[] }
@@ -17,6 +20,7 @@ export interface Research {
   pillars: Pillar[]; agree: { positive: number; negative: number; known: number };
   plan: { entry: string | null; stop: string | null; targets: string[]; exit: string[]; size: string | null };
   whyNot: string[]; changeMind: string[];
+  smart: SmartMoney | null; macroSummary: { verdict: string; summary: string; asOf: string | null } | null;
 }
 
 export interface NewsItem { date: string | null; title: string; category: string | null; url: string | null }
@@ -30,6 +34,7 @@ export interface ResearchInput {
   audit: { fiscalYear: string | null; published: string | null; url: string } | null;
   market: { mood: number | null; nepse: { close: number; sma50: number | null; sma200: number | null } | null };
   sectorIndex: { name: string; close: number; sma50: number | null; sma200: number | null; ret20: number | null } | null;
+  smart?: SmartMoney | null; macro?: Macro | null;
   today: string;
 }
 
@@ -127,6 +132,22 @@ export function research(inp: ResearchInput): Research {
     pillars.push({ key: "market", title: "Market and sector", verdict: v, score: cnt ? Math.round(50 + (pts / cnt) * 50) : null, summary: v === "positive" ? "The market and sector are helping." : v === "negative" ? "The market and sector are working against new buys." : "The market and sector are mixed.", reasons });
   }
 
+  // 7. Smart money and manipulation.
+  const sm = inp.smart ?? null;
+  if (!sm) pillars.push({ key: "smart", title: "Smart money and manipulation", verdict: "unknown", score: null, summary: "Not studied.", reasons: [] });
+  else pillars.push({ key: "smart", title: "Smart money and manipulation", verdict: sm.verdict, score: sm.score, summary: sm.summary, reasons: sm.reasons });
+  // 8. Economy, policy and politics.
+  const mc = inp.macro ?? null;
+  if (!mc) pillars.push({ key: "macro", title: "Economy, policy and politics", verdict: "unknown", score: null, summary: "No economic data stored.", reasons: [] });
+  else {
+    const reasons = mc.points.map((x) => `${x.effect === "positive" ? "Supportive" : x.effect === "negative" ? "Against" : "Neutral"}: ${x.label} ${x.value}. ${x.why}`);
+    for (const x of (mc.sectorNotes[inp.sector] ?? []).slice(0, 3)) reasons.push(`For ${inp.sector}: ${x}`);
+    const heads = mc.news.filter((x) => x.theme !== "Market").slice(0, 5);
+    for (const x of heads) reasons.push(`${x.theme} (${x.tone}): ${x.title}${x.date ? ` (${x.date})` : ""}`);
+    reasons.push(...mc.calendar);
+    pillars.push({ key: "macro", title: "Economy, policy and politics", verdict: mc.verdict, score: mc.score, summary: `${mc.summary} News tone, last 3 weeks: ${mc.newsTone.positive} supportive, ${mc.newsTone.negative} negative headlines.`, reasons, links: [...(mc.source ? [{ label: "NRB macroeconomic report", url: mc.source }] : []), ...heads.filter((x) => x.url).slice(0, 3).map((x) => ({ label: x.title.slice(0, 80), url: x.url! }))] });
+  }
+
   const P = (k: string) => pillars.find((x) => x.key === k)!;
   const known = pillars.filter((x) => x.verdict !== "unknown");
   const agree = { positive: known.filter((x) => x.verdict === "positive").length, negative: known.filter((x) => x.verdict === "negative").length, known: known.length };
@@ -146,15 +167,19 @@ export function research(inp: ResearchInput): Research {
     if (newsBad) whyNot.push("Recent news is negative.");
     if (mktBad) whyNot.push("The market and sector are falling.");
     if (indBad) whyNot.push("Most indicators disagree with the setup.");
+    if (sm?.blocksBuy) whyNot.push(sm.blocksBuy);
+    else if (sm?.risk === "Medium" && sm.riskWhy.length) whyNot.push("Some manipulation risk (thin trading, small size or a stretched run-up).");
+    if (mc?.verdict === "negative") whyNot.push("The economic and policy backdrop is negative.");
     if (o.live && (o.live.status === "above-zone" || o.live.status === "target-hit")) whyNot.push("Today's price has already moved above the buy range.");
     if (hist && hist.trades >= 10 && ((hist.winRatePct ?? 0) < 40 || (hist.avgNetPct ?? 0) < 0)) whyNot.push(`This setup type has a poor record: ${Math.round(hist.winRatePct ?? 0)}% of ${hist.trades} past trades were profitable (average ${r1(hist.avgNetPct ?? 0)}% after costs).`);
     const poorRecord = !!hist && hist.trades >= 10 && ((hist.winRatePct ?? 0) < 40 || (hist.avgNetPct ?? 0) < 0);
-    if (whyNot.length >= 2 || bizBad || newsBad || poorRecord) { decision = "WATCH"; headline = `The chart gives a buy setup, but ${whyNot.join(" ").toLowerCase()} Wait until this clears.`; }
+    if (whyNot.length >= 2 || bizBad || newsBad || poorRecord || !!sm?.blocksBuy) { decision = "WATCH"; headline = `The chart gives a buy setup, but ${whyNot.join(" ").toLowerCase()} Wait until this clears.`; }
     else if (whyNot.length === 1) { decision = "BUY"; headline = `Buy setup (${o.setupType}), with one caution: ${whyNot[0].toLowerCase()} Use a smaller position.`; }
-    else if (agree.positive >= 4 && (!hist || hist.trades < 10 || (hist.winRatePct ?? 0) >= 45)) { decision = "STRONG BUY"; headline = `Strong buy: the ${o.setupType?.toLowerCase()} setup is backed by the business, the reports, the news and the market.`; }
+    else if (agree.positive >= 5 && sm?.verdict !== "negative" && sm?.risk !== "Medium" && (!hist || hist.trades < 10 || (hist.winRatePct ?? 0) >= 45)) { decision = "STRONG BUY"; headline = `Strong buy: the ${o.setupType?.toLowerCase()} setup is backed by the business, the reports, the news, smart money and the market.`; }
     else { decision = "BUY"; headline = `Buy: ${o.setupType?.toLowerCase()} setup in the entry zone, nothing major against it.`; }
   } else if (o.action === "HOLD") {
-    if (bizGood && repGood && !newsBad && !mktBad && o.supports.some((s) => price != null && s > price * 0.93)) { decision = "ACCUMULATE"; horizon = "6-12 months (investment)"; headline = "Sound business in an uptrend near support: suitable to accumulate gradually for the long term."; }
+    if (sm && (sm.phase === "Distribution" || sm.risk === "High" || sm.brokerRead === "Distribution")) { decision = "HOLD"; headline = sm.risk === "High" ? "Hold only with a tight stop: signs of operator activity. Consider booking part of any profit; do not add." : sm.phase === "Distribution" ? "Hold, but large holders appear to be selling (distribution in price and volume). Consider booking part of the profit; do not add." : "Hold, do not add yet: the business is fine but big brokers have been net sellers in recent sessions. Add only once their selling stops."; }
+    else if (bizGood && repGood && !newsBad && !mktBad && sm?.verdict !== "negative" && o.supports.some((s) => price != null && s > price * 0.93)) { decision = "ACCUMULATE"; horizon = "6-12 months (investment)"; headline = "Sound business in an uptrend near support: suitable to accumulate gradually for the long term." + `${sm?.brokerRead === "Accumulation" || sm?.phase === "Accumulation" ? " Large players also appear to be accumulating." : ""}` ; }
     else { decision = "HOLD"; headline = `Hold if you own it: ${o.headline.replace(/^Hold: /, "")}`; }
   } else {
     // WATCH from the chart
@@ -165,7 +190,8 @@ export function research(inp: ResearchInput): Research {
   if (decision === "SELL" || decision === "REDUCE") horizon = "Now";
   if (decision === "ACCUMULATE") horizon = "6-12 months (investment)";
 
-  const conviction: Research["conviction"] = decision === "NO CALL" ? "Low" : agree.known >= 4 && (agree.positive >= 4 || agree.negative >= 3) ? "High" : agree.known >= 3 && Math.abs(agree.positive - agree.negative) >= 2 ? "Medium" : "Low";
+  let conviction: Research["conviction"] = decision === "NO CALL" ? "Low" : agree.known >= 5 && (agree.positive >= 5 || agree.negative >= 4) ? "High" : agree.known >= 4 && Math.abs(agree.positive - agree.negative) >= 2 ? "Medium" : "Low";
+  if (sm?.risk === "High" && conviction === "High" && (decision === "BUY" || decision === "STRONG BUY" || decision === "ACCUMULATE")) conviction = "Medium";
   const tone: Research["tone"] = decision === "STRONG BUY" || decision === "BUY" || decision === "ACCUMULATE" ? "up" : decision === "SELL" || decision === "AVOID" || decision === "REDUCE" ? "down" : decision === "WATCH" ? "warn" : "blue";
 
   // The plan in plain words.
@@ -191,5 +217,7 @@ export function research(inp: ResearchInput): Research {
   };
   const changeMind = decision === "ACCUMULATE" ? [ltStop != null ? `A weekly close below ${rs(ltStop)}.` : "A break below major support.", "Weaker quarterly results, new red flags or negative news."] : [...o.invalidation.slice(0, 3)];
   if (decision === "WATCH" && whyNot.length) changeMind.unshift("A buy becomes valid once the cautions above clear and the price is in the zone.");
-  return { symbol: inp.symbol, name: inp.name, sector: inp.sector, asOf: o.priceDate, price, decision, tone, conviction, headline: headline + (decision === "STRONG BUY" || decision === "BUY" ? tr : ""), horizon, pillars, agree, plan, whyNot, changeMind };
+  if (sm && (decision === "BUY" || decision === "STRONG BUY" || decision === "ACCUMULATE" || decision === "HOLD")) changeMind.push("Big brokers turning into net sellers, or a sharp run-up on unusual volume (signs of distribution or a pump).");
+  if (mc) changeMind.push("A tighter NRB monetary policy, higher interest rates, adverse budget measures or political unrest.");
+  return { symbol: inp.symbol, name: inp.name, sector: inp.sector, asOf: o.priceDate, price, decision, tone, conviction, headline: headline + (decision === "STRONG BUY" || decision === "BUY" ? tr : ""), horizon, pillars, agree, plan, whyNot, changeMind, smart: sm, macroSummary: mc ? { verdict: mc.verdict, summary: mc.summary, asOf: mc.asOf } : null };
 }

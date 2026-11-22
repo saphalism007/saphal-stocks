@@ -1064,3 +1064,11 @@ body:has(.modal-bg) .bottombar, body:has(.modal-bg) .ai-fab { display: none !imp
 .plan-dots { display: inline-flex; gap: 3px; margin-left: 2px; }
 .plan-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--border-2); }
 .plan-dots i.dot-positive { background: var(--up); } .plan-dots i.dot-negative { background: var(--down); } .plan-dots i.dot-neutral { background: var(--warn); }
+/* Smart money and economy */
+.intel-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
+.intel-list .up { color: var(--up); } .intel-list .down { color: var(--down); }
+.chip-row:has(.chip-link) { flex-wrap: wrap; overflow: visible; display: inline-flex; vertical-align: middle; }
+.chip-link { border: 1px solid var(--border); background: var(--panel-2, var(--panel)); color: var(--text); border-radius: 999px; padding: 2px 9px; font-size: 12.5px; cursor: pointer; }
+.chip-link:hover { border-color: var(--blue); }
+.research-smart { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; padding: 8px 10px; border-radius: 8px; background: var(--panel-2, rgba(127,127,127,0.06)); }
+.research-smart span strong { font-weight: 600; }

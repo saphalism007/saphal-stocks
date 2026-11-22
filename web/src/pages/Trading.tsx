@@ -42,6 +42,7 @@ export default function Trading() {
         {t.avgNetPct != null && t.avgNetPct < 0 && <Notice tone="warn">These rules lost money on average over the past year (a weak, sideways NEPSE). Treat signals as a starting point for your own judgement, keep position sizes small, and use the paper-trading account to test them before risking real money.</Notice>}
       </Card>
       <ResearchPicks research={d.data.research ?? {}} rows={d.data.rows} onOpen={setOpen} />
+      <MarketIntel onOpen={setOpen} />
       <Tabs value={tab} onChange={(k) => setSp({ tab: k })} tabs={[
         { key: "buy", label: `Buy (${counts.buy ?? 0})` }, { key: "sell", label: `Sell (${counts.sell ?? 0})` }, { key: "watch", label: `Watch (${counts.watch ?? 0})` },
         { key: "hold", label: `Hold (${counts.hold ?? 0})` }, { key: "longterm", label: `Long-term (${d.data.longTerm.length})` }, { key: "avoid", label: `Avoid (${counts.avoid ?? 0})` },
@@ -235,15 +236,54 @@ function ResearchPicks({ research, rows, onOpen }: { research: Record<string, An
     <button key={s} className="pick-row" onClick={() => onOpen(s)}>
       <span><span className="sym">{s}</span> <Badge tone={DECISION_TONE[v.decision]}>{v.decision}</Badge></span>
       <span className="tiny muted pick-why">{v.headline}</span>
-      <span className="tiny faint">{v.conviction} conviction, {v.agree.positive} for / {v.agree.negative} against{by.get(s)?.price ? `, Rs. ${num(by.get(s).price)}` : ""}</span>
+      <span className="tiny faint">{v.conviction} conviction, {v.agree.positive} for / {v.agree.negative} against{by.get(s)?.price ? `, Rs. ${num(by.get(s).price)}` : ""}{v.smart ? `. Smart money: ${v.smart.phase.toLowerCase()}, brokers ${v.smart.brokerRead.toLowerCase()}, manipulation risk ${v.smart.risk.toLowerCase()}` : ""}</span>
     </button>
   );
   return (
-    <Card title="Final research picks" sub="Only where the chart, indicators, business, reports, news and market were all studied. Tap a stock for the full research and plan.">
+    <Card title="Final research picks" sub="Only where the chart, indicators, business, reports, news, market, smart money (brokers and manipulation) and the economy were all studied. Tap a stock for the full research and plan.">
       <div className="grid g3">
         <div><h4 className="small muted">Buy (trade)</h4>{buys.length ? buys.map(row) : <div className="tiny faint">No stock passes every check for a buy today. That is a normal, honest result in a weak or fearful market.</div>}</div>
         <div><h4 className="small muted">Accumulate (long term)</h4>{acc.length ? acc.map(row) : <div className="tiny faint">None today.</div>}</div>
         <div><h4 className="small muted">Sell / reduce (if you hold)</h4>{sells.length ? sells.map(row) : <div className="tiny faint">None today.</div>}</div>
+      </div>
+    </Card>
+  );
+}
+
+/** Market-wide: the economy and policy backdrop, what the biggest brokers are buying and selling, and stocks showing operator footprints. */
+function MarketIntel({ onOpen }: { onOpen: (s: string) => void }) {
+  const r = useApi<Any>("/market/intel", []);
+  if (!r.data) return null;
+  const { macro: m, favourites: f, flagged, accumulating, distributing } = r.data;
+  const eff = (e: string) => (e === "positive" ? "up" : e === "negative" ? "down" : "muted");
+  const sym = (s: string, extra?: string) => <button key={s} type="button" className="chip-link" onClick={() => onOpen(s)}><span className="sym">{s}</span>{extra ? <span className="tiny muted"> {extra}</span> : null}</button>;
+  return (
+    <Card title="Smart money and economy" sub="NEPSE is easily moved by large traders and by policy. This is what the brokers, NRB data and the news say right now. Every stock's research includes it.">
+      <div className="grid g2">
+        <div>
+          <h4 className="small muted">Economy, policy and politics <Badge tone={m.verdict === "positive" ? "up" : m.verdict === "negative" ? "down" : "warn"}>{m.verdict === "positive" ? "Supportive" : m.verdict === "negative" ? "Against" : m.verdict === "unknown" ? "No data" : "Mixed"}</Badge></h4>
+          <div className="tiny muted" style={{ marginBottom: 6 }}>{m.summary}{m.asOf ? ` NRB report of ${nptDate(m.asOf)}.` : ""}</div>
+          <ul className="small intel-list">{m.points.map((p: Any) => <li key={p.label}><strong className={eff(p.effect)}>{p.label}: {p.value}.</strong> <span className="muted">{p.why}</span></li>)}</ul>
+          {m.news.filter((x: Any) => x.theme !== "Market").length > 0 && <>
+            <h4 className="small muted" style={{ marginTop: 10 }}>Headlines that can move the market (last 3 weeks)</h4>
+            <ul className="tiny intel-list">{m.news.filter((x: Any) => x.theme !== "Market").slice(0, 8).map((x: Any) => <li key={x.title}><span className={eff(x.tone)}>{x.theme}</span>: {x.url ? <a href={x.url} target="_blank" rel="noreferrer">{x.title}</a> : x.title}{x.date ? <span className="faint"> ({nptDate(x.date)})</span> : null}</li>)}</ul>
+            <div className="tiny faint">Tone is read from headline words, a guide only; open the headline to read it.</div>
+          </>}
+          <ul className="tiny muted intel-list" style={{ marginTop: 8 }}>{m.calendar.map((c: string) => <li key={c}>{c}</li>)}</ul>
+        </div>
+        <div>
+          <h4 className="small muted">Brokers' favourites{f.sessions ? ` (${f.sessions} session${f.sessions > 1 ? "s" : ""}${f.from ? `, ${f.from === f.to ? nptDate(f.from) : `${nptDate(f.from)} to ${nptDate(f.to)}`}` : ""})` : ""}</h4>
+          {f.sessions ? <>
+            <div className="tiny muted" style={{ marginBottom: 4 }}>What the 10 brokers with the highest turnover net bought and sold (Rs. crore). Heavy net buying by big brokers often comes before a move; heavy net selling often marks distribution.</div>
+            <div className="small"><strong className="up">Net bought:</strong> <span className="chip-row">{f.buy.slice(0, 10).map((x: Any) => sym(x.symbol, `+${x.netCr}`))}</span></div>
+            <div className="small" style={{ marginTop: 6 }}><strong className="down">Net sold:</strong> <span className="chip-row">{f.sell.slice(0, 10).map((x: Any) => sym(x.symbol, `${x.netCr}`))}</span></div>
+          </> : <div className="tiny faint">No broker (floorsheet) data stored yet.</div>}
+          <h4 className="small muted" style={{ marginTop: 12 }}>Footprints among stocks with signals</h4>
+          <div className="small"><strong className="up">Accumulation:</strong> {accumulating.length ? <span className="chip-row">{accumulating.map((x: Any) => sym(x.symbol))}</span> : <span className="tiny faint">none seen</span>}</div>
+          <div className="small" style={{ marginTop: 6 }}><strong className="down">Distribution:</strong> {distributing.length ? <span className="chip-row">{distributing.map((x: Any) => sym(x.symbol))}</span> : <span className="tiny faint">none seen</span>}</div>
+          <div className="small" style={{ marginTop: 6 }}><strong className="warn">Possible operator activity:</strong> {flagged.length ? <span className="chip-row">{flagged.map((x: Any) => sym(x.symbol))}</span> : <span className="tiny faint">none flagged</span>}</div>
+          <div className="tiny faint" style={{ marginTop: 8 }}>Broker numbers are as shown on the NEPSE floorsheet. The floorsheet shows brokers, not their clients, so this reads footprints, not intentions.</div>
+        </div>
       </div>
     </Card>
   );

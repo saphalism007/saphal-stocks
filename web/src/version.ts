@@ -5,14 +5,14 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.28.0";
+export const VERSION = "0.29.0";
 export const RELEASED = "2026-11-22";
 export const NOTES = [
-  "Research verdict before every recommendation: each stock is studied in six areas (chart setup, all 100 indicators, business and valuation, quarterly and audit reports, news and events, market and sector), each with its reasons. The final decision (Strong buy, Buy, Accumulate, Watch, Hold, Reduce, Sell, Avoid) needs these to agree: a chart buy with a weak business, negative news, a falling market or a losing track record is held back, and the app says why.",
-  "Each verdict gives when to buy, the stop-loss, targets and when to sell, a position size, and what would change the view. Long-term Accumulate calls use a long-term stop.",
-  "Trading Opportunities: Final research picks at the top (buy, accumulate, sell or reduce), a Research column, and the full research in every stock's plan. Stock pages show the research verdict near the top.",
-  "Portfolio: each holding shows its research verdict; a plan never says add more when the research says reduce, sell or avoid.",
-  "Fixed: NTC's P/E and book value were 1,000 times off because its report mixes units; per-share figures are now checked against the company's reported EPS.",
+  "Smart money and manipulation check in every recommendation: the Wyckoff phase (accumulation, markup, distribution, markdown) from price, volume and money flow, plus the broker-by-broker floorsheet (whether a few brokers are collecting shares while many sell, or the reverse), crossing and circular trading, and operator footprints such as sharp run-ups on unusual volume, repeated limit-up days, dumps after spikes and small, thinly traded companies.",
+  "A buy is held back when there are signs of operator activity, distribution or big brokers selling; Accumulate is never given while big brokers distribute. Your portfolio plans warn you when a holding shows these signs.",
+  "Economy, policy and politics in every recommendation: NRB's latest figures (lending and interbank rates, deposits vs loans, remittances, reserves, inflation, policy rate), headlines on politics, policy, the economy, India and the world, sector-specific news, and the budget and monetary policy calendar.",
+  "Trading Opportunities: a new Smart money and economy card with the economic backdrop, the stocks the biggest brokers net bought and sold, and stocks showing accumulation, distribution or possible operator activity. Each research card shows the phase, broker flow, manipulation risk and economy at a glance.",
+  "The floorsheet now records crossed trades (same broker on both sides) and keeps 30 sessions in the cloud.",
 ];
 
 declare const __BUILD__: string;

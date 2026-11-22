@@ -127,9 +127,18 @@ export function portfolioInsights(portfolioId: number) {
     let r: ReturnType<typeof researchFor> = null;
     try { r = researchFor(p.symbol); } catch { /* keep the plan without it */ }
     if (!r) continue;
-    p.research = { decision: r.decision, conviction: r.conviction, headline: r.headline, agree: r.agree, pillars: r.pillars.map((x) => ({ title: x.title, verdict: x.verdict, summary: x.summary })) };
+    p.research = { decision: r.decision, conviction: r.conviction, headline: r.headline, agree: r.agree, pillars: r.pillars.map((x) => ({ title: x.title, verdict: x.verdict, summary: x.summary })), smart: r.smart ? { phase: r.smart.phase, risk: r.smart.risk, brokerRead: r.smart.brokerRead } : null };
     if (p.action === "ADD" && ["SELL", "REDUCE", "AVOID"].includes(r.decision)) { p.action = "HOLD"; p.tone = "blue"; p.headline = `Do not add: the research says ${r.decision.toLowerCase()} (${r.headline})`; p.steps = p.steps.filter((x) => !x.startsWith("Add only")); }
     if ((p.action === "HOLD" || p.action === "ADD") && r.decision === "SELL") { p.action = "REDUCE"; p.tone = "down"; p.headline = `Research says sell: ${r.headline}`; }
+    // Smart money: do not add into distribution or operator activity, and warn while holding.
+    const sm = r.smart;
+    if (sm && (sm.risk === "High" || sm.phase === "Distribution" || sm.brokerRead === "Distribution")) {
+      const why = sm.risk === "High" ? "signs of operator activity (sharp run-up, limit-up days, crossing or thin trading)" : sm.phase === "Distribution" ? "price and volume show distribution (large holders selling into strength)" : "big brokers have been net sellers in recent sessions";
+      if (p.action === "ADD") { p.action = "HOLD"; p.tone = "blue"; p.headline = `Do not add yet: ${why}.`; p.steps = p.steps.filter((x) => !x.startsWith("Add only")); }
+      p.steps = [`Smart money warning: ${why}. If you are in profit, consider booking part of it and keep the stop.`, ...p.steps];
+    } else if (sm && sm.brokerRead === "Accumulation" && (p.action === "HOLD" || p.action === "ADD")) {
+      p.steps = [...p.steps, "Big brokers have been net buyers in recent sessions, which supports holding."];
+    }
   }
   const order: Record<string, number> = { SELL: 0, REVIEW: 1, REDUCE: 2, "BOOK PROFIT": 3, ADD: 4, HOLD: 5 };
   plans.sort((a, b) => order[a.action] - order[b.action] || (b.price ?? 0) * b.quantity - (a.price ?? 0) * a.quantity);

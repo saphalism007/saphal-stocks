@@ -405,7 +405,7 @@ export async function syncAuditDocs(s?: JobState, opts: { perCompany?: number } 
 }
 
 // ---------- floorsheet ----------
-/** Summarises every trade of the latest session per stock and per broker; keeps the last 15 sessions. */
+/** Summarises every trade of the latest session per stock and per broker; keeps the last 30 sessions. */
 export async function syncFloorsheet(s?: JobState): Promise<number> {
   // The floorsheet always shows the latest session; store each stock under the date of its trades.
   const pdate = get<{ d: string }>("SELECT MAX(date) d FROM prices")?.d;
@@ -428,16 +428,16 @@ export async function syncFloorsheet(s?: JobState): Promise<number> {
       }
       const qty = trades.reduce((a, t) => a + t.qty, 0), amt = trades.reduce((a, t) => a + t.amount, 0);
       tx(() => {
-        run("INSERT OR REPLACE INTO floorsheet_day (date, symbol, trades, qty, amount, wacc, high, low, buyers, sellers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", date, sym, trades.length, qty, amt, qty ? amt / qty : null, Math.max(...trades.map((t) => t.rate)), Math.min(...trades.map((t) => t.rate)), new Set(trades.map((t) => t.buyer)).size, new Set(trades.map((t) => t.seller)).size);
+        run("INSERT OR REPLACE INTO floorsheet_day (date, symbol, trades, qty, amount, wacc, high, low, buyers, sellers, cross_qty) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", date, sym, trades.length, qty, amt, qty ? amt / qty : null, Math.max(...trades.map((t) => t.rate)), Math.min(...trades.map((t) => t.rate)), new Set(trades.map((t) => t.buyer)).size, new Set(trades.map((t) => t.seller)).size, trades.filter((t) => t.buyer === t.seller).reduce((a, t) => a + t.qty, 0));
         for (const [br, v] of by) run("INSERT OR REPLACE INTO floorsheet_broker (date, symbol, broker, buy_qty, sell_qty, buy_amt, sell_amt, trades) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", date, sym, br, v.bq, v.sq, v.ba, v.sa, v.t);
       });
       n++;
     } catch (e) { console.warn(`[floorsheet] ${sym}: ${e instanceof Error ? e.message : e}`); }
     if (s) { s.progress++; s.message = `${sym} (${s.progress}/${s.total})`; }
   }
-  // Keep the last 15 sessions.
-  const keep = all<{ date: string }>("SELECT DISTINCT date FROM floorsheet_day ORDER BY date DESC LIMIT 15").map((r) => r.date);
-  if (keep.length === 15) { run("DELETE FROM floorsheet_day WHERE date < ?", keep[14]); run("DELETE FROM floorsheet_broker WHERE date < ?", keep[14]); }
+  // Keep the last 30 sessions (the published snapshot carries the last 10 broker by broker).
+  const keep = all<{ date: string }>("SELECT DISTINCT date FROM floorsheet_day ORDER BY date DESC LIMIT 30").map((r) => r.date);
+  if (keep.length === 30) { run("DELETE FROM floorsheet_day WHERE date < ?", keep[29]); run("DELETE FROM floorsheet_broker WHERE date < ?", keep[29]); }
   fresh("floorsheet", P.SOURCES.sharesansar, date, get<{ n: number }>("SELECT COUNT(*) n FROM floorsheet_day WHERE date = ?", date)?.n ?? 0);
   return n;
 }

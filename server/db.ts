@@ -193,6 +193,10 @@ const MIGRATIONS: string[] = [
   CREATE TABLE brokers (name TEXT PRIMARY KEY, address TEXT, phone TEXT, email TEXT, contact TEXT, website TEXT, checked_at TEXT);
   CREATE TABLE fund_managers (name TEXT PRIMARY KEY, address TEXT, phone TEXT, email TEXT, website TEXT, apply_url TEXT, apply_label TEXT, checked_at TEXT);
   `,
+  // 17: shares traded with the same broker on both sides (crossing), for the manipulation check
+  `
+  ALTER TABLE floorsheet_day ADD COLUMN cross_qty REAL;
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

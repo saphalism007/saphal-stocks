@@ -63,3 +63,22 @@ describe("research verdict", () => {
     expect(b.verdict).not.toBe("positive");
   });
 });
+
+describe("research with smart money and the economy", () => {
+  const sm = (o: Record<string, unknown> = {}) => ({ phase: "Markup", phaseWhy: "x", risk: "Low", riskWhy: [], brokerRead: "Accumulation", sessions: 6, metrics: {} as never, topBuyers: [], topSellers: [], verdict: "positive", score: 70, summary: "s", reasons: ["r"], blocksBuy: null, ...o }) as never;
+  it("blocks a buy when there are signs of operator activity", () => {
+    const r = research(base({ smart: sm({ risk: "High", verdict: "negative", blocksBuy: "Signs of operator activity." }) }));
+    expect(r.decision).toBe("WATCH");
+    expect(r.whyNot.join(" ")).toMatch(/operator/);
+  });
+  it("does not accumulate while big brokers distribute", () => {
+    const r = research(base({ opp: opp({ action: "HOLD", bucket: "hold" as never }), smart: sm({ brokerRead: "Distribution", verdict: "neutral" }) }));
+    expect(r.decision).toBe("HOLD");
+    expect(r.headline).toMatch(/net sellers/);
+  });
+  it("still gives a strong buy when smart money and the economy agree", () => {
+    const r = research(base({ smart: sm(), macro: { verdict: "positive", score: 80, summary: "ok", points: [], news: [], newsTone: { positive: 1, negative: 0 }, calendar: [], asOf: null, source: null, sectorNotes: {} } }));
+    expect(r.decision).toBe("STRONG BUY");
+    expect(r.pillars.map((p) => p.key)).toEqual(["chart", "indicators", "business", "reports", "news", "market", "smart", "macro"]);
+  });
+});
