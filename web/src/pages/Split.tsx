@@ -6,6 +6,7 @@ import { Card, Loading, ErrorBox, Notice, Empty, Modal, NumInput } from "../comp
 import { I } from "../components/icons.tsx";
 import { num, rs, todayNpt, nptDate } from "../lib/format.ts";
 import { settle, summaryText, type SplitGroup, type SplitExpense } from "../../../shared/split.ts";
+import type { ExportKind } from "../lib/splitExport.ts";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const money = (x: number) => rs(x, 2);
@@ -51,6 +52,18 @@ function GroupView({ g, setG, onDelete }: { g: SplitGroup; setG: (g: SplitGroup)
   const [name, setName] = useState("");
   const [edit, setEdit] = useState<SplitExpense | "new" | null>(null);
   const [copied, setCopied] = useState(false);
+  const [exp, setExp] = useState<{ kind: ExportKind; file: File | null; busy: boolean; msg: string | null } | null>(null);
+  const make = async (kind: ExportKind) => {
+    setExp({ kind, file: null, busy: true, msg: null });
+    try { const m = await import("../lib/splitExport.ts"); setExp({ kind, file: await m.buildSettlementFile(g, kind), busy: false, msg: null }); }
+    catch (e) { setExp({ kind, file: null, busy: false, msg: e instanceof Error ? e.message : String(e) }); }
+  };
+  const send = async () => {
+    if (!exp?.file) return;
+    const { deliver } = await import("../lib/fileOut.ts");
+    const r = await deliver(exp.file);
+    setExp({ ...exp, msg: r === "shared" ? "Sent." : r === "downloaded" ? "Saved to your Downloads." : null });
+  };
   const res = useMemo(() => settle(g), [g]);
   const pname = (id: string) => g.people.find((p) => p.id === id)?.name ?? "?";
   const addPeople = () => {
@@ -102,6 +115,13 @@ function GroupView({ g, setG, onDelete }: { g: SplitGroup; setG: (g: SplitGroup)
             <div key={i} className="split-transfer"><span className="split-name">{t.fromName}</span><span className="split-arrow">pays</span><span className="split-name">{t.toName}</span><strong className="mono">{money(t.amount)}</strong></div>
           ))}</div>}
         </Card>
+        <Card title="Download or send the sheet" sub="For the group chat, email or your files">
+          <div className="split-export">
+            {([["pdf", "PDF", "Ready to print or send"], ["png", "Image", "Best for WhatsApp / Viber"], ["xlsx", "Excel", "Opens in Excel and Numbers"], ["csv", "CSV", "Any spreadsheet app"], ["txt", "Text", "Plain text message"]] as [ExportKind, string, string][]).map(([k, l, d]) => (
+              <button key={k} className="split-export-btn" onClick={() => void make(k)}><strong>{l}</strong><span className="tiny faint">{d}</span></button>
+            ))}
+          </div>
+        </Card>
         <Card title="Each person" flush>
           <div className="table-wrap"><table className="t"><thead><tr><th>Person</th><th className="num">Paid</th><th className="num">Share</th><th className="num">Balance</th></tr></thead><tbody>
             {res.people.map((p) => <tr key={p.id}><td>{p.name}</td><td className="num">{num(p.paid)}</td><td className="num">{num(p.share)}</td><td className={`num ${p.balance > 0 ? "up" : p.balance < 0 ? "down" : ""}`}>{p.balance > 0 ? `gets ${num(p.balance)}` : p.balance < 0 ? `owes ${num(-p.balance)}` : "even"}</td></tr>)}
@@ -110,6 +130,13 @@ function GroupView({ g, setG, onDelete }: { g: SplitGroup; setG: (g: SplitGroup)
         </Card>
       </>}
 
+      {exp && <Modal title={`${{ pdf: "PDF", png: "Image", xlsx: "Excel", csv: "CSV", txt: "Text" }[exp.kind]} file`} onClose={() => setExp(null)} footer={<><button className="btn" onClick={() => setExp(null)}>Close</button><button className="btn primary" disabled={!exp.file} onClick={() => void send()}>Send or save</button></>}>
+        {exp.busy ? <div className="row"><span className="spinner" /> <span className="small muted">Making the file...</span></div>
+          : exp.file ? <div className="col"><div className="small"><strong>{exp.file.name}</strong> <span className="faint">({Math.max(1, Math.round(exp.file.size / 1024))} KB)</span></div>
+            <div className="tiny muted">Tap Send or save to open the share sheet: WhatsApp, Viber, Messages, Mail, AirDrop or Save to Files. On a Mac without sharing, it saves to Downloads.</div>
+            {exp.msg && <Notice>{exp.msg}</Notice>}</div>
+          : <Notice tone="warn">Could not make the file: {exp.msg}</Notice>}
+      </Modal>}
       {edit && <ExpenseModal g={g} exp={edit === "new" ? null : edit} onClose={() => setEdit(null)}
         onSave={(e) => { setG({ ...g, expenses: edit === "new" ? [...g.expenses, e] : g.expenses.map((x) => (x.id === e.id ? e : x)) }); setEdit(null); }}
         onDelete={edit !== "new" ? () => { setG({ ...g, expenses: g.expenses.filter((x) => x.id !== (edit as SplitExpense).id) }); setEdit(null); } : undefined} />}

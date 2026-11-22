@@ -1034,3 +1034,7 @@ body:has(.modal-bg) .bottombar, body:has(.modal-bg) .ai-fab { display: none !imp
 .split-grid { display: flex; flex-direction: column; gap: 6px; }
 .split-row { display: grid; grid-template-columns: 1fr 140px; align-items: center; gap: 10px; font-size: 13.5px; }
 @media (max-width: 560px) { .split-transfer { grid-template-columns: 1fr auto; } .split-transfer .split-arrow { display: none; } .split-transfer .split-name:nth-of-type(1)::after { content: " pays"; font-weight: 400; color: var(--text-3); } .split-transfer strong { grid-column: 2; grid-row: 1 / span 2; } }
+.split-export { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.split-export-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 14px; min-height: 60px; border: 1px solid var(--border-2); border-radius: 10px; background: var(--bg-2); color: inherit; cursor: pointer; text-align: left; }
+.split-export-btn:hover, .split-export-btn:active { border-color: var(--accent); }
+@media (max-width: 560px) { .split-export { grid-template-columns: 1fr 1fr; } }
