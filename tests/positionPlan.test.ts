@@ -48,3 +48,30 @@ describe("position plan", () => {
     expect(r.changeSinceSalePct).toBe(-16.67);
   });
 });
+
+describe("position plan: strategy, what-if and dates", () => {
+  it("a long-term portfolio uses a long-term stop below the 200-day average", () => {
+    const o = opp({ stop: 490, indicators: { ...opp({}).indicators, sma200: 440 } });
+    const t = positionPlan({ holding: hold(480), name: "ABC", sector: "Bank", opp: o, price: 500, priceDate: "2026-11-18", live: false, fa, technicalScore: 55, today: "2026-11-19", style: "trade" });
+    const i = positionPlan({ holding: hold(480), name: "ABC", sector: "Bank", opp: o, price: 500, priceDate: "2026-11-18", live: false, fa, technicalScore: 55, today: "2026-11-19", style: "invest" });
+    expect(t.stop!.price).toBe(490);
+    expect(i.stop!.price).toBe(426.8);
+    expect(i.steps.join(" ")).toMatch(/week closes below/);
+  });
+  it("shows what you receive today, at the stop and at the first sell zone, after charges and tax", () => {
+    const p = positionPlan({ holding: hold(450), name: "ABC", sector: "Bank", opp: opp({}), price: 500, priceDate: "2026-11-18", live: false, fa, technicalScore: 55, today: "2026-11-19" });
+    expect(p.scenarios.map((s) => s.label)).toEqual(["Sell everything today", "If the stop is hit", "At the first sell zone"]);
+    const now = p.scenarios[0];
+    expect(now.receive).toBeLessThan(50_000);
+    expect(now.profit).toBeGreaterThan(0);
+    expect(p.riskReward!.risk).toBeGreaterThan(0);
+  });
+  it("lists the book closure with your dividend and the long-term tax date", () => {
+    const p = positionPlan({ holding: hold(450, 100, "2026-06-01"), name: "ABC", sector: "Bank", opp: opp({}), price: 500, priceDate: "2026-11-18", live: false, fa, technicalScore: 55, today: "2026-11-19",
+      dividend: { fiscalYear: "2082/83", cashPct: 10, bonusPct: 5, bookCloseDate: "2026-12-05" }, faceValue: 100 });
+    const bc = p.timing.find((t) => t.label === "Book closure")!;
+    expect(bc.detail).toMatch(/Rs. 1,000 cash dividend/);
+    expect(bc.detail).toMatch(/5 bonus shares/);
+    expect(p.timing.find((t) => t.label === "Long-term tax")!.date).toBe("2027-06-02");
+  });
+});

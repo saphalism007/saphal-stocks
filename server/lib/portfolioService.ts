@@ -5,7 +5,7 @@ import * as M from "./market.ts";
 import * as TR from "./trading.ts";
 import { evaluate, type Opportunity } from "../../shared/opportunities.ts";
 import { positionPlan, reentryPlan } from "../../shared/positionPlan.ts";
-import { researchFor } from "./research.ts";
+import { researchFor, researchBoard, marketIntel } from "./research.ts";
 
 export function txsFor(portfolioId: number): Transaction[] {
   return all<{ id: number; symbol: string; type: Transaction["type"]; date: string; quantity: number; price: number; commission: number | null; other_charges: number | null; tax: number | null; notes: string | null }>(
@@ -115,19 +115,33 @@ export function portfolioInsights(portfolioId: number) {
     } catch { return null; }
   };
   const open = summary.holdings.filter((h) => h.quantity > 0);
+  const port = get<{ strategy: string | null; kind: string; name: string }>("SELECT strategy, kind, name FROM portfolios WHERE id = ?", portfolioId);
+  const style: "trade" | "invest" = /swing|experimental|trad/i.test(port?.strategy ?? "") ? "trade" : "invest";
+  const upcomingDividend = (sym: string) => {
+    try {
+      const d = get<{ fiscal_year: string; cash_pct: number | null; bonus_pct: number | null; bookclose_date: string }>("SELECT fiscal_year, cash_pct, bonus_pct, bookclose_date FROM dividends WHERE symbol = ? AND bookclose_date >= ? ORDER BY bookclose_date LIMIT 1", sym, today);
+      return d ? { fiscalYear: d.fiscal_year, cashPct: d.cash_pct, bonusPct: d.bonus_pct, bookCloseDate: d.bookclose_date } : null;
+    } catch { return null; }
+  };
   const plans = open.map((h) => {
     const c = M.company(h.symbol), q = quotes.get(h.symbol);
-    return positionPlan({
+    return positionPlan({ style, dividend: upcomingDividend(h.symbol), faceValue: c?.paid_up_value ?? null, high52: get<{ high52: number | null }>("SELECT high52 FROM quotes WHERE symbol = ?", h.symbol)?.high52 ?? null,
       holding: h, name: c?.name || h.symbol, sector: c?.sector || "", opp: oppFor(h.symbol), price: q?.close ?? null, priceDate: q?.date ?? null, live: q?.source === "live",
       fa: TR.fundamentalInput(h.symbol), technicalScore: factors.get(h.symbol)?.technicalScore ?? null, atPurchase: atPurchase(h.symbol, h.lots[0]?.date ?? null), today, fees,
     });
   });
   // The full research verdict for each holding; a plan never says "add" when the research says reduce, sell or avoid.
-  for (const p of plans as (typeof plans[number] & { research?: unknown })[]) {
+  const totalValue = plans.reduce((t, p) => t + (p.price ?? p.wacc) * p.quantity, 0) || 1;
+  for (const p of plans as (typeof plans[number] & { research?: unknown; weightPct?: number; strength?: number | null })[]) {
+    p.weightPct = Math.round((((p.price ?? p.wacc) * p.quantity) / totalValue) * 1000) / 10;
     let r: ReturnType<typeof researchFor> = null;
     try { r = researchFor(p.symbol); } catch { /* keep the plan without it */ }
     if (!r) continue;
-    p.research = { decision: r.decision, conviction: r.conviction, headline: r.headline, agree: r.agree, pillars: r.pillars.map((x) => ({ title: x.title, verdict: x.verdict, summary: x.summary })), smart: r.smart ? { phase: r.smart.phase, risk: r.smart.risk, brokerRead: r.smart.brokerRead } : null };
+    p.research = { decision: r.decision, conviction: r.conviction, headline: r.headline, agree: r.agree, horizon: r.horizon, whyNot: r.whyNot, changeMind: r.changeMind, plan: r.plan,
+      pillars: r.pillars.map((x) => ({ key: x.key, title: x.title, verdict: x.verdict, summary: x.summary, score: x.score })),
+      smart: r.smart ? { phase: r.smart.phase, phaseWhy: r.smart.phaseWhy, risk: r.smart.risk, riskWhy: r.smart.riskWhy.slice(0, 3), brokerRead: r.smart.brokerRead, sessions: r.smart.sessions, topBuyers: r.smart.topBuyers.slice(0, 3), topSellers: r.smart.topSellers.slice(0, 3), metrics: { top3NetBuyPct: r.smart.metrics.top3NetBuyPct, top3NetSellPct: r.smart.metrics.top3NetSellPct, crossPct: r.smart.metrics.crossPct } } : null };
+    // Holding strength 0-100: how many of the areas studied support keeping it.
+    p.strength = r.agree.known ? Math.round(50 + ((r.agree.positive - r.agree.negative) / r.agree.known) * 50) : null;
     if (p.action === "ADD" && ["SELL", "REDUCE", "AVOID"].includes(r.decision)) { p.action = "HOLD"; p.tone = "blue"; p.headline = `Do not add: the research says ${r.decision.toLowerCase()} (${r.headline})`; p.steps = p.steps.filter((x) => !x.startsWith("Add only")); }
     if ((p.action === "HOLD" || p.action === "ADD") && r.decision === "SELL") { p.action = "REDUCE"; p.tone = "down"; p.headline = `Research says sell: ${r.headline}`; }
     // Smart money: do not add into distribution or operator activity, and warn while holding.
@@ -152,5 +166,47 @@ export function portfolioInsights(portfolioId: number) {
     `SELECT symbol, title, url, published_date, category, source FROM announcements WHERE symbol IN (${watch.map(() => "?").join(",")}) AND COALESCE(published_date, substr(fetched_at, 1, 10)) >= date('now', '-45 days')
      ORDER BY COALESCE(published_date, fetched_at) DESC LIMIT 60`, ...watch) : [];
   const counts = plans.reduce<Record<string, number>>((m, p) => { m[p.action] = (m[p.action] ?? 0) + 1; return m; }, {});
-  return { asOf: latest, signalsAsOf: oppRows[0]?.priceDate ?? null, plans, closed, news, counts };
+  return { asOf: latest, signalsAsOf: oppRows[0]?.priceDate ?? null, plans, closed, news, counts, overview: overviewOf(plans as never, style, port?.strategy ?? null) };
+}
+
+type PlanX = ReturnType<typeof positionPlan> & { weightPct?: number; strength?: number | null; research?: { decision: string; smart: { phase: string; risk: string; brokerRead: string } | null } };
+/** The whole portfolio at a glance: money at risk, what to do today, dates, smart money warnings, concentration, the economy for your sectors, and ideas. */
+function overviewOf(plans: PlanX[], style: "trade" | "invest", strategy: string | null) {
+  const r0 = (x: number) => Math.round(x);
+  const value = plans.reduce((t, p) => t + (p.price ?? p.wacc) * p.quantity, 0);
+  const now = plans.reduce((t, p) => t + (p.scenarios[0]?.receive ?? 0), 0);
+  const atStops = plans.reduce((t, p) => t + (p.scenarios.find((x) => x.label.startsWith("If the stop"))?.receive ?? p.scenarios[0]?.receive ?? 0), 0);
+  const atTargets = plans.reduce((t, p) => t + (p.scenarios.find((x) => x.label.startsWith("At the first"))?.receive ?? p.scenarios[0]?.receive ?? 0), 0);
+  const profitNow = plans.reduce((t, p) => t + (p.scenarios[0]?.profit ?? 0), 0);
+  const strengths = plans.map((p) => p.strength).filter((x): x is number => x != null);
+  const todo = plans.filter((p) => p.action !== "HOLD" || p.steps[0]?.startsWith("Smart money")).slice(0, 8).map((p) => ({ symbol: p.symbol, action: p.action, text: p.steps[0] ?? p.headline }));
+  const events = plans.flatMap((p) => p.timing.filter((t) => t.date).map((t) => ({ symbol: p.symbol, ...t }))).sort((a, b) => (a.date ?? "").localeCompare(b.date ?? "")).slice(0, 10);
+  const smart = plans.filter((p) => p.research?.smart && (p.research.smart.risk === "High" || p.research.smart.phase === "Distribution" || p.research.smart.brokerRead === "Distribution" || p.research.smart.brokerRead === "Accumulation"))
+    .map((p) => ({ symbol: p.symbol, good: p.research!.smart!.brokerRead === "Accumulation" && p.research!.smart!.risk !== "High" && p.research!.smart!.phase !== "Distribution", text: p.research!.smart!.risk === "High" ? "possible operator activity" : p.research!.smart!.phase === "Distribution" ? "distribution in price and volume" : p.research!.smart!.brokerRead === "Distribution" ? "big brokers net selling" : "big brokers net buying" }));
+  const warnings: string[] = [];
+  for (const p of plans) if ((p.weightPct ?? 0) > 25) warnings.push(`${p.symbol} is ${p.weightPct}% of this portfolio. More than 25% in one stock means one bad result can hurt the whole portfolio.`);
+  const bySector = new Map<string, number>();
+  for (const p of plans) bySector.set(p.sector || "Other", (bySector.get(p.sector || "Other") ?? 0) + (p.weightPct ?? 0));
+  for (const [sec, w] of bySector) if (w > 40 && plans.length > 1) warnings.push(`${Math.round(w)}% is in ${sec}. One policy change (for example from NRB or the budget) would move most of your money at once.`);
+  const losers = plans.filter((p) => (p.pnlPct ?? 0) <= -15);
+  if (losers.length) warnings.push(`${losers.map((p) => p.symbol).join(", ")} ${losers.length > 1 ? "are" : "is"} down 15% or more. Check each stop: holding losers hoping to break even is the most common way NEPSE investors lose money.`);
+  let economy: { verdict: string; summary: string; notes: { sector: string; note: string }[] } | null = null;
+  let ideas: { symbol: string; decision: string; headline: string; newSector: boolean }[] = [];
+  try {
+    const intel = marketIntel();
+    const held = new Set(plans.map((p) => p.sector));
+    economy = { verdict: intel.macro.verdict, summary: intel.macro.summary, notes: [...held].flatMap((sec) => (intel.macro.sectorNotes[sec] ?? []).slice(0, 1).map((note) => ({ sector: sec, note }))) };
+    const board = researchBoard();
+    const mine = new Set(plans.map((p) => p.symbol));
+    ideas = Object.entries(board).filter(([sym, v]) => !mine.has(sym) && ["STRONG BUY", "BUY", "ACCUMULATE"].includes(v.decision) && v.smart?.risk !== "High")
+      .map(([sym, v]) => ({ symbol: sym, decision: v.decision, headline: v.headline, newSector: !held.has(M.company(sym)?.sector ?? "") }))
+      .sort((a, b) => Number(b.newSector) - Number(a.newSector) || (a.decision === "ACCUMULATE" ? 1 : 0) - (b.decision === "ACCUMULATE" ? 1 : 0)).slice(0, 6);
+  } catch { /* market data still loading */ }
+  return {
+    style, strategy, value: r0(value), netIfSoldNow: r0(now), profitNow: r0(profitNow),
+    atStops: r0(atStops), riskToStops: r0(Math.max(0, now - atStops)), riskToStopsPct: now ? Math.round(((now - atStops) / now) * 1000) / 10 : null,
+    atTargets: r0(atTargets), gainToTargets: r0(Math.max(0, atTargets - now)), odds: atStops < now ? Math.round(((atTargets - now) / (now - atStops)) * 100) / 100 : null, withTargets: plans.filter((p) => p.scenarios.some((x) => x.label.startsWith("At the first"))).length, holdings: plans.length,
+    strength: strengths.length ? Math.round(strengths.reduce((t, x) => t + x, 0) / strengths.length) : null,
+    todo, events, smart, warnings, economy, ideas,
+  };
 }

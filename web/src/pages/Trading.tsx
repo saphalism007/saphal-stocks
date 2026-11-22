@@ -232,6 +232,19 @@ function ResearchPicks({ research, rows, onOpen }: { research: Record<string, An
   const by = new Map(rows.map((r: Any) => [r.symbol, r]));
   const list = (ds: string[]) => Object.entries(research).filter(([, v]) => ds.includes(v.decision)).sort((a, b) => ds.indexOf(a[1].decision) - ds.indexOf(b[1].decision) || b[1].agree.positive - a[1].agree.positive);
   const buys = list(["STRONG BUY", "BUY"]), acc = list(["ACCUMULATE"]), sells = list(["SELL", "REDUCE"]);
+  // How every company studied today ended up.
+  const n = (f: (r: Any) => boolean) => rows.filter(f).length;
+  const funnel = [
+    { k: "Trade buy signal", v: n((r) => r.action === "BUY"), t: "up" },
+    { k: "Close to a buy", v: n((r) => r.action === "WATCH" && r.entryLow != null), t: "warn" },
+    { k: "Uptrend, hold if owned", v: n((r) => r.action === "HOLD"), t: "blue" },
+    { k: "No setup yet", v: n((r) => r.action === "WATCH" && r.entryLow == null), t: "muted" },
+    { k: "Downtrend, avoid", v: n((r) => r.action === "AVOID" && !/illiquid/i.test(r.headline)), t: "down" },
+    { k: "Too thinly traded", v: n((r) => r.action === "AVOID" && /illiquid/i.test(r.headline)), t: "muted" },
+    { k: "Sell signal", v: n((r) => r.action === "SELL"), t: "down" },
+    { k: "Too new to judge", v: n((r) => r.action === "INSUFFICIENT"), t: "muted" },
+  ];
+  const near = rows.filter((r: Any) => r.action === "WATCH" && r.entryLow != null).sort((a: Any, b: Any) => b.confidence - a.confidence).slice(0, 8);
   const row = ([s, v]: [string, Any]) => (
     <button key={s} className="pick-row" onClick={() => onOpen(s)}>
       <span><span className="sym">{s}</span> <Badge tone={DECISION_TONE[v.decision]}>{v.decision}</Badge></span>
@@ -241,11 +254,26 @@ function ResearchPicks({ research, rows, onOpen }: { research: Record<string, An
   );
   return (
     <Card title="Final research picks" sub="Only where the chart, indicators, business, reports, news, market, smart money (brokers and manipulation) and the economy were all studied. Tap a stock for the full research and plan.">
+      <div className="funnel">
+        <div className="small"><strong>All {rows.length} listed companies were studied today</strong> <span className="muted">(debentures, bonds, mutual funds and promoter shares are left out). This is where each one stands:</span></div>
+        <div className="funnel-row">{funnel.map((f) => <span key={f.k} className="funnel-chip"><strong className={f.t}>{f.v}</strong> {f.k}</span>)}</div>
+        <div className="tiny muted">A trade buy needs a confirmed setup in the buy range, a reward at least 1.8 times the risk after all charges and tax, enough trading volume, and then the research checks above. In a falling market few stocks pass, and that is deliberate: even with these strict rules, past signals in this weak market averaged a small loss (see the track record below), so the app does not loosen them to show more buys.</div>
+      </div>
       <div className="grid g3">
         <div><h4 className="small muted">Buy (trade)</h4>{buys.length ? buys.map(row) : <div className="tiny faint">No stock passes every check for a buy today. That is a normal, honest result in a weak or fearful market.</div>}</div>
         <div><h4 className="small muted">Accumulate (long term)</h4>{acc.length ? acc.map(row) : <div className="tiny faint">None today.</div>}</div>
         <div><h4 className="small muted">Sell / reduce (if you hold)</h4>{sells.length ? sells.map(row) : <div className="tiny faint">None today.</div>}</div>
       </div>
+      {near.length > 0 && <>
+        <h4 className="small muted" style={{ marginTop: 14 }}>Closest to a buy, and what is still missing</h4>
+        <div className="near-list">{near.map((r: Any) => (
+          <button key={r.symbol} className="pick-row" onClick={() => onOpen(r.symbol)}>
+            <span><span className="sym">{r.symbol}</span> <span className="tiny muted">{r.setupType}, quality {r.confidence}/100</span></span>
+            <span className="tiny muted pick-why">Missing: {r.headline.replace(/^.*?not a buy yet: /, "")}</span>
+            <span className="tiny faint">Buy range Rs. {num(r.entryLow)}-{num(r.entryHigh)}{r.stop ? `, stop ${num(r.stop)}` : ""}{r.price ? `, now ${num(r.price)}` : ""}</span>
+          </button>
+        ))}</div>
+      </>}
     </Card>
   );
 }

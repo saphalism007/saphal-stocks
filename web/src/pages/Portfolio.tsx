@@ -99,7 +99,7 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
         {p.kind === "paper" ? <Stat label="Paper cash" value={compact(cash)} sub={`Start ${compact(p.paper_cash)}`} /> : <Stat label="Total return" value={pct(s.totalReturnPct)} tone={tone(s.totalReturnPct)} sub={`on ${compact(s.cashIn)} invested`} />}
       </div>
       <Tabs value={view} onChange={setView} tabs={[{ key: "plan", label: "What to do next" }, { key: "holdings", label: "Holdings & transactions" }, { key: "performance", label: "Performance vs NEPSE" }, { key: "tax", label: "Tax report" }, { key: "rebalance", label: "Rebalance" }]} />
-      {view === "plan" && <PlanView id={id} onAdd={() => setAdding(p.kind === "paper" ? "paper" : "tx")} />}
+      {view === "plan" && <PlanView id={id} name={p.name} strategy={p.strategy} onStrategy={async (st) => { await api(`/portfolios/${id}`, { method: "PATCH", body: { strategy: st } }); d.reload(); }} onAdd={() => setAdding(p.kind === "paper" ? "paper" : "tx")} />}
       {view === "performance" && <Performance id={id} />}
       {view === "rebalance" && <Rebalance summary={s} sectors={sectors} extras={extras} />}
       {view === "tax" && <TaxReport id={id} />}
@@ -140,8 +140,8 @@ function PortfolioDetail({ id, onChanged }: { id: number; onChanged: () => void 
             )) : <Empty title="No holdings" />}
           </Card>
           {health && <Card title="Portfolio health" actions={<Score value={health.score} />}>
-            {health.issues.map((x: string) => <div key={x} className="small warn" style={{ marginBottom: 4 }}>⚠ {x}</div>)}
-            {health.positives.map((x: string) => <div key={x} className="small up" style={{ marginBottom: 4 }}>✓ {x}</div>)}
+            {health.issues.map((x: string) => <div key={x} className="small warn" style={{ marginBottom: 4 }}>Caution: {x}</div>)}
+            {health.positives.map((x: string) => <div key={x} className="small up" style={{ marginBottom: 4 }}>Good: {x}</div>)}
             <div className="tiny faint" style={{ marginTop: 6 }}>Top holding {health.diversification.topWeightPct}%, top 3 {health.diversification.top3WeightPct}%, concentration (HHI) {health.diversification.hhi}</div>
           </Card>}
         </div>
@@ -517,17 +517,58 @@ function Donut({ items }: { items: { label: string; value: number }[] }) {
 }
 
 /* ---------- What to do next: a plan for every holding, buy-back views for sold stocks, and their news ---------- */
-function PlanView({ id, onAdd }: { id: number; onAdd: () => void }) {
+const STRATEGIES = ["Long-term", "Swing trading", "Dividend", "Growth", "Value", "Experimental"];
+
+/** The whole portfolio at a glance: what to do today, money at risk, dates, smart money, concentration, economy and ideas. */
+function CommandCentre({ o, name, strategy, onStrategy }: { o: Any; name: string; strategy: string | null; onStrategy: (s: string) => void }) {
+  const ACT: Record<string, "up" | "down" | "warn" | "blue"> = PLAN_TONE;
+  return (
+    <Card title={`${name}: command centre`} sub="Everything about this portfolio in one place, updated with every price and every daily close." actions={
+      <label className="tiny muted row" style={{ gap: 6 }}>Plans follow
+        <select className="input sm" value={strategy ?? "Long-term"} onChange={(e) => onStrategy(e.target.value)}>{STRATEGIES.map((x) => <option key={x}>{x}</option>)}</select>
+      </label>}>
+      <div className="tiny muted" style={{ marginBottom: 10 }}>{o.style === "invest" ? "Long-term style: stops are judged on a weekly close below the 200-day average or major support, so daily noise does not shake you out." : "Trading style: stops and targets follow the daily signal; exits are on a daily close."}</div>
+      <div className="cc-grid">
+        <div className="cc-stat"><span>If you sold everything today</span><strong className={tone(o.profitNow)}>{compact(o.netIfSoldNow)}</strong><em>{o.profitNow >= 0 ? "profit" : "loss"} {compact(o.profitNow)} after charges and tax</em></div>
+        <div className="cc-stat"><span>Money at risk if every stop is hit</span><strong className="down">{compact(o.riskToStops)}</strong><em>{o.riskToStopsPct != null ? `${num(o.riskToStopsPct, 1)}% of today's value` : ""}</em></div>
+        <div className="cc-stat"><span>More if first sell zones are reached</span><strong className="up">{o.withTargets ? compact(o.gainToTargets) : "-"}</strong><em>{!o.withTargets ? "no resistance measured above your prices yet (price discovery)" : `${o.withTargets} of ${o.holdings} holdings have a sell zone${o.odds != null ? `, odds 1 : ${num(o.odds, 1)}` : ""}`}</em></div>
+        <div className="cc-stat"><span>Portfolio strength</span><strong className={o.strength >= 60 ? "up" : o.strength < 40 ? "down" : ""}>{o.strength ?? "-"}/100</strong><em>how much of the research supports your holdings</em></div>
+      </div>
+      <div className="cc-cols">
+        <div><h4 className="small muted">What to do now</h4>
+          {o.todo.length ? <ol className="cc-list small">{o.todo.map((t: Any) => <li key={t.symbol}><Link to={`/stocks/${t.symbol}`} className="sym">{t.symbol}</Link> <Badge tone={ACT[t.action]}>{t.action}</Badge> {t.text}</li>)}</ol> : <div className="small muted">Nothing urgent: hold everything with its stop. Each holding's plan is below.</div>}
+        </div>
+        <div><h4 className="small muted">Dates coming up</h4>
+          {o.events.length ? <ul className="cc-list small">{o.events.map((e: Any) => <li key={e.symbol + e.label + e.date}><strong>{nptDate(e.date)}</strong> <span className="sym">{e.symbol}</span> {e.label.toLowerCase()}</li>)}</ul> : <div className="small muted">No book closures, tax dates or reviews due soon.</div>}
+        </div>
+        <div><h4 className="small muted">Smart money on your stocks</h4>
+          {o.smart.length ? <ul className="cc-list small">{o.smart.map((x: Any) => <li key={x.symbol}><span className="sym">{x.symbol}</span> <span className={x.good ? "up" : "down"}>{x.text}</span></li>)}</ul> : <div className="small muted">No accumulation, distribution or operator footprints on your holdings.</div>}
+        </div>
+        {o.warnings.length > 0 && <div><h4 className="small muted">Risks in this portfolio</h4><ul className="cc-list small warn">{o.warnings.map((w: string) => <li key={w}>{w}</li>)}</ul></div>}
+        {o.economy && <div><h4 className="small muted">Economy and your sectors <Badge tone={o.economy.verdict === "positive" ? "up" : o.economy.verdict === "negative" ? "down" : "warn"}>{o.economy.verdict === "positive" ? "Supportive" : o.economy.verdict === "negative" ? "Against" : "Mixed"}</Badge></h4>
+          <div className="small muted">{o.economy.summary}</div>
+          {o.economy.notes.length > 0 && <ul className="cc-list tiny" style={{ marginTop: 6 }}>{o.economy.notes.map((n: Any) => <li key={n.sector}><strong>{n.sector}:</strong> {n.note}</li>)}</ul>}
+        </div>}
+        <div><h4 className="small muted">Ideas to strengthen it</h4>
+          {o.ideas.length ? <ul className="cc-list small">{o.ideas.map((x: Any) => <li key={x.symbol}><Link to={`/stocks/${x.symbol}`} className="sym">{x.symbol}</Link> <Badge tone="up">{x.decision}</Badge>{x.newSector ? <span className="tiny muted"> new sector for you</span> : null}<div className="tiny muted">{x.headline}</div></li>)}</ul> : <div className="small muted">No stock passes every research check for a buy today. Keeping cash is a valid choice.</div>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function PlanView({ id, name, strategy, onStrategy, onAdd }: { id: number; name: string; strategy: string | null; onStrategy: (s: string) => void; onAdd: () => void }) {
   const d = useApi<Any>(`/portfolios/${id}/insights`, [id]);
   const [filter, setFilter] = useState<string>("");
   if (d.error) return <ErrorBox error={d.error} onRetry={d.reload} />;
-  if (!d.data) return <Loading label="Building your plan from prices, signals, fundamentals and news" />;
-  const { plans, closed, news, counts, signalsAsOf } = d.data;
+  if (!d.data) return <Loading label="Studying each holding: chart, indicators, business, reports, news, brokers and the economy" />;
+  const { plans, closed, news, counts, signalsAsOf, overview } = d.data;
   if (!plans.length && !closed.length) return <Empty title="No holdings yet">Add your first purchase and this page will tell you what to do next with it.<div style={{ marginTop: 10 }}><button className="btn primary" onClick={onAdd}><I.plus /> Add transaction</button></div></Empty>;
   const shown = filter ? plans.filter((x: Any) => x.action === filter) : plans;
   const newsBy = (sym: string) => news.filter((n: Any) => n.symbol === sym);
   return (
     <div className="col">
+      {overview && plans.length > 0 && <CommandCentre o={overview} name={name} strategy={strategy} onStrategy={async (st) => { await onStrategy(st); d.reload(); }} />}
       <div className="plan-bar">
         <button className={`chip${!filter ? " on" : ""}`} onClick={() => setFilter("")}>All {plans.length}</button>
         {["SELL", "REVIEW", "REDUCE", "BOOK PROFIT", "ADD", "HOLD"].filter((k) => counts[k]).map((k) => <button key={k} className={`chip${filter === k ? " on" : ""}`} onClick={() => setFilter(filter === k ? "" : k)}><Badge tone={PLAN_TONE[k]}>{k}</Badge> {counts[k]}</button>)}

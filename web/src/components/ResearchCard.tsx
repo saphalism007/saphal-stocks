@@ -30,7 +30,7 @@ export function ResearchCard({ symbol, compact = false }: { symbol: string; comp
       <div className="research-headline">{d.headline}</div>
       {d.smart && <div className="research-smart" title="Smart money and manipulation check: price and volume footprints plus the broker-by-broker floorsheet">
         <span>Phase <strong>{d.smart.phase}</strong></span>
-        <span>Big brokers <strong className={d.smart.brokerRead === "Accumulation" ? "up" : d.smart.brokerRead === "Distribution" ? "down" : ""}>{d.smart.brokerRead === "Accumulation" ? "accumulating" : d.smart.brokerRead === "Distribution" ? "distributing" : d.smart.brokerRead.toLowerCase()}</strong>{d.smart.sessions ? <span className="faint"> ({d.smart.sessions} sessions)</span> : null}</span>
+        <span>Big brokers <strong className={d.smart.brokerRead === "Accumulation" ? "up" : d.smart.brokerRead === "Distribution" ? "down" : ""}>{d.smart.brokerRead === "Accumulation" ? "accumulating" : d.smart.brokerRead === "Distribution" ? "distributing" : d.smart.brokerRead.toLowerCase()}</strong>{d.smart.sessions ? <span className="faint"> ({d.smart.sessions} session{d.smart.sessions > 1 ? "s" : ""})</span> : null}</span>
         <span>Manipulation risk <strong className={d.smart.risk === "High" ? "down" : d.smart.risk === "Medium" ? "warn" : "up"}>{d.smart.risk}</strong></span>
         {d.macroSummary && <span>Economy <strong className={d.macroSummary.verdict === "positive" ? "up" : d.macroSummary.verdict === "negative" ? "down" : ""}>{d.macroSummary.verdict === "positive" ? "supportive" : d.macroSummary.verdict === "negative" ? "against" : "mixed"}</strong></span>}
       </div>}
