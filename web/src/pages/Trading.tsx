@@ -43,6 +43,7 @@ export default function Trading() {
         {t.avgNetPct != null && t.avgNetPct < 0 && <Notice tone="warn">These rules lost money on average over the past year (a weak, sideways NEPSE). Treat signals as a starting point for your own judgement, keep position sizes small, and use the paper-trading account to test them before risking real money.</Notice>}
       </Card>
       <ResearchPicks research={d.data.research ?? {}} rows={d.data.rows} onOpen={(sym) => nav(`/stocks/${sym}?from=research`)} />
+      <SwingList onOpen={(sym) => nav(`/stocks/${sym}?tab=plan&from=research`)} />
       <MarketIntel onOpen={(sym) => nav(`/stocks/${sym}?from=research`)} />
       <Tabs value={tab} onChange={(k) => setSp({ tab: k })} tabs={[
         { key: "buy", label: `Buy (${counts.buy ?? 0})` }, { key: "sell", label: `Sell (${counts.sell ?? 0})` }, { key: "watch", label: `Watch (${counts.watch ?? 0})` },
@@ -314,6 +315,52 @@ function MarketIntel({ onOpen }: { onOpen: (s: string) => void }) {
           <div className="tiny faint" style={{ marginTop: 8 }}>Broker numbers are as shown on the NEPSE floorsheet. The floorsheet shows brokers, not their clients, so this reads footprints, not intentions.</div>
         </div>
       </div>
+    </Card>
+  );
+}
+
+const SWING_STATUS: Record<string, [string, "up" | "down" | "warn" | "blue"]> = { "in-zone": ["In buy range", "up"], "below-zone": ["Below range: wait", "warn"], "above-zone": ["Above range: do not chase", "warn"], "target-hit": ["Target 1 already reached", "blue"], "stop-hit": ["At or below stop: skip", "down"] };
+
+/** Buy and hold for 1-2 weeks: today's candidates after the full research, with the same rules' real record. */
+function SwingList({ onOpen }: { onOpen: (s: string) => void }) {
+  const r = useApi<Any>("/trading/swing", []);
+  if (r.error) return null;
+  if (!r.data) return <Card title="Buy and hold 1-2 weeks"><Loading label="Scoring every stock for a 1-2 week move and replaying the past year" /></Card>;
+  const d = r.data, bt = d.backtest, a = bt.all, rc = bt.recent60;
+  const rec = (x: Any) => x.trades ? `${x.trades} trades, ${num(x.winRatePct, 0)}% profitable, average ${x.avgNetPct >= 0 ? "+" : ""}${num(x.avgNetPct, 2)}% per trade` : "no trades";
+  return (
+    <Card title={<>Buy and hold 1-2 weeks <Badge tone={d.mode === "buy" ? "up" : "warn"}>{d.mode === "buy" ? "Buy list" : "Candidates only"}</Badge></>}
+      sub={`Every liquid stock (${d.studied}) scored for a short move on closing prices of ${nptDate(d.asOf)}, then checked against the full research (business, reports, news, smart money, market, economy). Hold at most ${d.holdDays} trading sessions.`}>
+      <div className="swing-record">
+        <div><span>Same rules, past year</span><strong className={tone(a.avgNetPct)}>{a.avgNetPct != null ? `${a.avgNetPct >= 0 ? "+" : ""}${num(a.avgNetPct, 2)}%` : "-"}</strong><em>{rec(a)}; target reached {num(a.targetPct, 0)}%, stop hit {num(a.stopPct, 0)}%</em></div>
+        <div><span>Last 60 sessions</span><strong className={tone(rc.avgNetPct)}>{rc.avgNetPct != null ? `${rc.avgNetPct >= 0 ? "+" : ""}${num(rc.avgNetPct, 2)}%` : "-"}</strong><em>{rec(rc)}</em></div>
+        {bt.bySetup.filter((x: Any) => x.trades).map((x: Any) => <div key={x.setup}><span>{x.setup}</span><strong className={tone(x.avgNetPct)}>{x.avgNetPct >= 0 ? "+" : ""}{num(x.avgNetPct, 2)}%</strong><em>{x.trades} trades, {num(x.winRatePct, 0)}% profitable</em></div>)}
+      </div>
+      <div className="tiny faint" style={{ margin: "4px 0 10px" }}>Replayed as you would trade it: buy at the next open (skipped if it opens above the range), sell half at target 1 and move the stop to your entry, the rest at target 2, the stop, or day {d.holdDays}. After broker commission, SEBON fee, DP charges and capital gains tax, on Rs. 1 lakh per trade.</div>
+      {d.mode !== "buy" && <Notice tone="warn"><strong>Read this before buying any of these.</strong> Over the past year these short-term rules lost money on average after costs, and so did simply buying any liquid stock for two weeks (short trades pay commission, DP charges and tax every time). So this is a list of the best-placed candidates, not a promise. If you trade them: paper-trade first or use a small amount, risk at most 1% of your money per trade, always place the stop, and sell by day {d.holdDays}. The label changes to Buy list by itself once the record turns positive over the year and the last 60 sessions.</Notice>}
+      {d.picks.length === 0 ? <Empty title="No stock qualifies today">None scored high enough and passed the research. Staying in cash is a valid choice.</Empty> :
+        <div className="swing-grid">{d.picks.map((p: Any) => { const st = SWING_STATUS[p.status] ?? ["", "blue"]; return (
+          <button key={p.symbol} type="button" className="swing-card" onClick={() => onOpen(p.symbol)}>
+            <div className="row between" style={{ flexWrap: "nowrap" }}>
+              <span><span className="sym" style={{ fontSize: 15 }}>{p.symbol}</span> <Badge tone="blue">{p.setup}</Badge></span>
+              <span className="mono small">Rs. {num(p.now)}{p.live && <Badge tone="up">live</Badge>}</span>
+            </div>
+            <div className="tiny faint">{p.name}{p.sector ? `, ${p.sector}` : ""}</div>
+            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}><Badge tone={st[1]}>{st[0]}</Badge><span className="tiny muted">score {p.score}/100</span>
+              {p.research && <span className="tiny muted">research {p.research.decision.toLowerCase()}, {p.research.agree.positive} for / {p.research.agree.negative} against</span>}</div>
+            <div className="swing-plan">
+              <div><span>Buy</span><strong>{num(p.plan.entryLow)}-{num(p.plan.entryHigh)}</strong></div>
+              <div><span>Stop</span><strong className="down">{num(p.plan.stop)}</strong><em>-{num(p.plan.riskPct, 1)}%</em></div>
+              <div><span>Target 1</span><strong className="up">{num(p.plan.t1)}</strong><em>sell half</em></div>
+              <div><span>Target 2</span><strong className="up">{num(p.plan.t2)}</strong><em>or day {p.plan.exitBy}</em></div>
+            </div>
+            <ul className="tiny swing-why">{p.reasons.slice(0, 3).map((x: string) => <li key={x}>{x}</li>)}</ul>
+            {p.research?.smart && <div className="tiny muted">Smart money: {p.research.smart.phase.toLowerCase()}, brokers {p.research.smart.brokerRead.toLowerCase()}, manipulation risk {p.research.smart.risk.toLowerCase()}.</div>}
+            {p.research?.cautions?.map((x: string) => <div key={x} className="tiny warn">{x}</div>)}
+            <div className="tiny faint">Size: with Rs. 1,00,000 and 1% risk, about {Math.floor(1000 / Math.max(0.01, p.plan.entryHigh - p.plan.stop))} shares. Tap for the full company page and trade plan.</div>
+          </button>
+        ); })}</div>}
+      {d.held.length > 0 && <div className="tiny muted" style={{ marginTop: 10 }}><strong>Scored well on the chart but held back by the research:</strong> {d.held.map((h: Any) => <span key={h.symbol}><button type="button" className="chip-link" onClick={() => onOpen(h.symbol)}><span className="sym">{h.symbol}</span></button> {h.why}; </span>)}</div>}
     </Card>
   );
 }

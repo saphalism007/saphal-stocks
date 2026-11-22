@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as RS from "../lib/research.ts";
+import * as SWG from "../lib/swing.ts";
 import { z } from "zod";
 import { all, get } from "../db.ts";
 import * as M from "../lib/market.ts";
@@ -461,6 +462,7 @@ marketRouter.get("/research/:symbol", (req, res) => {
   res.json(r);
 });
 marketRouter.get("/market/intel", (_req, res) => res.json(RS.marketIntel()));
+marketRouter.get("/trading/swing", (_req, res) => res.json(SWG.swing()));
 marketRouter.get("/trading/opportunities", (_req, res) => {
   const o = TR.opportunities();
   const t = TR.track();

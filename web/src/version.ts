@@ -5,13 +5,12 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.30.1";
+export const VERSION = "0.31.0";
 export const RELEASED = "2026-11-22";
 export const NOTES = [
-  "Fixed: on iPhone, tapping a stock in Trading Opportunities only dimmed the screen because the window opened off screen. All pop-up windows now open on top of the page on every device, and close with Escape.",
-  "Tapping any stock in Trading Opportunities (research picks, closest to a buy, brokers' favourites, the signal tables) now opens its full company page with the research expanded.",
-  "Every company page has a new Trade plan tab: buy range, stop, targets, position size, alerts and paper trading.",
-  "Any stock symbol anywhere in the app opens that company's page.",
+  "Trading Opportunities: new Buy and hold 1-2 weeks list. Every liquid stock is scored for a short move (trend, momentum, volume, money flow, breakout or pullback, strong close; pumps and illiquid stocks are excluded), then checked against the full research: business, reports, news, smart money and manipulation, market and economy. Stocks the research is against are listed separately with the reason.",
+  "Each pick shows the buy range, stop, two targets (sell half at the first), a 10-session time stop, position size for 1% risk, whether today's price is still in the buy range, and the research and smart money read. Tap for the company page and trade plan.",
+  "The same rules are replayed over the past year exactly as you would trade them, after all charges and tax, for the whole year, the last 60 sessions and each setup type. The list calls itself a Buy list only when that record is positive; until then it is labelled Candidates only, with a clear warning.",
 ];
 
 declare const __BUILD__: string;
