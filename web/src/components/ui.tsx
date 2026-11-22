@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { I } from "./icons.tsx";
 import { scoreColor, isNum, nptDate, ago, numberLocale } from "../lib/format.ts";
 
@@ -82,14 +83,17 @@ export function Seg<T extends string>({ options, value, onChange }: { options: {
 }
 
 export function Modal({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
-  return (
+  // Closes with Escape, and is drawn at the top of the page (a portal) so no animated or scrolled parent can push it off screen.
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); const prev = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { window.removeEventListener("keydown", k); document.body.style.overflow = prev; }; }, [onClose]);
+  return createPortal(
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="card modal" role="dialog" aria-label={title}>
         <div className="card-head"><h3>{title}</h3><button className="btn ghost sm" onClick={onClose} aria-label="Close"><I.x /></button></div>
         <div className="card-body">{children}</div>
         {footer && <div className="card-head" style={{ borderTop: "1px solid var(--border)", borderBottom: 0, justifyContent: "flex-end" }}>{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

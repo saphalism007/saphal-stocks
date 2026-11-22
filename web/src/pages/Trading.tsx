@@ -2,7 +2,7 @@
 // insufficient data) by transparent rules, long-term ideas judged separately, a trade planner,
 // paper trading, alerts, and the rules' real track record after fees.
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { Card, Stat, Loading, ErrorBox, Empty, Badge, Tabs, Modal, Notice, DataTable } from "../components/ui.tsx";
 import { TradePlanner } from "../components/TradePlanner.tsx";
@@ -22,6 +22,7 @@ export default function Trading() {
   const [minConf, setMinConf] = useState(0);
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  const nav = useNavigate();
   const counts = useMemo(() => { const c: Record<string, number> = {}; for (const r of d.data?.rows ?? []) c[r.bucket] = (c[r.bucket] ?? 0) + 1; return c; }, [d.data]);
   const sectors = useMemo(() => [...new Set((d.data?.rows ?? []).map((r: Any) => r.sector))].sort() as string[], [d.data]);
   if (d.error) return <ErrorBox error={d.error} onRetry={d.reload} />;
@@ -41,8 +42,8 @@ export default function Trading() {
         </div>
         {t.avgNetPct != null && t.avgNetPct < 0 && <Notice tone="warn">These rules lost money on average over the past year (a weak, sideways NEPSE). Treat signals as a starting point for your own judgement, keep position sizes small, and use the paper-trading account to test them before risking real money.</Notice>}
       </Card>
-      <ResearchPicks research={d.data.research ?? {}} rows={d.data.rows} onOpen={setOpen} />
-      <MarketIntel onOpen={setOpen} />
+      <ResearchPicks research={d.data.research ?? {}} rows={d.data.rows} onOpen={(sym) => nav(`/stocks/${sym}?from=research`)} />
+      <MarketIntel onOpen={(sym) => nav(`/stocks/${sym}?from=research`)} />
       <Tabs value={tab} onChange={(k) => setSp({ tab: k })} tabs={[
         { key: "buy", label: `Buy (${counts.buy ?? 0})` }, { key: "sell", label: `Sell (${counts.sell ?? 0})` }, { key: "watch", label: `Watch (${counts.watch ?? 0})` },
         { key: "hold", label: `Hold (${counts.hold ?? 0})` }, { key: "longterm", label: `Long-term (${d.data.longTerm.length})` }, { key: "avoid", label: `Avoid (${counts.avoid ?? 0})` },
@@ -55,7 +56,7 @@ export default function Trading() {
           {(tab === "buy" || tab === "watch") && <select className="input" value={minConf} onChange={(e) => setMinConf(Number(e.target.value))}><option value={0}>Any confidence</option><option value={55}>Medium+</option><option value={75}>High</option></select>}
         </>}>
           {rows.length === 0 ? <Empty title="No stocks in this group right now">{tab === "buy" ? "No stock meets every BUY condition today (setup quality, reward/risk at least 1.8, price in the entry zone, liquidity). That is a normal result." : ""}</Empty> : (
-            <DataTable rows={rows} rowKey={(r: Any) => r.symbol} onRow={(r: Any) => setOpen(r.symbol)} maxHeight={640} initialSort={{ key: "confidence", dir: -1 }} cols={[
+            <DataTable rows={rows} rowKey={(r: Any) => r.symbol} onRow={(r: Any) => nav(`/stocks/${r.symbol}?tab=plan&from=research`)} maxHeight={640} initialSort={{ key: "confidence", dir: -1 }} cols={[
               { key: "symbol", label: "Stock", render: (r: Any) => <span><span className="sym">{r.symbol}</span> <span className="tiny faint">{r.sector}</span></span> },
               { key: "price", label: "Close", num: true, title: "The closing price the signal was set on", render: (r: Any) => <span>{num(r.price)}<span className="tiny faint" style={{ display: "block" }}>{nptDate(r.priceDate)}</span></span> },
               { key: "live", label: "Live now", num: true, sort: (r: Any) => r.live?.price ?? 0, render: (r: Any) => r.live ? <span title={r.live.note}>{num(r.live.price)}<span style={{ display: "block" }}><LiveTag s={r.live.status} /></span></span> : <span className="tiny faint">-</span> },
@@ -90,7 +91,7 @@ const TAB_SUB: Record<string, string> = {
   insufficient: "Too little or stale price history: no signal is given",
 };
 
-function Detail({ symbol }: { symbol: string }) {
+export function Detail({ symbol }: { symbol: string }) {
   const o = useApi<Any>(`/trading/stock/${symbol}`, [symbol]);
   const ports = useApi<Any[]>("/portfolios");
   const [qty, setQty] = useState<{ q: number; e: number } | null>(null);

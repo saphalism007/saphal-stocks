@@ -1,6 +1,8 @@
 import { Fragment } from "react";
 import { PlanCard } from "../components/PlanCard.tsx";
 import { ResearchCard } from "../components/ResearchCard.tsx";
+import { lazy, Suspense } from "react";
+const TradePlan = lazy(() => import("./Trading.tsx").then((m) => ({ default: m.Detail })));
 import { SymbolPicker } from "../components/SymbolPicker.tsx";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -20,7 +22,7 @@ import type { Bar } from "../../../shared/types.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
-type TabKey = "summary" | "chart" | "levels" | "fundamentals" | "financials" | "dividends" | "news" | "backtest" | "audit" | "brokers" | "quarterly" | "annual" | "notices" | "downloads";
+type TabKey = "plan" | "summary" | "chart" | "levels" | "fundamentals" | "financials" | "dividends" | "news" | "backtest" | "audit" | "brokers" | "quarterly" | "annual" | "notices" | "downloads";
 
 export default function StockDetail() {
   const { symbol = "" } = useParams();
@@ -72,7 +74,7 @@ export default function StockDetail() {
       {msg && <Notice>{msg}</Notice>}
       {(pos.data ?? []).map((x: Any) => x.plan ? <div key={x.portfolio.id}><div className="tiny muted" style={{ margin: "0 0 4px" }}>Your position in "{x.portfolio.name}"</div><PlanCard x={x.plan} news={x.news} compactHead /></div>
         : x.sold ? <Notice key={x.portfolio.id}><strong>You sold {sym}</strong> ("{x.portfolio.name}"): {x.sold.headline}</Notice> : null)}
-      <ResearchCard symbol={sym} compact />
+      <ResearchCard symbol={sym} compact={new URLSearchParams(location.search).get("from") !== "research"} />
       {d.dataFreshness?.provisional && <Notice tone="warn">Today's price bar is provisional: the market is open or the official close hasn't been loaded yet, so today's indicators, levels and setups can still change.</Notice>}
       {!fa?.latestPeriod && <Notice tone="warn">No quarterly statements stored for {sym} yet, so fundamental scores are unavailable. {BROWSER_BACKEND ? "The cloud data job fetches statements for all companies; this company has none published at the source yet." : <>Click <strong>Update</strong> to fetch the latest report.</>}</Notice>}
 
@@ -86,11 +88,12 @@ export default function StockDetail() {
       </div>
 
       <Tabs value={tab} onChange={setTab} tabs={[
-        { key: "summary", label: "Overview" }, { key: "chart", label: "Chart & technicals" }, { key: "levels", label: "Support & resistance" },
+        { key: "summary", label: "Overview" }, { key: "plan", label: "Trade plan" }, { key: "chart", label: "Chart & technicals" }, { key: "levels", label: "Support & resistance" },
         { key: "fundamentals", label: "Fundamentals" }, { key: "financials", label: "Financial statements" },
         { key: "quarterly", label: "Quarterly Reports" }, { key: "annual", label: "Annual & Audit Reports" }, { key: "notices", label: "Notices & Announcements" }, { key: "news", label: "News" }, { key: "downloads", label: "Downloads" },
         { key: "dividends", label: "Dividends" }, { key: "brokers", label: "Brokers" }, { key: "backtest", label: "Backtest" },
       ]} />
+      {tab === "plan" && <Card><Suspense fallback={<Loading />}><TradePlan symbol={sym} /></Suspense></Card>}
       {tab === "summary" && <Summary d={d} rep={rep.data} bars={barsQ.data?.bars ?? []} onTab={setTab} />}
       {tab === "chart" && <ChartTab d={d} bars={barsQ.data} />}
       {tab === "levels" && <LevelsTab d={d} bars={barsQ.data?.bars ?? []} />}

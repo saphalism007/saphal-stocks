@@ -199,6 +199,21 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const notes = useApi<{ read: number }[]>("/notifications", [loc.pathname]);
   const unread = notes.data?.filter((n) => !n.read).length ?? 0;
   useEffect(() => setOpen(false), [loc.pathname]);
+  // Any stock symbol anywhere in the app opens that company's page (chart, technicals, fundamentals, reports, news,
+  // research and your plan), unless it already sits inside a link, a button or a clickable row.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey) return;
+      const el = (e.target as HTMLElement | null)?.closest?.(".sym") as HTMLElement | null;
+      if (!el || el.closest("a, button, input, select, textarea, label, tr.click, [data-nolink], .sympick")) return;
+      const sym = (el.dataset.sym || el.textContent || "").trim().toUpperCase();
+      if (!/^[A-Z][A-Z0-9]{1,11}$/.test(sym)) return;
+      if (loc.pathname === `/stocks/${sym}`) return;
+      navigate(`/stocks/${sym}`);
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [navigate, loc.pathname]);
   // Open on the chosen start page once per launch.
   useEffect(() => {
     if (prefs.landing && prefs.landing !== "/" && loc.pathname === "/" && !sessionStorage.getItem("ss-landed")) navigate(prefs.landing, { replace: true });

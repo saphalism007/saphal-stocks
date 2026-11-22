@@ -5,14 +5,13 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.30.0";
+export const VERSION = "0.30.1";
 export const RELEASED = "2026-11-22";
 export const NOTES = [
-  "Portfolio command centre for each portfolio: what you would receive if you sold everything today, the money at risk if every stop is hit, the extra if first sell zones are reached, portfolio strength, what to do now, dates coming up, smart money on your stocks, concentration risks, the economy for your sectors, and research ideas that add a new sector.",
-  "Plans follow each portfolio's strategy, changeable from the command centre: long-term, dividend, value and growth portfolios use long-term stops (weekly close below the 200-day average); swing trading portfolios use the daily signal.",
-  "Every holding now shows its weight in the portfolio, smart money (phase, big brokers buying or selling, manipulation risk), holding strength, what you receive today, at the stop and at the first sell zone after charges and tax, the odds from here, dated guidance (book closure with your dividend and bonus shares, the long-term tax date, review dates), and the full research in one tap.",
-  "The 52-week high now counts as a sell zone when no resistance is measured above.",
-  "Trading Opportunities shows how every listed company was judged today (buy, close to a buy, hold, no setup, downtrend, illiquid, sell, too new), and the stocks closest to a buy with exactly what is still missing.",
+  "Fixed: on iPhone, tapping a stock in Trading Opportunities only dimmed the screen because the window opened off screen. All pop-up windows now open on top of the page on every device, and close with Escape.",
+  "Tapping any stock in Trading Opportunities (research picks, closest to a buy, brokers' favourites, the signal tables) now opens its full company page with the research expanded.",
+  "Every company page has a new Trade plan tab: buy range, stop, targets, position size, alerts and paper trading.",
+  "Any stock symbol anywhere in the app opens that company's page.",
 ];
 
 declare const __BUILD__: string;

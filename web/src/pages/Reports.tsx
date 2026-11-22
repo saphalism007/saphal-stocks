@@ -49,7 +49,7 @@ export default function Reports() {
             <div className="list" style={{ marginTop: 10 }}>{results.results.map((r: any) => (
               <div key={`${r.docId}:${r.page}`} className="list-item" style={{ padding: "10px 0" }}>
                 <div style={{ flex: 1 }}>
-                  <div className="row"><strong className="small">{r.document}</strong><Badge>p. {r.page}</Badge>{r.symbol && <Badge tone="blue">{r.symbol}</Badge>}{r.period && <span className="tiny faint">{r.period}</span>}</div>
+                  <div className="row"><strong className="small">{r.document}</strong><Badge>p. {r.page}</Badge>{r.symbol && <Badge tone="blue"><span className="sym">{r.symbol}</span></Badge>}{r.period && <span className="tiny faint">{r.period}</span>}</div>
                   <p className="small muted" style={{ margin: "4px 0 0" }}>{r.passage.slice(0, 420)}...</p>
                 </div>
                 <button className="btn sm" onClick={async () => setPage(await api(`/documents/${r.docId}/pages/${r.page}`))}>Open page</button>

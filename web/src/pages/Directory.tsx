@@ -44,7 +44,7 @@ function Funds() {
       <div className="fd-list">{list.map((f: Any) => (
         <div key={f.symbol} className="fd">
           <div className="row between" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}>
-            <div style={{ minWidth: 0 }}><b>{f.name}</b> <span className="tiny faint mono">{f.symbol}</span><div className="tiny faint">{f.manager ?? "Manager not in SEBON's current fund-manager list"}</div></div>
+            <div style={{ minWidth: 0 }}><b>{f.name}</b> <span className="sym tiny faint mono">{f.symbol}</span><div className="tiny faint">{f.manager ?? "Manager not in SEBON's current fund-manager list"}</div></div>
             <Badge tone={f.type === "Open-ended" ? "up" : "accent"}>{f.type}</Badge>
           </div>
           <div className="fd-kv">

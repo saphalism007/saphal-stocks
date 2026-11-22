@@ -910,7 +910,7 @@ html { -webkit-tap-highlight-color: transparent; }
 button, a, .chip, .btn, [role="button"], input, select, label { touch-action: manipulation; }
 .btn, .chip, .nav a, .ind-item, .seg button, .tabs button { transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .08s ease, opacity .15s ease; }
 .btn:active:not(:disabled), .chip:active, .nav a:active, [role="button"]:active, .seg button:active, .tabs button:active { transform: scale(.97); }
-.page { animation: pageIn .2s ease both; }
+.page { animation: pageIn .2s ease backwards; }
 @keyframes pageIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .card { transition: border-color .15s ease, box-shadow .15s ease; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
@@ -1089,3 +1089,7 @@ body:has(.modal-bg) .bottombar, body:has(.modal-bg) .ai-fab { display: none !imp
 .funnel-chip strong { font-variant-numeric: tabular-nums; margin-right: 2px; }
 .funnel-chip .up { color: var(--up); } .funnel-chip .down { color: var(--down); } .funnel-chip .warn { color: var(--warn); } .funnel-chip .blue { color: var(--blue); }
 .near-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+/* Every stock symbol is a way into its company page */
+.sym { cursor: pointer; }
+.sym:hover { text-decoration: underline; text-underline-offset: 3px; }
+a .sym:hover, button .sym:hover, tr.click .sym:hover { text-decoration: none; }
