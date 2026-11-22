@@ -5,6 +5,7 @@ import * as M from "./market.ts";
 import * as TR from "./trading.ts";
 import { evaluate, type Opportunity } from "../../shared/opportunities.ts";
 import { positionPlan, reentryPlan } from "../../shared/positionPlan.ts";
+import { researchFor } from "./research.ts";
 
 export function txsFor(portfolioId: number): Transaction[] {
   return all<{ id: number; symbol: string; type: Transaction["type"]; date: string; quantity: number; price: number; commission: number | null; other_charges: number | null; tax: number | null; notes: string | null }>(
@@ -121,6 +122,15 @@ export function portfolioInsights(portfolioId: number) {
       fa: TR.fundamentalInput(h.symbol), technicalScore: factors.get(h.symbol)?.technicalScore ?? null, atPurchase: atPurchase(h.symbol, h.lots[0]?.date ?? null), today, fees,
     });
   });
+  // The full research verdict for each holding; a plan never says "add" when the research says reduce, sell or avoid.
+  for (const p of plans as (typeof plans[number] & { research?: unknown })[]) {
+    let r: ReturnType<typeof researchFor> = null;
+    try { r = researchFor(p.symbol); } catch { /* keep the plan without it */ }
+    if (!r) continue;
+    p.research = { decision: r.decision, conviction: r.conviction, headline: r.headline, agree: r.agree, pillars: r.pillars.map((x) => ({ title: x.title, verdict: x.verdict, summary: x.summary })) };
+    if (p.action === "ADD" && ["SELL", "REDUCE", "AVOID"].includes(r.decision)) { p.action = "HOLD"; p.tone = "blue"; p.headline = `Do not add: the research says ${r.decision.toLowerCase()} (${r.headline})`; p.steps = p.steps.filter((x) => !x.startsWith("Add only")); }
+    if ((p.action === "HOLD" || p.action === "ADD") && r.decision === "SELL") { p.action = "REDUCE"; p.tone = "down"; p.headline = `Research says sell: ${r.headline}`; }
+  }
   const order: Record<string, number> = { SELL: 0, REVIEW: 1, REDUCE: 2, "BOOK PROFIT": 3, ADD: 4, HOLD: 5 };
   plans.sort((a, b) => order[a.action] - order[b.action] || (b.price ?? 0) * b.quantity - (a.price ?? 0) * a.quantity);
   const closed = summary.holdings.filter((h) => h.quantity === 0).map((h) => {

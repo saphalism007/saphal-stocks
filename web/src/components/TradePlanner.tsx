@@ -65,7 +65,7 @@ export function TradePlanner({ entry: e0, stop: s0, targets: t0 = [], holdingDay
             </tbody>
           </table>
           {calc.outs[0] && calc.risk ? <p className="small">Reward to risk after all costs: <strong>{num(calc.outs[0].netProfit / calc.risk, 2)} : 1</strong> at target 1{calc.outs.length > 1 ? `, ${num(calc.outs[calc.outs.length - 1].netProfit / calc.risk, 2)} : 1 at target ${calc.outs.length}` : ""}. Capital {compact(st.capital)}.</p> : null}
-          <p className="tiny faint">Charges use your fee settings (broker slab, SEBON {num(fees.sebonFeeRate * 100, 3)}%, DP Rs. {fees.dpChargePerScrip}); CGT {num(fees.cgtShortTerm * 100, 1)}% up to {fees.holdingDaysForLongTerm} days, {num(fees.cgtLongTerm * 100, 1)}% after. Your capital and risk settings are remembered on this device.</p>
+          <p className="tiny faint">Charges use your fee settings (broker slab, SEBON {num(fees.sebonFeeRate * 100, 3)}%, DP Rs. {fees.dpChargePerScrip}); CGT {num(fees.cgtShortTerm * 100, 2)}% up to {fees.holdingDaysForLongTerm} days, {num(fees.cgtLongTerm * 100, 2)}% after. Your capital and risk settings are remembered on this device.</p>
         </>
       )}
     </div>

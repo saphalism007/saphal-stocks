@@ -6,6 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../lib/api.ts";
 import { Card, Stat, Loading, ErrorBox, Empty, Badge, Tabs, Modal, Notice, DataTable } from "../components/ui.tsx";
 import { TradePlanner } from "../components/TradePlanner.tsx";
+import { ResearchCard, DECISION_TONE } from "../components/ResearchCard.tsx";
 import { I } from "../components/icons.tsx";
 import { num, rs, nptDate, compact, pct, tone, todayNpt } from "../lib/format.ts";
 
@@ -40,6 +41,7 @@ export default function Trading() {
         </div>
         {t.avgNetPct != null && t.avgNetPct < 0 && <Notice tone="warn">These rules lost money on average over the past year (a weak, sideways NEPSE). Treat signals as a starting point for your own judgement, keep position sizes small, and use the paper-trading account to test them before risking real money.</Notice>}
       </Card>
+      <ResearchPicks research={d.data.research ?? {}} rows={d.data.rows} onOpen={setOpen} />
       <Tabs value={tab} onChange={(k) => setSp({ tab: k })} tabs={[
         { key: "buy", label: `Buy (${counts.buy ?? 0})` }, { key: "sell", label: `Sell (${counts.sell ?? 0})` }, { key: "watch", label: `Watch (${counts.watch ?? 0})` },
         { key: "hold", label: `Hold (${counts.hold ?? 0})` }, { key: "longterm", label: `Long-term (${d.data.longTerm.length})` }, { key: "avoid", label: `Avoid (${counts.avoid ?? 0})` },
@@ -64,6 +66,7 @@ export default function Trading() {
                 { key: "netRiskReward", label: "R:R net", num: true, render: (r: Any) => r.netRiskReward != null ? <span title={`Before costs ${num(r.riskReward, 2)}`}>{num(r.netRiskReward, 2)}</span> : "-" },
                 { key: "holdingPeriod", label: "Hold", render: (r: Any) => <span className="small">{r.holdingPeriod ?? "-"}</span> },
               ] : [{ key: "stop", label: tab === "hold" ? "Exit below" : "Stop / invalidation", num: true, render: (r: Any) => r.stop != null ? num(r.stop) : "-" }]),
+              { key: "research", label: "Research", sort: (r: Any) => ["STRONG BUY", "BUY", "ACCUMULATE", "WATCH", "HOLD", "REDUCE", "SELL", "AVOID"].indexOf(d.data.research?.[r.symbol]?.decision ?? "x"), render: (r: Any) => { const x = d.data.research?.[r.symbol]; return x ? <span title={x.headline}><Badge tone={DECISION_TONE[x.decision]}>{x.decision}</Badge><span className="tiny faint" style={{ display: "block" }}>{x.agree.positive} for / {x.agree.negative} against</span></span> : <span className="tiny faint">-</span>; } },
               { key: "confidence", label: "Confidence", num: true, render: (r: Any) => r.confidenceLabel === "-" ? "-" : <span title={`${r.confidence}/100`}>{r.confidenceLabel}</span> },
               { key: "headline", label: "Why", render: (r: Any) => <span className="small">{r.headline}</span> },
             ]} />
@@ -121,6 +124,8 @@ function Detail({ symbol }: { symbol: string }) {
       </div>
       <div className="row" style={{ gap: 8 }}><Link className="btn primary sm" to={`/stocks/${symbol}`}>Full company page: chart, financials, news</Link><Link className="btn sm" to={`/terminal/${symbol}`}>Open chart</Link></div>
       {d.live && <Notice tone={d.live.status === "in-zone" ? "info" : "warn"}><strong>Live now:</strong> {d.live.note}</Notice>}
+      <ResearchCard symbol={symbol} />
+      <h4 className="small muted" style={{ margin: "4px 0 0" }}>The chart setup in detail</h4>
       <Notice tone={d.action === "BUY" ? "info" : "warn"}>{d.signalSince ? <strong>Signal since {nptDate(d.signalSince)}. </strong> : null}{d.headline}{d.buyNow === "wait" && d.waitFor ? ` Wait for ${d.waitFor}.` : d.buyNow === "now" ? " Entry conditions are met now." : ""}</Notice>
       {d.entryLow != null && (
         <div className="plan-grid">
@@ -219,4 +224,27 @@ const LIVE_LABEL: Record<string, [string, "up" | "down" | "warn" | "blue"]> = { 
 function LiveTag({ s }: { s: string }) {
   const [label, t] = LIVE_LABEL[s] ?? ["", "blue"];
   return label ? <Badge tone={t}>{label}</Badge> : null;
+}
+
+/** The final research decisions, best first: what to buy, accumulate, and what holders should sell or reduce. */
+function ResearchPicks({ research, rows, onOpen }: { research: Record<string, Any>; rows: Any[]; onOpen: (s: string) => void }) {
+  const by = new Map(rows.map((r: Any) => [r.symbol, r]));
+  const list = (ds: string[]) => Object.entries(research).filter(([, v]) => ds.includes(v.decision)).sort((a, b) => ds.indexOf(a[1].decision) - ds.indexOf(b[1].decision) || b[1].agree.positive - a[1].agree.positive);
+  const buys = list(["STRONG BUY", "BUY"]), acc = list(["ACCUMULATE"]), sells = list(["SELL", "REDUCE"]);
+  const row = ([s, v]: [string, Any]) => (
+    <button key={s} className="pick-row" onClick={() => onOpen(s)}>
+      <span><span className="sym">{s}</span> <Badge tone={DECISION_TONE[v.decision]}>{v.decision}</Badge></span>
+      <span className="tiny muted pick-why">{v.headline}</span>
+      <span className="tiny faint">{v.conviction} conviction, {v.agree.positive} for / {v.agree.negative} against{by.get(s)?.price ? `, Rs. ${num(by.get(s).price)}` : ""}</span>
+    </button>
+  );
+  return (
+    <Card title="Final research picks" sub="Only where the chart, indicators, business, reports, news and market were all studied. Tap a stock for the full research and plan.">
+      <div className="grid g3">
+        <div><h4 className="small muted">Buy (trade)</h4>{buys.length ? buys.map(row) : <div className="tiny faint">No stock passes every check for a buy today. That is a normal, honest result in a weak or fearful market.</div>}</div>
+        <div><h4 className="small muted">Accumulate (long term)</h4>{acc.length ? acc.map(row) : <div className="tiny faint">None today.</div>}</div>
+        <div><h4 className="small muted">Sell / reduce (if you hold)</h4>{sells.length ? sells.map(row) : <div className="tiny faint">None today.</div>}</div>
+      </div>
+    </Card>
+  );
 }

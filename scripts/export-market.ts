@@ -27,6 +27,8 @@ if (existsSync(tmp)) unlinkSync(tmp);
   const opp = T.computeOpportunities();
   write("opportunities", setupKeyPublic(), JSON.stringify(opp));
   write("track", setupKeyPublic(), JSON.stringify(T.computeTrack()));
+  const RS = await import("../server/lib/research.ts");
+  write("research_board", setupKeyPublic(), JSON.stringify(RS.computeResearchBoard()));
   const INS = await import("../server/lib/insights.ts");
   write("signal_board", setupKeyPublic(), JSON.stringify(INS.computeSignalBoard()));
   const CH = await import("../server/lib/chart.ts");

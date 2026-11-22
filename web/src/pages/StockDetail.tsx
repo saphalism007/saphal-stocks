@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import { PlanCard } from "../components/PlanCard.tsx";
+import { ResearchCard } from "../components/ResearchCard.tsx";
 import { SymbolPicker } from "../components/SymbolPicker.tsx";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -71,6 +72,7 @@ export default function StockDetail() {
       {msg && <Notice>{msg}</Notice>}
       {(pos.data ?? []).map((x: Any) => x.plan ? <div key={x.portfolio.id}><div className="tiny muted" style={{ margin: "0 0 4px" }}>Your position in "{x.portfolio.name}"</div><PlanCard x={x.plan} news={x.news} compactHead /></div>
         : x.sold ? <Notice key={x.portfolio.id}><strong>You sold {sym}</strong> ("{x.portfolio.name}"): {x.sold.headline}</Notice> : null)}
+      <ResearchCard symbol={sym} compact />
       {d.dataFreshness?.provisional && <Notice tone="warn">Today's price bar is provisional: the market is open or the official close hasn't been loaded yet, so today's indicators, levels and setups can still change.</Notice>}
       {!fa?.latestPeriod && <Notice tone="warn">No quarterly statements stored for {sym} yet, so fundamental scores are unavailable. {BROWSER_BACKEND ? "The cloud data job fetches statements for all companies; this company has none published at the source yet." : <>Click <strong>Update</strong> to fetch the latest report.</>}</Notice>}
 

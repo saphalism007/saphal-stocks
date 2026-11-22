@@ -1,4 +1,5 @@
 import { Router } from "express";
+import * as RS from "../lib/research.ts";
 import { z } from "zod";
 import { all, get } from "../db.ts";
 import * as M from "../lib/market.ts";
@@ -454,10 +455,16 @@ function priceInfo() {
   const live = f?.as_of === today && status?.session === "open";
   return { asOf: f?.as_of ?? null, fetchedAt: f?.last_success_at ?? null, kind: live ? "delayed" : "end-of-day", note: live ? "Delayed intraday prices (refreshed about every 15 minutes); today's candle is provisional until the close." : `End-of-day prices from ${f?.as_of ?? "the latest session"}.` };
 }
+marketRouter.get("/research/:symbol", (req, res) => {
+  const r = RS.researchFor(SYM.parse(req.params.symbol));
+  if (!r) return res.status(404).json({ error: "Unknown symbol" });
+  res.json(r);
+});
 marketRouter.get("/trading/opportunities", (_req, res) => {
   const o = TR.opportunities();
   const t = TR.track();
-  res.json({ asOf: o.asOf, price: priceInfo(), rows: TR.withLive(TR.withTrack(o.rows)), longTerm: o.longTerm, track: t.summary, trackMethod: t.method,
+  const board = RS.researchBoard();
+  res.json({ asOf: o.asOf, price: priceInfo(), research: board, rows: TR.withLive(TR.withTrack(o.rows)), longTerm: o.longTerm, track: t.summary, trackMethod: t.method,
     disclaimer: "Educational, rule-based analysis from stored NEPSE data. Not a guarantee or licensed investment advice; past results of these rules are shown so you can judge them." });
 });
 marketRouter.get("/chart/:symbol/analysis", (req, res) => {

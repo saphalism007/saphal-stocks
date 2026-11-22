@@ -42,6 +42,9 @@ export function PlanCard({ x, news, compactHead = false }: { x: Any; news: Any[]
           <div className={`tiny ${tone(x.pnl)}`}>{x.pnl != null ? `${compact(x.pnl)} (${pct(x.pnlPct, 1)})` : "-"}</div>
         </div>
       </Link>
+      {x.research && <div className="plan-research"><span className="tiny faint">Research</span> <Badge tone={x.research.decision === "STRONG BUY" || x.research.decision === "BUY" || x.research.decision === "ACCUMULATE" ? "up" : ["SELL", "REDUCE", "AVOID"].includes(x.research.decision) ? "down" : x.research.decision === "WATCH" ? "warn" : "blue"}>{x.research.decision}</Badge>
+        <span className="tiny muted">{x.research.agree.positive} for / {x.research.agree.negative} against, {x.research.conviction} conviction</span>
+        <span className="plan-dots">{x.research.pillars.map((pp: Any) => <i key={pp.title} title={`${pp.title}: ${pp.summary}`} className={`dot-${pp.verdict}`} />)}</span></div>}
       <div className="plan-headline">{x.headline}<span className="tiny faint"> {PLAN_HELP[x.action]}</span></div>
       <div className="plan-grid4">
         <div><span>Your cost</span><strong>{num(x.wacc)}</strong><em>{int(x.quantity)} kitta (WACC)</em></div>
@@ -68,6 +71,7 @@ export function PlanCard({ x, news, compactHead = false }: { x: Any; news: Any[]
           </div>
           <div><h4 className="small muted">Scores</h4><div className="row" style={{ gap: 12 }}><span className="small">Fundamental <Score value={x.scores.fundamental} /></span><span className="small">Technical <Score value={x.scores.technical} /></span></div></div>
         </div>
+        {x.research && <><h4 className="small muted">Research, area by area</h4><ul className="small plan-ul">{x.research.pillars.map((pp: Any) => <li key={pp.title}><strong>{pp.title}</strong> ({pp.verdict}): {pp.summary}</li>)}</ul></>}
         <div className="grid g2" style={{ marginTop: 8 }}>
           <div><h4 className="small muted">Technical</h4><ul className="small plan-ul">{(x.technical.length ? x.technical : ["No setup details."]).map((t: string) => <li key={t}>{t}</li>)}</ul></div>
           <div><h4 className="small muted">Fundamental</h4><ul className="small plan-ul">{(x.fundamental.length ? x.fundamental : ["No statements stored."]).map((t: string) => <li key={t}>{t}</li>)}</ul></div>

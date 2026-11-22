@@ -142,6 +142,16 @@ export function analyzeFundamentals(input: FundamentalInput): FundamentalAnalysi
     const repBv = find(it, "metrics", [/net ?worth per share/i, /book value per share/i]);
     const repRoe = find(it, "metrics", [/return on equity/i]);
     const repRoa = find(it, "metrics", [/return on assets?/i]);
+    // Unit mismatch: some reports state share capital in rupees while the rest is in thousands (or the reverse), which
+    // makes the computed EPS and book value exactly 1,000 times off. The company's own reported EPS settles it.
+    if (repEps != null && repEps > 0 && core.eps != null && core.eps > 0) {
+      const ratio = core.eps / repEps;
+      const fix = ratio > 900 && ratio < 1100 ? 1 / 1000 : ratio > 1 / 1100 && ratio < 1 / 900 ? 1000 : null;
+      if (fix != null) {
+        core = { ...core, eps: core.eps * fix, bvps: core.bvps != null ? core.bvps * fix : core.bvps, shares: core.shares != null ? core.shares / fix : core.shares };
+        dataNotes.push(`Per-share figures were corrected by a factor of ${fix < 1 ? "1/1000" : "1000"}: the report's share capital and profit are in different units (checked against the reported EPS of Rs. ${r2(repEps)}).`);
+      }
+    }
     add({ key: "netProfitYtd", label: `Net profit (${latest.period}, year-to-date)`, value: core.netProfitYtd, unit: "Rs. '000", basis: "reported" });
     add({ key: "netProfitAnnual", label: "Net profit, annualised", value: core.netProfitAnnual, unit: "Rs. '000", basis: "computed", formula: `YTD profit x 4 / ${latest.quarter}` });
     add({ key: "equity", label: "Net worth (total equity)", value: core.equity, unit: "Rs. '000", basis: "reported" });
