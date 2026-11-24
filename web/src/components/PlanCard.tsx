@@ -19,7 +19,45 @@ const PLAN_HELP: Record<string, string> = {
 
 const ACTION_TONE2: Record<string, "up" | "down" | "warn" | "blue"> = { BUY: "up", SELL: "down", WATCH: "warn", HOLD: "blue", AVOID: "down" };
 
-export function PlanCard({ x, news, compactHead = false }: { x: Any; news: Any[]; compactHead?: boolean }) {
+/** What was recommended, what it meant at your price, the plan you follow now, and today's fresh chart reading. */
+export function PlanHistory({ h, onMode }: { h: Any; onMode?: (m: "original" | "portfolio") => void }) {
+  const [busy, setBusy] = useState(false);
+  const rec = h.recommended, ab = h.atBuy, now = h.now, td = h.today;
+  const cell = (v: Any) => (v == null ? <span className="faint">-</span> : num(v));
+  const range = (lo: Any, hi: Any) => (lo == null ? <span className="faint">-</span> : `${num(lo)}-${num(hi ?? lo)}`);
+  const col = (title: string, sub: string) => <th><div>{title}</div><div className="tiny faint" style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{sub}</div></th>;
+  return (
+    <div className="plan-hist">
+      <div className="row between" style={{ gap: 8 }}>
+        <h4 className="small" style={{ margin: 0 }}>Plan history</h4>
+        {h.canSwitch && onMode && <div className="seg sm">
+          <button className={h.follows === "original" ? "on" : ""} disabled={busy} onClick={async () => { setBusy(true); await onMode("original"); setBusy(false); }}>Original plan</button>
+          <button className={h.follows === "portfolio" ? "on" : ""} disabled={busy} onClick={async () => { setBusy(true); await onMode("portfolio"); setBusy(false); }}>Portfolio strategy</button>
+        </div>}
+      </div>
+      <div className="plan-hist-scroll"><table className="t plan-hist-t">
+        <thead><tr><th></th>
+          {col("Recommended", rec ? `${rec.label}, ${rec.date ? nptDate(rec.date) : ""}` : "none found")}
+          {col("When you bought", ab ? `${ab.date ? nptDate(ab.date) : ""} at Rs. ${num(ab.price)}` : h.added ? nptDate(h.added.at.slice(0, 10)) : "-")}
+          {col("Your plan now", h.follows === "original" ? "following the original" : "portfolio strategy")}
+          {col("Today's chart reading", td ? `${td.action}${td.date ? `, ${nptDate(td.date)}` : ""}` : "-")}
+        </tr></thead>
+        <tbody>
+          <tr><td>Buy range</td><td>{range(rec?.entryLow, rec?.entryHigh)}</td><td>{ab ? (ab.inRange === false ? <span className="warn">outside range</span> : ab.inRange ? <span className="up">inside range</span> : "-") : "-"}</td><td className="faint">-</td><td>{range(td?.entryLow, td?.entryHigh)}</td></tr>
+          <tr><td>Stop-loss</td><td className="down">{cell(rec?.stop)}</td><td>{ab?.riskPct != null ? <span className="down">-{num(ab.riskPct, 1)}% from your price</span> : "-"}</td><td className="down"><strong>{cell(now.stop)}</strong></td><td className="down">{cell(td?.stop)}</td></tr>
+          <tr><td>Target 1</td><td className="up">{cell(rec?.t1)}</td><td>{ab?.rewardPct != null ? <span className="up">+{num(ab.rewardPct, 1)}%{ab.rr != null ? ` (1 : ${num(ab.rr, 1)})` : ""}</span> : "-"}</td><td className="up"><strong>{cell(now.t1)}</strong></td><td className="up">{cell(td?.t1)}</td></tr>
+          <tr><td>Target 2</td><td className="up">{cell(rec?.t2)}</td><td className="faint">-</td><td className="up"><strong>{cell(now.t2)}</strong></td><td className="up">{cell(td?.t2)}</td></tr>
+          {rec?.holdDays ? <tr><td>Hold</td><td>{rec.holdDays} sessions</td><td className="faint">-</td><td>see Sell by date</td><td className="faint">-</td></tr> : null}
+        </tbody>
+      </table></div>
+      <ul className="small plan-ul">{h.changes.map((c: string) => <li key={c}>{c}</li>)}</ul>
+      {h.added?.items?.length > 0 && <details className="tiny muted"><summary>What the app showed when you added this purchase</summary>
+        <ul className="plan-ul">{h.added.items.map((it: Any) => <li key={it.source}><strong>{it.label}</strong>: {it.decision}{it.stop != null ? `, buy ${num(it.entryLow)}-${num(it.entryHigh)}, stop ${num(it.stop)}, targets ${num(it.t1)} / ${num(it.t2)}` : ""}{it.note ? `. ${it.note}` : ""}</li>)}</ul></details>}
+    </div>
+  );
+}
+
+export function PlanCard({ x, news, compactHead = false, onMode }: { x: Any; news: Any[]; compactHead?: boolean; onMode?: (m: "original" | "portfolio") => void }) {
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const sm = x.research?.smart;
@@ -68,6 +106,7 @@ export function PlanCard({ x, news, compactHead = false }: { x: Any; news: Any[]
         {x.riskReward?.ratio != null && <div><span>Odds from here</span><strong className={x.riskReward.ratio >= 2 ? "up" : x.riskReward.ratio < 1 ? "down" : ""}>1 : {num(x.riskReward.ratio, 1)}</strong><em>risk {compact(x.riskReward.risk)} to make {compact(x.riskReward.reward)}</em></div>}
       </div>}
       <ol className="plan-steps">{x.steps.map((st: string) => <li key={st}>{st}</li>)}</ol>
+      {x.history && <PlanHistory h={x.history} onMode={onMode} />}
       {x.timing?.length > 0 && <div className="plan-timing">{x.timing.map((t: Any) => <div key={t.label + t.date}><Badge tone="blue">{t.date ? nptDate(t.date) : t.label}</Badge> <span className="small"><strong>{t.date ? t.label : ""}</strong>{t.date ? ": " : ""}{t.detail}</span></div>)}</div>}
       <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
         {!compactHead && <Link className="btn sm primary" to={`/stocks/${x.symbol}`}>Full company page</Link>}

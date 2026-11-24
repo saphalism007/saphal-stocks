@@ -75,3 +75,34 @@ describe("position plan: strategy, what-if and dates", () => {
     expect(p.timing.find((t) => t.label === "Long-term tax")!.date).toBe("2027-06-02");
   });
 });
+
+describe("position plan: following the recommendation it was bought on", () => {
+  const anchor = { label: "Trade signal", date: "2026-11-19", entryLow: 591.5, entryHigh: 594.5, stop: 542.06, t1: 693.8, t2: 742.82, holdDays: null };
+  const o = opp({ price: 570, supports: [560, 530], resistances: [600, 640], indicators: { ...opp({}).indicators, sma200: 537 } });
+  const base = { holding: hold(593.81, 100, "2026-11-20"), name: "CFCL", sector: "Manufacturing", opp: o, price: 570, priceDate: "2026-11-23", live: false, fa, technicalScore: 55, today: "2026-11-24", style: "invest" as const };
+  it("keeps the original stop and targets in a long-term portfolio", () => {
+    const p = positionPlan({ ...base, anchor });
+    expect(p.follows).toBe("original");
+    expect(p.stop!.price).toBe(542.06);
+    expect(p.stop!.basis).toMatch(/Original stop/);
+    expect(p.targets.map((t) => t.price)).toContain(693.8);
+    expect(p.steps.join(" ")).toMatch(/day closes below Rs. 542.06/);
+  });
+  it("uses the portfolio's long-term stop only when you switch", () => {
+    const p = positionPlan({ ...base, anchor, follow: "portfolio" });
+    expect(p.follows).toBe("portfolio");
+    expect(p.stop!.price).toBe(520.89);
+  });
+  it("raises the stop to lock in profit but never lowers it", () => {
+    const up = positionPlan({ ...base, holding: hold(500, 100, "2026-11-20"), anchor: { ...anchor, stop: 480 }, style: "trade", opp: opp({ price: 570, supports: [560], resistances: [640] }) });
+    expect(up.stop!.price).toBeGreaterThan(480);
+    expect(up.stop!.basis).toMatch(/raised from the original stop/);
+  });
+  it("says sell when the original stop is hit, and dates the time stop in trading days", () => {
+    const hit = positionPlan({ ...base, price: 540, anchor });
+    expect(hit.action).toBe("SELL");
+    const sw = positionPlan({ ...base, anchor: { ...anchor, holdDays: 10 } });
+    // 10 trading sessions (Sunday to Thursday) after Friday 20 Nov 2026 is Thursday 3 Dec 2026.
+    expect(sw.timing.find((t) => t.label === "Sell by")!.date).toBe("2026-12-03");
+  });
+});

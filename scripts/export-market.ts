@@ -30,11 +30,23 @@ if (existsSync(tmp)) unlinkSync(tmp);
   const RS = await import("../server/lib/research.ts");
   write("research_board", setupKeyPublic(), JSON.stringify(RS.computeResearchBoard()));
   const SWG = await import("../server/lib/swing.ts");
-  write("swing", setupKeyPublic(), JSON.stringify(SWG.computeSwing()));
+  const swData = SWG.computeSwing();
+  write("swing", setupKeyPublic(), JSON.stringify(swData));
   const INS = await import("../server/lib/insights.ts");
   write("signal_board", setupKeyPublic(), JSON.stringify(INS.computeSignalBoard()));
   const CH = await import("../server/lib/chart.ts");
   write("scanner", setupKeyPublic(), JSON.stringify(CH.computeScanner()));
+  // Recommendation log: every buy-type recommendation of the day with its levels, kept so a purchase can always be
+  // compared with what was recommended at the time.
+  {
+    const rl = db.prepare("INSERT OR REPLACE INTO rec_log (date, symbol, source, decision, setup, entry_low, entry_high, stop, t1, t2, hold_days) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    for (const o of opp.rows.filter((r) => r.action === "BUY" && r.priceDate)) rl.run(o.priceDate, o.symbol, "trade", "BUY", o.setupType, o.entryLow, o.entryHigh, o.stop, o.targets[0]?.price ?? null, o.targets[1]?.price ?? null, null);
+    const sw = swData;
+    for (const p of sw.picks) rl.run(p.date, p.symbol, "swing", sw.mode === "buy" ? "BUY" : "CANDIDATE", p.setup, p.plan.entryLow, p.plan.entryHigh, p.plan.stop, p.plan.t1, p.plan.t2, p.plan.exitBy);
+    const rb = RS.computeResearchBoard();
+    const byOpp = new Map(opp.rows.map((o) => [o.symbol, o]));
+    for (const [sym, v] of Object.entries(rb)) if (["STRONG BUY", "BUY", "ACCUMULATE"].includes(v.decision)) { const o = byOpp.get(sym); if (o?.priceDate) rl.run(o.priceDate, sym, "research", v.decision, o.setupType, o.entryLow, o.entryHigh, o.stop, o.targets[0]?.price ?? null, o.targets[1]?.price ?? null, null); }
+  }
   // Forward log: today's BUY and SELL signals (one row per stock per day).
   const ins = db.prepare("INSERT OR REPLACE INTO signal_log (date, symbol, action, setup, entry_low, entry_high, stop, t1, t2, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   for (const o of opp.rows.filter((r) => r.action === "BUY" || r.action === "SELL")) ins.run(o.priceDate, o.symbol, o.action, o.setupType, o.entryLow, o.entryHigh, o.stop, o.targets[0]?.price ?? null, o.targets[1]?.price ?? null, o.price);
@@ -47,7 +59,7 @@ src.close();
 
 const db = new DatabaseSync(tmp);
 // Personal tables never leave this computer.
-const PERSONAL = ["users", "sessions", "login_attempts", "portfolios", "transactions", "watchlists", "watchlist_items", "alerts", "notifications", "vault", "documents", "doc_pages", "ai_conversations", "ai_messages", "settings", "deposit_rates", "money_entries", "_migrations"];
+const PERSONAL = ["users", "sessions", "login_attempts", "portfolios", "transactions", "watchlists", "watchlist_items", "alerts", "notifications", "vault", "documents", "doc_pages", "ai_conversations", "ai_messages", "settings", "deposit_rates", "money_entries", "tx_plans", "_migrations"];
 db.exec("PRAGMA foreign_keys = OFF");
 for (const t of PERSONAL) db.exec(`DROP TABLE IF EXISTS ${t}`);
 // Keep the snapshot small enough for phones.

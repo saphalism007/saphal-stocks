@@ -197,6 +197,11 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE floorsheet_day ADD COLUMN cross_qty REAL;
   `,
+  // 18: the app's plan saved with each purchase (personal), and a daily log of every recommendation with its levels (market)
+  `
+  CREATE TABLE IF NOT EXISTS tx_plans (tx_id INTEGER PRIMARY KEY, plan TEXT NOT NULL, created_at TEXT);
+  CREATE TABLE IF NOT EXISTS rec_log (date TEXT NOT NULL, symbol TEXT NOT NULL, source TEXT NOT NULL, decision TEXT, setup TEXT, entry_low REAL, entry_high REAL, stop REAL, t1 REAL, t2 REAL, hold_days INTEGER, PRIMARY KEY (date, symbol, source)) WITHOUT ROWID;
+  `,
 ];
 
 db.exec("CREATE TABLE IF NOT EXISTS _migrations (version INTEGER PRIMARY KEY, applied_at TEXT)");

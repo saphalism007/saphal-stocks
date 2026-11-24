@@ -6,6 +6,7 @@ import * as TR from "./trading.ts";
 import { evaluate, type Opportunity } from "../../shared/opportunities.ts";
 import { positionPlan, reentryPlan } from "../../shared/positionPlan.ts";
 import { researchFor, researchBoard, marketIntel } from "./research.ts";
+import { recommendationOn, savedPlans, type RecItem, type RecSnapshot } from "./recommend.ts";
 
 export function txsFor(portfolioId: number): Transaction[] {
   return all<{ id: number; symbol: string; type: Transaction["type"]; date: string; quantity: number; price: number; commission: number | null; other_charges: number | null; tax: number | null; notes: string | null }>(
@@ -123,9 +124,20 @@ export function portfolioInsights(portfolioId: number) {
       return d ? { fiscalYear: d.fiscal_year, cashPct: d.cash_pct, bonusPct: d.bonus_pct, bookCloseDate: d.bookclose_date } : null;
     } catch { return null; }
   };
+  // The plan each holding was bought on: saved with the purchase, or the logged recommendation of that date.
+  const snaps = savedPlans(txs.filter((t) => t.type === "buy" && t.id != null).map((t) => t.id as number));
+  const origin = new Map<string, { rec: RecItem | null; snap: RecSnapshot | null; date: string | null; price: number | null }>();
+  for (const h of open) {
+    const d0 = h.lots[0]?.date ?? null;
+    const buy = d0 ? txs.find((t) => t.symbol === h.symbol && t.type === "buy" && t.date === d0) : undefined;
+    const snap = buy?.id != null ? snaps.get(buy.id) ?? null : null;
+    const fromSnap = snap?.items.find((x) => (x.source === "trade" || x.source === "swing") && (x.decision === "BUY" || x.decision === "CANDIDATE") && x.stop != null) ?? null;
+    origin.set(h.symbol, { rec: fromSnap ?? (d0 ? recommendationOn(h.symbol, d0) : null), snap, date: d0, price: h.lots[0]?.costPerShare ?? null });
+  }
   const plans = open.map((h) => {
     const c = M.company(h.symbol), q = quotes.get(h.symbol);
-    return positionPlan({ style, dividend: upcomingDividend(h.symbol), faceValue: c?.paid_up_value ?? null, high52: get<{ high52: number | null }>("SELECT high52 FROM quotes WHERE symbol = ?", h.symbol)?.high52 ?? null,
+    const og = origin.get(h.symbol);
+    return positionPlan({ anchor: og?.rec ?? null, follow: getSetting<"original" | "portfolio">(`planMode:${portfolioId}:${h.symbol}`, "original"), style, dividend: upcomingDividend(h.symbol), faceValue: c?.paid_up_value ?? null, high52: get<{ high52: number | null }>("SELECT high52 FROM quotes WHERE symbol = ?", h.symbol)?.high52 ?? null,
       holding: h, name: c?.name || h.symbol, sector: c?.sector || "", opp: oppFor(h.symbol), price: q?.close ?? null, priceDate: q?.date ?? null, live: q?.source === "live",
       fa: TR.fundamentalInput(h.symbol), technicalScore: factors.get(h.symbol)?.technicalScore ?? null, atPurchase: atPurchase(h.symbol, h.lots[0]?.date ?? null), today, fees,
     });
@@ -153,6 +165,33 @@ export function portfolioInsights(portfolioId: number) {
     } else if (sm && sm.brokerRead === "Accumulation" && (p.action === "HOLD" || p.action === "ADD")) {
       p.steps = [...p.steps, "Big brokers have been net buyers in recent sessions, which supports holding."];
     }
+  }
+  // Plan history for each holding: what was recommended, what it meant at your price, and what the plan is now (and why).
+  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const rs = (x: number | null | undefined) => (x == null ? "-" : `Rs. ${r2(x).toLocaleString("en-IN")}`);
+  for (const p of plans as (typeof plans[number] & { history?: unknown })[]) {
+    const og = origin.get(p.symbol);
+    const rec = og?.rec ?? null, price = og?.price ?? null;
+    const o = oppFor(p.symbol);
+    const changes: string[] = [];
+    let atBuy: { date: string | null; price: number | null; inRange: boolean | null; riskPct: number | null; rewardPct: number | null; rr: number | null } | null = null;
+    if (rec && price) {
+      const inRange = rec.entryLow != null && rec.entryHigh != null ? price >= rec.entryLow * 0.997 && price <= rec.entryHigh * 1.003 : null;
+      const riskPct = rec.stop != null ? r2(((price - rec.stop) / price) * 100) : null, rewardPct = rec.t1 != null ? r2(((rec.t1 - price) / price) * 100) : null;
+      atBuy = { date: og!.date, price: r2(price), inRange, riskPct, rewardPct, rr: riskPct && rewardPct != null && riskPct > 0 ? r2(rewardPct / riskPct) : null };
+      if (inRange === false && rec.entryHigh != null && price > rec.entryHigh) changes.push(`You paid ${rs(price)}, above the recommended buy range (up to ${rs(rec.entryHigh)}), so your risk to the stop was ${riskPct}% instead of about ${r2(((rec.entryHigh - (rec.stop ?? rec.entryHigh)) / rec.entryHigh) * 100)}%.`);
+      else if (inRange) changes.push(`You bought inside the recommended range: risk ${riskPct}% to the stop for ${rewardPct}% to target 1 (1 : ${atBuy.rr ?? "-"}).`);
+      if (p.follows === "portfolio") changes.push(`You chose to follow the portfolio's strategy, so the stop is ${rs(p.stop?.price)} (${p.stop?.basis.toLowerCase()}) instead of the original ${rs(rec.stop)}. Switch back to follow the plan you bought on.`);
+      else if (p.stop && rec.stop != null && p.stop.price > rec.stop + 0.005) changes.push(`Stop raised from the original ${rs(rec.stop)} to ${rs(p.stop.price)} to protect your profit. It is never lowered.`);
+      else changes.push(`Following the original plan: stop ${rs(rec.stop)}, targets ${rs(rec.t1)} and ${rs(rec.t2)}.`);
+    } else if (og?.date) changes.push(`No buy recommendation was found in the 14 days up to your purchase on ${og.date}, so the plan follows the portfolio's ${style === "invest" ? "long-term" : "trading"} strategy.`);
+    if (o && rec && (o.stop !== rec.stop || o.targets[0]?.price !== rec.t1)) changes.push(`Today's chart reading for ${p.symbol} (${o.priceDate}) is ${o.action}${o.setupType ? `, ${o.setupType.toLowerCase()}` : ""}${o.stop != null ? `, stop ${rs(o.stop)}` : ""}${o.targets[0] ? `, target ${rs(o.targets[0].price)}` : ""}. That is a new reading; your holding keeps the plan you bought on unless you switch.`);
+    p.history = {
+      recommended: rec, added: og?.snap ? { at: og.snap.at, items: og.snap.items } : null, atBuy,
+      now: { stop: p.stop?.price ?? null, stopBasis: p.stop?.basis ?? null, t1: p.targets.find((t) => !/Break-even/.test(t.basis))?.price ?? null, t2: p.targets.filter((t) => !/Break-even/.test(t.basis))[1]?.price ?? null },
+      today: o ? { date: o.priceDate, action: o.action, setup: o.setupType, entryLow: o.entryLow, entryHigh: o.entryHigh, stop: o.stop, t1: o.targets[0]?.price ?? null, t2: o.targets[1]?.price ?? null } : null,
+      follows: p.follows, canSwitch: rec?.stop != null, changes,
+    };
   }
   const order: Record<string, number> = { SELL: 0, REVIEW: 1, REDUCE: 2, "BOOK PROFIT": 3, ADD: 4, HOLD: 5 };
   plans.sort((a, b) => order[a.action] - order[b.action] || (b.price ?? 0) * b.quantity - (a.price ?? 0) * a.quantity);

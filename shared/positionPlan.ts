@@ -23,6 +23,7 @@ export interface PositionPlan {
   technical: string[]; fundamental: string[]; risks: string[];
   scores: { fundamental: number | null; technical: number | null };
   style: "trade" | "invest";
+  follows: "original" | "portfolio";
   /** What you would get: selling everything today, if the stop is hit, at the first sell zone (all after charges and CGT). */
   scenarios: { label: string; price: number; receive: number; profit: number }[];
   /** Rs. you would give back from here if the stop is hit, and Rs. more you would make at the first sell zone. */
@@ -56,6 +57,9 @@ export interface PlanInput {
   dividend?: { fiscalYear: string; cashPct: number | null; bonusPct: number | null; bookCloseDate: string } | null;
   faceValue?: number | null;
   high52?: number | null;
+  /** The recommendation this holding was bought on, and whether to follow it (default) or the portfolio's strategy. */
+  anchor?: { label: string; date: string | null; entryLow: number | null; entryHigh: number | null; stop: number | null; t1: number | null; t2: number | null; holdDays: number | null } | null;
+  follow?: "original" | "portfolio";
 }
 
 export function positionPlan(inp: PlanInput): PositionPlan {
@@ -77,6 +81,7 @@ export function positionPlan(inp: PlanInput): PositionPlan {
     atPurchase: inp.atPurchase ?? null, technical, fundamental, risks,
     scores: { fundamental: fa?.score ?? null, technical: inp.technicalScore },
     style: inp.style ?? "trade",
+    follows: (inp.anchor?.stop != null && inp.follow !== "portfolio" ? "original" : "portfolio") as "original" | "portfolio",
   };
   if (p == null) {
     return { ...base, action: "REVIEW", tone: "warn", headline: "No recent price for this stock, so no plan can be made.", steps: ["Check the symbol, or whether the company was merged, renamed or suspended."], pnl: null, pnlPct: null, toBreakevenPct: null, stop: null, targets: [], addZone: null, scenarios: [], riskReward: null, timing: [] };
@@ -111,14 +116,26 @@ export function positionPlan(inp: PlanInput): PositionPlan {
   else if (nearSup != null) stop = { price: r2(nearSup * 0.98), basis: `2% under the nearest support ${f(nearSup)}` };
   else stop = { price: r2(p * 0.9), basis: "About 10% below the price (no support level measured below)" };
 
+  // Following the original recommendation: its stop holds, and can only be raised (to lock in profit), never lowered.
+  const anc = inp.anchor ?? null;
+  const original = base.follows === "original" && anc?.stop != null;
+  if (original) {
+    const o0 = anc!.stop as number, when = anc!.date ? ` of ${anc!.date}` : "";
+    if (stop.price > o0 && be != null && p > be * 1.08) stop = { price: stop.price, basis: `${stop.basis} (raised from the original stop ${f(o0)})` };
+    else stop = { price: r2(o0), basis: `Original stop from the ${anc!.label.toLowerCase()}${when}` };
+  }
+  const weekly = invest && !original;
   // Profit targets: break-even first when in loss, then the signal's targets and resistances above.
   const cands: PlanLevel[] = [];
   if (be != null && be > p * 1.005) cands.push({ price: be, basis: "Break-even: your money back after all charges" });
   // In a loss, levels below break-even would still lose money, so sell zones start at break-even.
   const floor = be != null && be > p ? be * 0.999 : p * 1.01;
-  for (const t of o?.targets ?? []) if (t.price > floor) cands.push({ price: t.price, basis: t.basis });
-  for (const r of res) if (r > floor) cands.push({ price: r, basis: "Resistance (sellers appeared here before)" });
-  if (inp.high52 != null && inp.high52 > floor && !cands.some((c) => Math.abs(c.price - inp.high52!) / inp.high52! < 0.015)) cands.push({ price: inp.high52, basis: "52-week high (sellers often appear near it)" });
+  if (original) { if (anc!.t1 != null && anc!.t1 > floor) cands.push({ price: anc!.t1, basis: "Original target 1 from the recommendation" }); if (anc!.t2 != null && anc!.t2 > floor) cands.push({ price: anc!.t2, basis: "Original target 2 from the recommendation" }); }
+  if (!original) {
+    for (const t of o?.targets ?? []) if (t.price > floor) cands.push({ price: t.price, basis: t.basis });
+    for (const r of res) if (r > floor) cands.push({ price: r, basis: "Resistance (sellers appeared here before)" });
+  }
+  if (!original && inp.high52 != null && inp.high52 > floor && !cands.some((c) => Math.abs(c.price - inp.high52!) / inp.high52! < 0.015)) cands.push({ price: inp.high52, basis: "52-week high (sellers often appear near it)" });
   const uniq: PlanLevel[] = [];
   for (const c of cands.sort((a, b) => a.price - b.price)) if (!uniq.length || c.price > uniq[uniq.length - 1].price * 1.015) uniq.push({ price: r2(c.price), basis: c.basis });
   const sellDate = inp.today;
@@ -146,8 +163,9 @@ export function positionPlan(inp: PlanInput): PositionPlan {
   const t1 = targets.find((t) => t.basis !== "Break-even: your money back after all charges") ?? null;
   // Booking profit is suggested only for a meaningful gain (8% or more) right at a resistance.
   const nearT1 = t1 != null && p >= t1.price * 0.985 && (pnlPct ?? 0) >= 8;
-  if (o?.action === "SELL") { action = "SELL"; tone = "down"; headline = `Sell or reduce: ${o.headline.replace(/^.*?: /, "")}`; }
-  else if (o?.live?.status === "stop-hit" || (o?.stop != null && p < o.stop && (o.action === "BUY" || o.action === "WATCH"))) { action = "REVIEW"; tone = "warn"; headline = "The setup has failed: price is below the signal's stop."; }
+  if (original && p <= stop.price) { action = "SELL"; tone = "down"; headline = `The original stop ${f(stop.price)} has been hit: exit as planned.`; }
+  else if (o?.action === "SELL") { action = "SELL"; tone = "down"; headline = `Sell or reduce: ${o.headline.replace(/^.*?: /, "")}`; }
+  else if (!original && (o?.live?.status === "stop-hit" || (o?.stop != null && p < o.stop && (o.action === "BUY" || o.action === "WATCH")))) { action = "REVIEW"; tone = "warn"; headline = "The setup has failed: price is below the signal's stop."; }
   else if (o?.action === "AVOID" || (trend === "downtrend" && weakBiz)) { action = "REDUCE"; tone = "down"; headline = `Reduce on strength: ${trend === "downtrend" ? "downtrend" : "high risk"}${weakBiz ? " with weak fundamentals" : ""}.`; }
   else if (inProfit && nearT1) { action = "BOOK PROFIT"; tone = "up"; headline = `Near resistance ${f(t1!.price)}: book part of the profit.`; }
   else if (addZone && p <= addZone.high * 1.01 && p >= addZone.low * 0.98 && (o?.action === "BUY" || o?.action === "HOLD" || trend === "uptrend")) { action = "ADD"; tone = "up"; headline = `Good business at a buy level: you can add between ${f(addZone.low)} and ${f(addZone.high)}.`; }
@@ -161,8 +179,9 @@ export function positionPlan(inp: PlanInput): PositionPlan {
   if (action === "REDUCE") steps.push(`Sell part on any bounce${targets[0] ? ` toward ${f(targets[0].price)}` : ""}; do not add more.`);
   if (action === "BOOK PROFIT" && t1) steps.push(`Sell about one third (${Math.max(1, Math.round(qty / 3))} kitta) near ${f(t1.price)} (net about ${f(t1.netProfit * (1 / 3))} on that part); hold the rest.`);
   if (action === "ADD" && addZone) steps.push(`Add only between ${f(addZone.low)} and ${f(addZone.high)}. Example: ${addZone.example.qty} more at ${f(addZone.example.price)} makes your WACC ${f(addZone.example.newWacc)} and break-even ${f(addZone.example.newBreakeven)}.`);
-  steps.push(`Exit if a ${invest ? "week" : "day"} closes below ${f(stop.price)} (${stop.basis.charAt(0).toLowerCase()}${stop.basis.slice(1)}).`);
+  steps.push(`Exit if a ${weekly ? "week" : "day"} closes below ${f(stop.price)} (${stop.basis.charAt(0).toLowerCase()}${stop.basis.slice(1)}).`);
   if (targets.length) steps.push(`Sell zones: ${targets.map((t) => `${f(t.price)} (${t.netProfit >= 0 ? "+" : ""}${f(t.netProfit).replace("Rs. -", "-Rs. ")} net)`).join(", ")}.`);
+  if (original && anc!.t1 != null) { const mid = res.find((r) => r > p * 1.01 && r < anc!.t1! * 0.99); if (mid != null) steps.push(`On the way to target 1, sellers appeared near ${f(mid)} before (resistance). If the price stalls there, booking a part is reasonable.`); }
   const wall = be != null && be > p ? res.find((r) => r < be) : undefined;
   if (wall != null) steps.push(`Expect selling pressure near ${f(wall)} on the way back to break-even.`);
   if (!inProfit && be != null) steps.push(`You are ${f(Math.abs(pnl))} down; break-even is ${f(be)} (${toBe != null ? `${toBe > 0 ? "+" : ""}${toBe}% from here` : ""}). Do not average down unless the price holds a support and the business is sound.`);
@@ -177,7 +196,7 @@ export function positionPlan(inp: PlanInput): PositionPlan {
   const scenarios = [{ label: "Sell everything today", price: p, ...now }, { label: "If the stop is hit", price: stop.price, ...outcome(stop.price) }, ...(t1 ? [{ label: "At the first sell zone", price: t1.price, ...outcome(t1.price) }] : [])];
   const riskReward = t1 ? { risk: r2(Math.max(0, now.profit - outcome(stop.price).profit)), reward: r2(Math.max(0, t1.netProfit - now.profit)), ratio: null as number | null } : null;
   if (riskReward && riskReward.risk > 0) riskReward.ratio = r2(riskReward.reward / riskReward.risk);
-  if (!invest && riskReward && riskReward.ratio != null && riskReward.ratio < 1 && (action === "HOLD" || action === "ADD")) steps.push(`From here you risk ${f(riskReward.risk)} to make ${f(riskReward.reward)} more (1 : ${riskReward.ratio}). The odds no longer favour holding all of it; consider booking part.`);
+  if (!weekly && riskReward && riskReward.ratio != null && riskReward.ratio < 1 && (action === "HOLD" || action === "ADD")) steps.push(`From here you risk ${f(riskReward.risk)} to make ${f(riskReward.reward)} more (1 : ${riskReward.ratio}). The odds no longer favour holding all of it; consider booking part.`);
   // Dates to wait for.
   const timing: PositionPlan["timing"] = [];
   const dv = inp.dividend;
@@ -190,7 +209,14 @@ export function positionPlan(inp: PlanInput): PositionPlan {
     const d = new Date(Date.parse(firstLot) + (cfg.holdingDaysForLongTerm + 1) * 86_400_000).toISOString().slice(0, 10);
     timing.push({ date: d, label: "Long-term tax", detail: `From this date your first lot is held over a year: CGT on a profit drops to ${r2(cgtRate(400, "individual", cfg, sellDate) * 100)}% from ${r2(cgtRate(0, "individual", cfg, sellDate) * 100)}%.${inProfit && action !== "SELL" ? ` On today's profit that saves about ${f(Math.max(0, (sellCost(qty, p, cfg).net - h.costBasis) * (cgtRate(0, "individual", cfg, sellDate) - cgtRate(400, "individual", cfg, sellDate))))}; worth waiting for unless the stop is hit.` : ""}` });
   }
-  if (!invest && o?.reviewBy && o.reviewBy >= inp.today) timing.push({ date: o.reviewBy, label: "Review", detail: "The current setup should have moved toward its target by now. If not, the plan is re-checked (time stop)." });
+  if (original && anc!.holdDays && firstLot) {
+    // Count NEPSE trading days (Sunday to Thursday) from the purchase.
+    let d = new Date(Date.parse(firstLot)), n = 0;
+    while (n < anc!.holdDays) { d = new Date(d.getTime() + 86_400_000); const wd = d.getUTCDay(); if (wd !== 5 && wd !== 6) n++; }
+    const by = d.toISOString().slice(0, 10);
+    timing.push({ date: by, label: "Sell by", detail: `This was a ${anc!.holdDays}-session trade: if neither target is reached, sell around this date (time stop), as planned when you bought.` });
+  }
+  if (!weekly && !original && o?.reviewBy && o.reviewBy >= inp.today) timing.push({ date: o.reviewBy, label: "Review", detail: "The current setup should have moved toward its target by now. If not, the plan is re-checked (time stop)." });
   if (o?.waitFor && (action === "HOLD")) timing.push({ date: null, label: "Wait for", detail: `Before adding more: ${o.waitFor}.` });
   timing.sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
   return { ...base, action, tone, headline, steps, pnl, pnlPct, toBreakevenPct: toBe, stop, targets, addZone, scenarios, riskReward, timing };

@@ -194,6 +194,9 @@ const TX_TYPES: { key: string; label: string }[] = [
 
 function TxModal({ portfolioId, tx, holdings, onClose, onDone }: { portfolioId: number; tx?: Any; holdings: Any[]; onClose: () => void; onDone: () => void }) {
   const [f, setF] = useState({ symbol: tx?.symbol ?? "", type: tx?.type ?? "buy", date: tx?.date ?? todayNpt(), quantity: tx?.quantity ?? "", price: tx?.price ?? "", commission: tx?.commission ?? "", otherCharges: tx?.otherCharges ?? "", tax: tx?.tax ?? "", notes: tx?.notes ?? "" });
+  // The app's plan for this stock right now: shown while you add a purchase, and saved with it.
+  const recSym = !tx && f.type === "buy" && /^[A-Z0-9]{2,12}$/.test(String(f.symbol).trim().toUpperCase()) ? String(f.symbol).trim().toUpperCase() : null;
+  const recQ = useApi<Any>(recSym ? `/recommendation/${recSym}` : null, [recSym]);
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const feesApi = useApi<Any>("/settings/fees");
@@ -234,7 +237,7 @@ function TxModal({ portfolioId, tx, holdings, onClose, onDone }: { portfolioId: 
   const canSave = !!sym && (f.type === "cash_dividend" ? pr > 0 : q > 0 && pr >= 0) && !tooMany && !saving;
   const save = async () => {
     if (!canSave) return;
-    const body = { symbol: sym, type: f.type, date: f.date, quantity: f.type === "cash_dividend" ? 0 : +f.quantity, price: +f.price, commission: f.commission === "" ? null : +f.commission, otherCharges: f.otherCharges === "" ? null : +f.otherCharges, tax: f.tax === "" ? null : +f.tax, notes: f.notes || null };
+    const body = { symbol: sym, type: f.type, date: f.date, quantity: f.type === "cash_dividend" ? 0 : +f.quantity, price: +f.price, commission: f.commission === "" ? null : +f.commission, otherCharges: f.otherCharges === "" ? null : +f.otherCharges, tax: f.tax === "" ? null : +f.tax, notes: f.notes || null, ...(recSym && recQ.data && f.type === "buy" && f.date >= todayNpt() ? { plan: recQ.data } : {}) };
     setSaving(true);
     try { if (tx) await api(`/transactions/${tx.id}`, { method: "PUT", body }); else await api(`/portfolios/${portfolioId}/transactions`, { body }); onDone(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setSaving(false); }
   };
@@ -296,6 +299,16 @@ function TxModal({ portfolioId, tx, holdings, onClose, onDone }: { portfolioId: 
               {holdDays != null && holdDays <= cfg.holdingDaysForLongTerm && holdDays > cfg.holdingDaysForLongTerm - 60 && <div className="tiny warn" style={{ marginTop: 4 }}>In {cfg.holdingDaysForLongTerm + 1 - holdDays} days this holding becomes long term ({num(cgtRate(400, "individual", cfg, f.date) * 100, 2)}% tax instead of {num(sellCalc.rate * 100, 2)}%).</div>}
             </>}
           </>}
+        </div>}
+        {recSym && recQ.data?.items?.length > 0 && <div className="tx-rec">
+          <div className="tx-bill-head">The app's plan for {recSym} now<span className="tiny faint">saved with this purchase</span></div>
+          {recQ.data.items.map((it: Any) => <div key={it.source} className="small" style={{ marginTop: 4 }}>
+            <strong>{it.label}:</strong> <Badge tone={["BUY", "STRONG BUY", "ACCUMULATE"].includes(it.decision) ? "up" : ["SELL", "AVOID", "REDUCE"].includes(it.decision) ? "down" : "warn"}>{it.decision}</Badge>
+            {it.stop != null && <span className="tiny"> buy {num(it.entryLow)}-{num(it.entryHigh)}, <span className="down">stop {num(it.stop)}</span>, <span className="up">targets {num(it.t1)}{it.t2 ? ` / ${num(it.t2)}` : ""}</span>{it.holdDays ? `, hold up to ${it.holdDays} sessions` : ""}</span>}
+            {pr > 0 && it.stop != null && it.entryHigh != null && pr > it.entryHigh * 1.003 && <div className="tiny warn">Your price is above this buy range: the risk to the stop is {num(((pr - it.stop) / pr) * 100, 1)}%.</div>}
+            {it.note && it.source === "research" && <div className="tiny muted">{it.note}</div>}
+          </div>)}
+          <div className="tiny faint" style={{ marginTop: 4 }}>{recQ.data.items.some((it: Any) => it.stop != null && ["BUY", "CANDIDATE"].includes(it.decision)) ? "Your holding will follow this plan (stop, targets, sell-by date). You can switch to the portfolio's strategy later on the holding." : "There is no buy plan for this stock right now, so the holding will follow the portfolio's strategy. This is saved so you can see what the app said when you bought."}</div>
         </div>}
         {f.type === "cash_dividend" && pr > 0 && <div className="tx-bill">{line("Dividend tax (5%, withheld by the company)", rs(f.tax !== "" ? +f.tax : pr * cfg.dividendTax))}{line(<strong>Net received</strong>, <strong>{rs(pr - (f.tax !== "" ? +f.tax : pr * cfg.dividendTax))}</strong>, "tx-bill-total")}</div>}
 
@@ -574,7 +587,7 @@ function PlanView({ id, name, strategy, onStrategy, onAdd }: { id: number; name:
         {["SELL", "REVIEW", "REDUCE", "BOOK PROFIT", "ADD", "HOLD"].filter((k) => counts[k]).map((k) => <button key={k} className={`chip${filter === k ? " on" : ""}`} onClick={() => setFilter(filter === k ? "" : k)}><Badge tone={PLAN_TONE[k]}>{k}</Badge> {counts[k]}</button>)}
         <span className="tiny faint" style={{ marginLeft: "auto" }}>Signals from the close of {nptDate(signalsAsOf)}; prices live in market hours.</span>
       </div>
-      {shown.map((x: Any) => <PlanCard key={x.symbol} x={x} news={newsBy(x.symbol)} />)}
+      {shown.map((x: Any) => <PlanCard key={x.symbol} x={x} news={newsBy(x.symbol)} onMode={async (m) => { await api(`/portfolios/${id}/plan-mode`, { method: "PUT", body: { symbol: x.symbol, mode: m } }); await d.reload(); }} />)}
       {closed.length > 0 && <Card title="Stocks you sold: buy back?" sub="Whether the signal now supports buying again, and how the price moved since your sale" flush>
         <div className="plan-sold">{closed.map((c: Any) => (
           <Link key={c.symbol} to={`/stocks/${c.symbol}`} className="plan-sold-row">

@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS login_attempts (ip TEXT, at TEXT);
 CREATE TABLE IF NOT EXISTS portfolios (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'real', strategy TEXT, notes TEXT, paper_cash REAL, created_at TEXT);
 CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, portfolio_id INTEGER NOT NULL REFERENCES portfolios(id) ON DELETE CASCADE, symbol TEXT NOT NULL, type TEXT NOT NULL, date TEXT NOT NULL, quantity REAL NOT NULL, price REAL NOT NULL, commission REAL, other_charges REAL, tax REAL, notes TEXT, created_at TEXT);
 CREATE INDEX IF NOT EXISTS tx_portfolio ON transactions(portfolio_id, date);
+CREATE TABLE IF NOT EXISTS tx_plans (tx_id INTEGER PRIMARY KEY, plan TEXT NOT NULL, created_at TEXT);
 CREATE TABLE IF NOT EXISTS watchlists (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, created_at TEXT);
 CREATE TABLE IF NOT EXISTS watchlist_items (watchlist_id INTEGER NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE, symbol TEXT NOT NULL, note TEXT, target_price REAL, stop_price REAL, added_at TEXT, PRIMARY KEY (watchlist_id, symbol));
 CREATE TABLE IF NOT EXISTS alerts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, symbol TEXT, type TEXT NOT NULL, params TEXT, note TEXT, active INTEGER DEFAULT 1, repeat INTEGER DEFAULT 0, last_triggered_at TEXT, last_checked_at TEXT, created_at TEXT);

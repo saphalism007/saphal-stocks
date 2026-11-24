@@ -5,12 +5,14 @@
  * app reads to know whether it is the latest. The code is the first 6 characters of the
  * release's git commit, the same code the deploy script prints.
  */
-export const VERSION = "0.31.0";
-export const RELEASED = "2026-11-22";
+export const VERSION = "0.32.0";
+export const RELEASED = "2026-11-24";
 export const NOTES = [
-  "Trading Opportunities: new Buy and hold 1-2 weeks list. Every liquid stock is scored for a short move (trend, momentum, volume, money flow, breakout or pullback, strong close; pumps and illiquid stocks are excluded), then checked against the full research: business, reports, news, smart money and manipulation, market and economy. Stocks the research is against are listed separately with the reason.",
-  "Each pick shows the buy range, stop, two targets (sell half at the first), a 10-session time stop, position size for 1% risk, whether today's price is still in the buy range, and the research and smart money read. Tap for the company page and trade plan.",
-  "The same rules are replayed over the past year exactly as you would trade them, after all charges and tax, for the whole year, the last 60 sessions and each setup type. The list calls itself a Buy list only when that record is positive; until then it is labelled Candidates only, with a clear warning.",
+  "Plan history on every holding: the plan that was recommended (date, source, buy range, stop, targets), what it meant at your purchase price (inside or outside the range, risk to the stop, reward to target 1), the plan you follow now, and today's fresh chart reading, side by side, with a plain explanation of anything that changed and why.",
+  "Holdings now follow the recommendation they were bought on by default: its stop holds and can only be raised to lock in profit, never lowered, and its targets stay. 1-2 week buys get a sell-by date in trading days. Switch any holding to the portfolio's strategy (for example long-term stops) with one tap, and back.",
+  "Adding a purchase shows the app's plan for that stock at that moment (trade signal, 1-2 week list, research verdict) and saves it with the purchase, so it can always be compared later. It syncs to all your devices.",
+  "Every day's buy recommendations are now logged with their levels in the cloud, so older purchases are matched to what was recommended at the time.",
+  "Fixed: a holding bought on a trade signal in a long-term portfolio silently switched to a much wider long-term stop. It now keeps the original stop unless you choose otherwise.",
 ];
 
 declare const __BUILD__: string;

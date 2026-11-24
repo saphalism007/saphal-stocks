@@ -72,7 +72,7 @@ export default function StockDetail() {
         </div>
       </div>
       {msg && <Notice>{msg}</Notice>}
-      {(pos.data ?? []).map((x: Any) => x.plan ? <div key={x.portfolio.id}><div className="tiny muted" style={{ margin: "0 0 4px" }}>Your position in "{x.portfolio.name}"</div><PlanCard x={x.plan} news={x.news} compactHead /></div>
+      {(pos.data ?? []).map((x: Any) => x.plan ? <div key={x.portfolio.id}><div className="tiny muted" style={{ margin: "0 0 4px" }}>Your position in "{x.portfolio.name}"</div><PlanCard x={x.plan} news={x.news} compactHead onMode={async (m) => { await api(`/portfolios/${x.portfolio.id}/plan-mode`, { method: "PUT", body: { symbol: sym, mode: m } }); pos.reload(); }} /></div>
         : x.sold ? <Notice key={x.portfolio.id}><strong>You sold {sym}</strong> ("{x.portfolio.name}"): {x.sold.headline}</Notice> : null)}
       <ResearchCard symbol={sym} compact={new URLSearchParams(location.search).get("from") !== "research"} />
       {d.dataFreshness?.provisional && <Notice tone="warn">Today's price bar is provisional: the market is open or the official close hasn't been loaded yet, so today's indicators, levels and setups can still change.</Notice>}

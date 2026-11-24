@@ -1103,3 +1103,11 @@ a .sym:hover, button .sym:hover, tr.click .sym:hover { text-decoration: none; }
 .swing-plan { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .swing-plan > div { display: flex; flex-direction: column; } .swing-plan span { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; } .swing-plan strong { font-size: 13px; font-variant-numeric: tabular-nums; } .swing-plan em { font-style: normal; font-size: 10.5px; color: var(--faint); }
 .swing-why { margin: 0; padding-left: 16px; line-height: 1.4; }
+/* Plan history on each holding */
+.plan-hist { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.plan-hist-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.plan-hist-t { min-width: 520px; font-size: 12.5px; }
+.plan-hist-t td, .plan-hist-t th { padding: 6px 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.plan-hist-t td:first-child { color: var(--text-3); }
+.plan-hist-t td:nth-child(4), .plan-hist-t th:nth-child(4) { background: var(--accent-soft, rgba(127,127,127,0.08)); }
+.tx-rec { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }

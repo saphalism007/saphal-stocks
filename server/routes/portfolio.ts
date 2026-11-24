@@ -8,6 +8,7 @@ import { ALERT_TYPES, evaluateAlerts, dailyBriefing } from "../lib/alerts.ts";
 import { buyCost, sellCost } from "../../shared/costs.ts";
 import { computeHoldings, portfolioTimeline, nepaliFiscalYear } from "../../shared/portfolio.ts";
 import { getSetting, setSetting } from "../db.ts";
+import { recommendationNow } from "../lib/recommend.ts";
 
 export const portfolioRouter = Router();
 const SYM = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{1,12}$/);
@@ -80,6 +81,7 @@ const txBody = z.object({
   symbol: SYM, type: z.enum(["buy", "sell", "ipo", "right", "bonus", "cash_dividend", "merger_in", "merger_out"]), date: DATE,
   quantity: z.number().min(0).max(1e9), price: z.number().min(0).max(1e9),
   commission: z.number().min(0).nullable().optional(), otherCharges: z.number().min(0).nullable().optional(), tax: z.number().min(0).nullable().optional(), notes: z.string().max(1000).nullable().optional(),
+  plan: z.object({ at: z.string(), asOf: z.string().nullable(), items: z.array(z.record(z.string(), z.unknown())).max(5) }).nullable().optional(),
 });
 
 portfolioRouter.post("/portfolios/:id/transactions", (req, res) => {
@@ -93,6 +95,11 @@ portfolioRouter.post("/portfolios/:id/transactions", (req, res) => {
   if (!get("SELECT 1 FROM companies WHERE symbol = ?", t.symbol)) return res.status(400).json({ error: `Unknown symbol ${t.symbol}.` });
   const id = Number(run("INSERT INTO transactions (portfolio_id, symbol, type, date, quantity, price, commission, other_charges, tax, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     p.id, t.symbol, t.type, t.date, t.quantity, t.price, t.commission ?? null, t.otherCharges ?? null, t.tax ?? null, t.notes ?? null, nowIso()).lastInsertRowid);
+  // Keep the app's plan at the moment of purchase, so it can always be compared with today's plan.
+  // A purchase entered later for an old date gets no "now" snapshot (it would not be what you saw then); the
+  // recommendation log for that date is used instead.
+  const recent = Date.parse(t.date) >= Date.now() + 345 * 60_000 - 3 * 86_400_000;
+  if (t.type === "buy" && (t.plan || recent)) { const snap = t.plan ?? recommendationNow(t.symbol); run("INSERT OR REPLACE INTO tx_plans (tx_id, plan, created_at) VALUES (?, ?, ?)", id, JSON.stringify(snap), nowIso()); }
   res.json({ id });
 });
 
@@ -112,6 +119,18 @@ portfolioRouter.put("/transactions/:id", (req, res) => {
 portfolioRouter.delete("/transactions/:id", (req, res) => {
   const t = ownTx(req, Number(req.params.id));
   run("DELETE FROM transactions WHERE id = ?", t.id);
+  try { run("DELETE FROM tx_plans WHERE tx_id = ?", t.id); } catch { /* older database */ }
+  res.json({ ok: true });
+});
+
+// The app's recommendation for a stock right now (shown when you add a purchase and saved with it).
+portfolioRouter.get("/recommendation/:symbol", (req, res) => res.json(recommendationNow(String(req.params.symbol))));
+
+// Which plan a holding follows: the original recommendation it was bought on, or the portfolio's strategy.
+portfolioRouter.put("/portfolios/:id/plan-mode", (req, res) => {
+  const p = ownPortfolio(req, Number(req.params.id));
+  const b = z.object({ symbol: SYM, mode: z.enum(["original", "portfolio"]) }).parse(req.body);
+  setSetting(`planMode:${p.id}:${b.symbol}`, b.mode);
   res.json({ ok: true });
 });
 
